@@ -1,0 +1,35 @@
+# FastAPI and web framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Database
+sqlalchemy==2.0.23
+
+# Pydantic for data validation  
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Document parsing libraries
+PyMuPDF>=1.23.19        # PDF parsing (primary) - flexible version
+python-docx==1.1.0      # DOCX parsing  
+beautifulsoup4==4.12.2  # HTML parsing
+chardet==5.2.0          # Character encoding detection
+pypdf2==3.0.1           # Alternative PDF parser
+pdfplumber==0.10.3      # Alternative PDF parser with better text extraction
+pymupdf4llm             # Enhanced PyMuPDF for better text extraction - latest compatible
+
+# Keyword extraction libraries
+keybert==0.9.0          # KeyBERT keyword extraction (latest)
+spacy==3.7.2            # spaCy for NER
+scikit-learn==1.3.2     # Required by KeyBERT
+sentence-transformers==5.0.0  # Required by KeyBERT (latest)
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.2
+
+# Utility
+python-dateutil==2.8.2
+requests==2.31.0           # HTTP requests for LLM integrations

@@ -1,0 +1,414 @@
+# 📄 CLAUDE.md - DocExtract 시스템
+
+## 프로젝트 개요 ✅ 완성됨 (2025.08.07)
+이 프로젝트는 문서를 프로젝트 단위로 업로드하고 키워드를 추출하여 관리하는 **완전한 풀스택 시스템**입니다. 
+
+### 핵심 기능 (최종 업데이트 2025.08.07)
+- **다중 파일 형식 지원**: PDF, DOCX, HTML, Markdown, TXT, ZIP 자동 추출
+- **다중 키워드 추출기**: KeyBERT, spaCy NER, LLM(Ollama), KoNLPy
+- **🐛 고급 디버그 로깅 시스템**: 모든 추출 과정의 중간 결과물을 상세 기록 및 분석 **NEW!**
+- **실시간 LLM 연동**: Ollama 서버와 완전 통합, 동적 모델 로딩
+- **spaCy 모델 자동 관리**: 모델 자동 다운로드, 설치 상태 확인, 테스트 기능
+- **고급 키워드 관리**: 키워드 중심/문서 중심 뷰, 추출기별 필터링
+- **설정 관리 UI**: 탭 기반 추출기별 설정 관리, 드롭다운 모델 선택
+- **프로젝트 관리**: 생성, 수정, 삭제, 파일 업로드/삭제
+- **지능형 파싱 관리**: 업로드 시 파싱 비활성화, 키워드 추출 시 자동 파싱
+- **추출기별 키워드 관리**: 재분석 시 기존 키워드 자동 삭제 후 재추출
+- **실시간 상태 표시**: 파싱 상태, 연결 테스트, 오류 메시지
+- **정확한 진행률 추적**: 파일 수 × 추출기 수 기반 상세 진행 표시
+- **실제 KeyBERT 모델 로딩**: 14개의 다양한 sentence-transformer 모델 지원
+- **KeyBERT 모델 다운로드 관리**: 자동 다운로드, 진행률 표시, 캐시 관리
+- **상세한 추출 로깅**: 모든 추출 단계와 결과를 서버 로그에 기록
+- **고급 PDF 뷰어**: PDF.js 기반 뷰어로 키워드 하이라이팅 및 페이지 네비게이션
+- **리사이징 가능한 UI**: 사이드바 및 키워드 패널 크기 조절 기능
+- **전체 키워드 통계**: 모든 프로젝트의 키워드 통합 분석
+
+## 기술 스택
+### 백엔드
+- Python 3.11+ with Conda Environment
+- FastAPI (완전한 RESTful API)
+- SQLite with SQLAlchemy ORM
+- PyMuPDF, python-docx, BeautifulSoup4 (문서 파싱)
+- KeyBERT, spaCy, sentence-transformers (AI 키워드 추출)
+
+### 프론트엔드  
+- React 18 with TypeScript
+- Tailwind CSS
+- Axios (API 통신)
+
+### 배포 및 실행
+- Conda 환경 기반 백엔드 (포트 8000)
+- React 개발 서버 (포트 3001)
+- 자동화된 스크립트 (scripts/ 디렉토리)
+
+## 시스템 아키텍처 (완성됨)
+
+### API 엔드포인트
+#### 프로젝트 관리
+- `GET /projects/` - 프로젝트 목록 조회
+- `POST /projects/` - 프로젝트 생성
+- `PUT /projects/{id}` - 프로젝트 이름 수정
+- `DELETE /projects/{id}` - 프로젝트 삭제
+- `GET /projects/{id}/files` - 프로젝트 파일 목록
+- `POST /projects/{id}/upload` - 단일 파일 업로드
+- `POST /projects/{id}/upload_bulk` - 다중 파일 업로드
+- `POST /projects/{id}/extract_keywords/` - 키워드 추출
+
+#### 키워드 관리
+- `GET /projects/{id}/keywords/` - 프로젝트 키워드 조회
+- `GET /files/{id}/keywords/` - 파일별 키워드 조회
+
+#### 추출기 관리
+- `GET /extractors/available` - 사용 가능한 추출기 목록
+- `GET /llm/ollama/models` - Ollama 모델 목록
+- `POST /llm/test_connection` - LLM 연결 테스트
+
+#### 설정 관리
+- `GET /configs/` - 전체 설정 목록
+- `GET /configs/{key}` - 단일 설정 조회
+- `PUT /configs/{key}` - 설정 값 수정
+- `GET /configs/keybert/models` - KeyBERT 모델 목록 조회
+- `POST /configs/keybert/models/{model_name}/download` - KeyBERT 모델 다운로드
+- `GET /configs/keybert/models/download/progress/{progress_key}` - 다운로드 진행률 스트리밍
+- `DELETE /configs/keybert/models/{model_name}/cache` - 모델 캐시 삭제
+- `GET /configs/keybert/models/{model_name}/status` - 모델 캐시 상태 확인
+
+### 프론트엔드 컴포넌트
+- `App.tsx` - 메인 애플리케이션 (리사이저 기능 포함, 완성됨)
+- `ProjectForm.tsx` - 프로젝트 생성/관리 (완성됨)
+- `FileUploader.tsx` - 파일 업로드 (완성됨)
+- `ExtractorTrigger.tsx` - 키워드 추출 실행 (완성됨)
+- `KeywordResultViewer.tsx` - 추출 결과 표시 (완성됨)
+- `SettingsPanel.tsx` - 시스템 설정 관리 (탭 기반 UI, 완성됨)
+- `KeywordManagement.tsx` - 키워드 관리 UI (리사이징 가능한 패널, 완성됨)
+- `AdvancedPDFViewer.tsx` - PDF 문서 뷰어 (키워드 하이라이팅 기능, 완성됨)
+- `GlobalKeywordManagement.tsx` - 전체 키워드 통계 및 관리 (완성됨)
+- `DocumentViewerSimple.tsx` - 문서 뷰어 (다중 형식 지원, 완성됨)
+
+## 데이터베이스 스키마 (완성됨)
+- **Project**: 프로젝트 관리 (id, name, created_at)
+- **File**: 파일 관리 (id, project_id, filename, filepath, size, content, parse_status, parse_error)
+- **KeywordOccurrence**: 키워드 추출 결과 (id, file_id, keyword, extractor_name, score, category, position, context)
+- **Config**: 시스템 설정 (key, value, description, updated_at)
+
+## 디렉토리 구조
+- main.py: 엔트리 포인트
+- db/: 데이터베이스 설정 및 모델 정의
+- routers/, services/: 라우팅 및 비즈니스 로직 확장 예정
+
+## 테스트 기준 및 도구
+- 테스트 프레임워크: `pytest`
+- FastAPI 내장 `TestClient` 사용
+- DB는 테스트 시 `sqlite:///:memory:` 사용
+- 테스트 파일은 `tests/` 디렉토리에 위치
+- 테스트는 `pytest`로 실행 가능해야 함
+
+## 키워드 추출 방식 <!-- SPEC: keyword_extraction --> ✅ 완성됨
+- 기본 지원 추출기: `KeyBERT`, `spaCy NER`, `KoNLPy`, `LLM`
+- 모든 추출기는 `KeywordExtractor` 인터페이스를 구현해야 하며, 결과에 사용된 추출기의 이름을 명시해야 함
+- **LLM 추출기의 경우**, OpenAI 또는 Ollama 등 다양한 LLM 서버와의 연동을 지원
+- **프론트엔드에서 추출기 선택 가능**: 사용자는 한 가지 이상을 선택하여 키워드 추출 요청 가능
+- 추출 방식의 기본값은 `Config` 테이블의 `DEFAULT_EXTRACTORS`에서 설정
+- 선택하는 부분은 가용 목록 중에서 선택하는 방식으로 설정
+- **KeyBERT 모델 지원 (완성됨)**:
+  - 14개의 sentence-transformer 모델 지원
+  - 다국어 모델 5개: all-MiniLM-L6-v2 (추천), paraphrase-multilingual-MiniLM-L12-v2, paraphrase-multilingual-mpnet-base-v2, distiluse-base-multilingual-cased, LaBSE
+  - 한국어 최적화 모델 4개: jhgan/ko-sroberta-multitask (추천), jhgan/ko-sbert-nli, BM-K/KoSimCSE-roberta-multitask, snunlp/KR-SBERT-V40K-klueNLI-augSTS
+  - 영어 전용 모델 5개: all-mpnet-base-v2, all-distilroberta-v1, all-roberta-large-v1, paraphrase-albert-small-v2, msmarco-distilbert-base-v4
+  - 설정에서 드롭다운으로 선택 가능
+- **진행률 추적 개선 (완성됨)**:
+  - 파일 수 × 추출기 수로 정확한 진행률 계산
+  - 실시간 추출 로그 표시
+- **KeyBERT 모델 다운로드 관리 (신규 완성됨)**:
+  - 자동 모델 다운로드 및 캐시 관리
+  - 실시간 다운로드 진행률 표시 (Server-Sent Events)
+  - 모델 상태 확인, 캐시 삭제, 재로드 기능
+  - 14개 모델별 상세 정보 및 크기 표시
+- **상세한 추출 로깅 (신규 완성됨)**:
+  - 모든 KeyBERT 추출 단계 로깅 (모델 로드, 설정, 원시 결과, 위치 분석)
+  - 추출기별 키워드 결과와 점수 로깅
+  - 서버 로그와 프론트엔드 진행률 동기화
+
+## 설정 관리 개발 기준 <!-- SPEC: config_management --> ✅ 완성됨
+- 설정 저장: SQLite 내 `Config` 테이블
+- 프론트엔드에서 읽고 수정 가능한 API 제공:
+  - `GET /configs`: 전체 설정 목록 조회
+  - `GET /configs/{key}`: 설정 키 단건 조회
+  - `PUT /configs/{key}`: 설정 키의 값 갱신
+- **주요 설정 키 (완성됨)**:
+  - **LLM 설정**:
+    - `OLLAMA_BASE_URL`: Ollama 서버의 base URL
+    - `OLLAMA_MODEL`: 사용 모델명 (동적 로딩으로 드롭다운 선택)
+    - `OLLAMA_TIMEOUT`: Ollama 요청 타임아웃
+    - `ENABLE_LLM_EXTRACTION`: LLM 추출 기능 활성화 여부
+  - **KeyBERT 설정**:
+    - `KeyBERT_MODEL`: KeyBERT 모델 선택 (14개 모델 중 드롭다운 선택)
+    - `KeyBERT_MMR`: MMR (Maximal Marginal Relevance) 사용 여부
+    - `extractor.keybert.use_maxsum`: Max Sum Similarity 사용 여부
+    - `extractor.keybert.diversity`: MMR 다양성 파라미터 (0.0-1.0)
+    - `extractor.keybert.keyphrase_ngram_range`: N-gram 범위 [최소, 최대]
+    - `extractor.keybert.stop_words`: 불용어 언어 설정
+    - `extractor.keybert.max_keywords`: 최대 키워드 개수
+  - **기타 설정**:
+    - `DEFAULT_EXTRACTORS`: 기본 추출기 배열
+    - `ALLOWED_EXTENSIONS`: 허용 파일 확장자
+- **설정 관리 UI (완성됨)**:
+  - 탭 기반 추출기별 설정 관리 (KeyBERT, NER, LLM, KoNLPy)
+  - 모든 설정을 웹에서 관리 가능
+  - Ollama 모델은 서버에서 동적으로 목록을 가져와 드롭다운으로 선택
+  - 연결 테스트 기능 포함
+  - 실시간 상태 피드백
+  - 저장 버튼 방식의 설정 관리 (자동 저장 대신 명시적 저장)
+  - 변경사항 표시 및 취소 기능
+  - 색상 코딩된 탭과 설정 개수 표시
+- **KeyBERT 모델 관리 UI (신규 완성됨)**:
+  - 실시간 다운로드 진행률 바 표시
+  - 모델 상태 확인 (다운로드됨/필요함)
+  - 캐시 삭제 및 재로드 버튼
+  - 모델 크기 정보 표시
+  - EventSource를 통한 실시간 진행률 업데이트
+
+## 프론트엔드 요구사항 <!-- SPEC: frontend_spec --> ** 수정됨 2025.08.05 **
+- 목적: 완전한 문서 키워드 추출 관리 시스템
+- 기술 스택: React + TypeScript + Tailwind + Axios
+- **완성된 사용 흐름**:
+  1. ✅ 프로젝트 생성, 수정, 삭제
+  2. ✅ 다중 파일 업로드 (drag & drop 지원)
+  3. ✅ 파일별 파싱 상태 확인 및 관리
+  4. ✅ 다중 추출기 선택 및 키워드 추출
+  5. ✅ 실시간 추출 결과 표시
+  6. ✅ 고급 키워드 관리 (키워드 중심/문서 중심 뷰)
+  7. ✅ 시스템 설정 관리 (동적 모델 선택 포함)
+  8. 문서에 대한 뷰어 기능
+
+- **완성된 컴포넌트**:
+  - `App.tsx`: 메인 애플리케이션 라우팅 및 상태 관리
+  - `ProjectForm.tsx`: 프로젝트 생성 및 관리
+  - `FileUploader.tsx`: 파일 업로드 (단일/다중 지원)
+  - `ExtractorTrigger.tsx`: 추출기 선택 및 실행
+  - `KeywordResultViewer.tsx`: 추출 결과 표시
+  - `SettingsPanel.tsx`: 시스템 설정 관리 (탭 기반 UI, 드롭다운 모델 선택)
+  - `KeywordManagement.tsx`: 키워드 관리 UI (키워드/문서 중심 뷰)
+
+- **고급 기능 (완성됨)**:
+  - 키워드 중심 뷰: 키워드별로 발견된 문서와 위치 정보 표시
+  - 문서 중심 뷰: 문서별로 추출된 키워드 목록 표시
+  - 추출기별 필터링 및 색상 구분
+  - 실시간 검색 및 필터링
+  - 추출기 정보 및 점수 표시
+
+## 배포 가이드 (완성됨)
+
+### 실행 스크립트
+- `scripts/start_backend.sh`: 백엔드 실행 (Conda 환경, 포트 8000)
+- `scripts/start_frontend.sh`: 프론트엔드 실행 (포트 3001)
+- `scripts/start_all.sh`: 백엔드와 프론트엔드 동시 실행
+
+### 실행 방법
+```bash
+# 백엔드만 실행
+./scripts/start_backend.sh
+
+# 프론트엔드만 실행  
+./scripts/start_frontend.sh
+
+# 전체 시스템 실행
+./scripts/start_all.sh
+```
+
+### 환경 요구사항
+- Conda (기본 환경명: DocExtract)
+- Node.js (React 개발 서버용)
+- Python 3.11+ (Conda 환경 내)
+- Ollama 서버 (LLM 기능 사용 시)
+
+## KeyBERT 모델 다운로드 및 진행률 관리 <!-- SPEC: keybert_model_management --> ✅ 신규 완성됨
+
+### 기능 개요
+- **자동 모델 다운로드**: 설정에서 모델 변경 시 필요한 경우 자동 다운로드
+- **실시간 진행률 표시**: Server-Sent Events (SSE)를 통한 실시간 다운로드 진행률
+- **캐시 관리**: 모델 상태 확인, 캐시 삭제, 재로드 기능
+- **호환성 확보**: huggingface_hub 5.0.0과 sentence-transformers 5.0.0 호환
+
+### 백엔드 구현
+- **Progress Tracking**: 전역 `download_progress` 딕셔너리로 실시간 상태 관리
+- **SSE 스트리밍**: `/configs/keybert/models/download/progress/{progress_key}` 엔드포인트
+- **캐시 감지**: 새로운 huggingface hub 캐시 위치 (`~/.cache/huggingface/hub/`) 지원
+- **상세 로깅**: 모든 다운로드 단계별 서버 로그 기록
+
+### 프론트엔드 구현
+- **Progress Bar**: Tailwind CSS 기반 애니메이션 진행률 바
+- **EventSource**: 실시간 진행률 수신 및 상태 업데이트
+- **모델 관리 UI**: 상태 확인, 캐시 삭제, 재로드 버튼
+- **사용자 피드백**: 다운로드 완료 시 크기 정보 및 소요 시간 표시
+
+### 진행률 단계
+1. **0% - 시작**: "다운로드 준비 중..."
+2. **10% - 캐시 확인**: "캐시 상태 확인 중..."
+3. **20% - 다운로드**: "모델 다운로드 중... (시간이 걸릴 수 있습니다)"
+4. **50% - 초기화**: "모델 초기화 중..."
+5. **80% - 검증**: "모델 검증 중..."
+6. **90% - 크기 계산**: "캐시 크기 계산 중..."
+7. **100% - 완료**: "완료! (소요시간: X초, 크기: XMB)"
+
+## KeyBERT 추출 로깅 시스템 <!-- SPEC: keybert_extraction_logging --> ✅ 신규 완성됨
+
+### 로깅 범위
+- **모델 로드**: 모델 변경 감지, 로드 시작/완료, 실패 처리
+- **추출 설정**: 알고리즘(MMR/MaxSum/CosineSim), 매개변수, 다양성 설정
+- **원시 결과**: KeyBERT가 반환한 키워드와 점수 목록
+- **위치 분석**: 텍스트에서 찾은 키워드 위치와 컨텍스트
+- **통계 정보**: 총 키워드 수, 위치 있는 키워드와 추상 키워드 분류
+
+### 로깅 예시
+```
+🔍 KeyBERT 키워드 추출 시작 - 텍스트 길이: 1234 문자
+📥 KeyBERT 모델 'all-MiniLM-L6-v2' 로드 시작...
+✅ KeyBERT 모델 'all-MiniLM-L6-v2' 로드 성공
+⚙️ KeyBERT 설정 - 알고리즘: MMR, 최대키워드: 10, n-gram: (1, 2), 다양성: 0.5
+🧠 MMR 알고리즘으로 키워드 추출 중 (다양성: 0.5)...
+🔍 KeyBERT 원시 결과 (8개): 인공지능(0.856), 머신러닝(0.743), 딥러닝(0.621)
+📍 '인공지능' (점수: 0.856) - 위치: 15-19, 컨텍스트: '현대 기술에서 인공지능과...'
+📋 KeyBERT 키워드 처리 완료 - 총 8개 (위치있음: 6, 추상: 2)
+✅ KeyBERT 추출 완료 - 8개 키워드, 상위: 인공지능(0.856), 머신러닝(0.743)
+```
+
+## 고급 디버그 로깅 시스템 <!-- SPEC: advanced_debug_logging --> 🐛 신규 완성됨 (2025.08.07)
+
+### 시스템 개요
+키워드 추출 과정의 모든 중간 결과물을 상세히 기록하고 분석할 수 있는 포괄적인 디버깅 시스템입니다.
+
+### 주요 기능
+- **🔄 단계별 추적**: 추출 시작 → 전처리 → 후보생성 → 임베딩 → 유사도계산 → 알고리즘적용 → 위치분석 → 최종결과
+- **📁 자동 파일 저장**: 모든 중간 결과물을 JSON/텍스트 파일로 자동 저장
+- **📊 HTML 리포트**: 시각적 요약 리포트 자동 생성
+- **🎯 추출기별 지원**: KeyBERT, spaCy NER, LLM(Ollama), KoNLPy 모든 추출기 완전 지원
+- **⚙️ 환경변수 제어**: `ENABLE_KEYWORD_DEBUG=true`로 간편 활성화
+
+### 수집되는 디버그 정보
+
+#### 1. 추출 시작 (`start_extraction`)
+- 파일 정보 (이름, 크기, ID)
+- 텍스트 통계 (길이, 단어수, 문장수, 다양성)
+- 추출기 설정 및 매개변수
+
+#### 2. 전처리 (`log_preprocessing`)
+- 원본 텍스트 vs 정제된 텍스트 비교
+- 전처리 단계 기록 (`clean_text`, `normalize_unicode` 등)
+- 텍스트 변화율 및 통계
+
+#### 3. 후보 생성 (`log_candidate_generation`)
+- 키워드 후보 목록 (상위 50개)
+- 생성 방법 (`CountVectorizer_ngram`, `spacy_NER`, `konlpy_nouns` 등)
+- 후보 통계 (총 개수, 고유 개수, 평균 길이, 단일어/복합어 비율)
+
+#### 4. 임베딩 계산 (`log_embeddings`)
+- 사용된 모델 정보
+- 문서 임베딩 및 후보 임베딩 차원
+- 임베딩 통계 (평균, 표준편차, 노름)
+
+#### 5. 유사도 계산 (`log_similarity_calculation`)
+- 코사인 유사도 또는 빈도 기반 점수 배열
+- 유사도 분포 통계 (최소/최대/평균/중앙값)
+- 상위/하위 결과 (Top 10, Bottom 5)
+
+#### 6. 알고리즘 적용 (`log_algorithm_application`)
+- 사용된 알고리즘 (MMR, Max Sum, Frequency-based)
+- 알고리즘 매개변수 (diversity, nr_candidates 등)
+- 입력 후보 vs 최종 선택된 키워드
+- 제외된 키워드 목록 및 사유
+
+#### 7. 위치 분석 (`log_position_analysis`)
+- 각 키워드의 텍스트 내 위치 정보
+- 페이지/줄/컬럼 번호 매핑
+- 키워드 주변 컨텍스트
+- 위치 커버리지 통계
+
+#### 8. 최종 결과 (`log_final_results`)
+- 추출된 최종 키워드 목록 (점수, 카테고리, 위치)
+- 처리 성능 통계 (추출 시간, 초당 키워드 수)
+- 평균 점수 및 분포
+
+### 저장되는 파일 구조
+```
+debug_logs/
+└── 20250807_154520_a1b2c3d4/          # 세션 디렉토리
+    ├── debug_session.json              # 전체 세션 데이터
+    ├── input_text.txt                  # 입력 텍스트
+    ├── keybert_preprocessed.txt         # 전처리된 텍스트
+    ├── keybert_candidates.json         # 키워드 후보
+    ├── keybert_similarities.json       # 유사도 계산 결과
+    ├── keybert_MMR_results.json        # 알고리즘 적용 결과
+    ├── keybert_positions.json          # 위치 분석 결과
+    ├── keybert_summary.json            # 추출기별 요약
+    ├── spacy_ner_candidates.json       # spaCy NER 후보
+    ├── llm_summary.json                # LLM 요약
+    ├── konlpy_similarities.json        # KoNLPy 유사도
+    └── summary_report.html             # 시각적 요약 리포트
+```
+
+### 활용 방법
+
+#### 디버그 모드 활성화
+```bash
+# 환경변수 설정
+export ENABLE_KEYWORD_DEBUG=true
+
+# 키워드 추출 실행 시 자동으로 debug_logs/ 에 저장됨
+```
+
+#### HTML 리포트 확인
+```bash
+# 생성된 HTML 리포트 열기
+open debug_logs/YYYYMMDD_HHMMSS_SESSION/summary_report.html
+```
+
+#### 개별 파일 분석
+- `debug_session.json`: 전체 세션의 모든 단계별 데이터
+- `*_candidates.json`: 각 추출기별 키워드 후보 분석
+- `*_similarities.json`: 유사도/점수 계산 상세 결과
+- `*_positions.json`: 키워드 위치 및 컨텍스트 정보
+
+### 성능 영향
+- 디버그 모드 비활성화 시: **성능 영향 없음** (모든 로깅 건너뜀)
+- 디버그 모드 활성화 시: **약 10-20% 추가 처리 시간** (파일 I/O 포함)
+
+### 보안 및 개인정보
+- 디버그 파일은 **로컬에만 저장**됨 (외부 전송 없음)
+- 텍스트 내용이 포함되므로 **민감한 문서 처리 시 주의**
+- 필요 시 디버그 파일 자동 삭제 기능 구현 가능
+
+## 탭 기반 설정 관리 시스템 <!-- SPEC: tab_based_settings --> ✅ 신규 완성됨 (2025.08.04)
+
+### 기능 개요
+- **추출기별 설정 분리**: 각 추출기(KeyBERT, NER, LLM, KoNLPy)별로 독립적인 탭 제공
+- **색상 코딩**: 탭별 고유 색상으로 시각적 구분 (KeyBERT: 파란색, NER: 초록색, LLM: 보라색, KoNLPy: 주황색)
+- **설정 개수 표시**: 각 탭에 해당하는 설정 항목 개수를 뱃지로 표시
+- **활성화 상태 표시**: 각 추출기의 활성화/비활성화 상태를 탭 내용에서 확인 가능
+
+### UI 구성 요소
+1. **탭 헤더**: 
+   - 클릭 가능한 탭 버튼 (KeyBERT, NER, LLM, KoNLPy)
+   - 활성 탭은 색상 강조 및 하단 테두리 표시
+   - 설정 개수 뱃지 (예: "KeyBERT 5", "LLM 8")
+
+2. **탭 내용**:
+   - 선택된 탭에 해당하는 설정만 표시
+   - 추출기 활성화 상태 표시 (활성화됨/비활성화됨)
+   - 색상 인디케이터로 추출기 구분
+
+3. **기존 기능 유지**:
+   - 기본 추출기 설정, Ollama 설정, 파일 설정, 앱 설정은 별도 섹션으로 유지
+   - 모든 기존 기능(드롭다운, 연결 테스트, 진행률 표시 등) 완전 호환
+
+### 기술 구현
+- **동적 CSS 클래스**: 함수 기반 스타일 헬퍼로 Tailwind CSS 호환성 확보
+- **상태 관리**: `activeExtractorTab` 상태로 현재 선택된 탭 추적
+- **조건부 렌더링**: 선택된 탭에 따라 해당 설정만 표시
+
+## 지원 파일 포맷 <!-- SPEC: supported_file_formats -->
+- `.txt`, `.pdf`, `.docx`, `.html`, `.md` 포맷 지원
+- 업로드 시 포맷에 따라 자동 파서 선택
+- 내부적으로 모든 문서를 plain text로 변환 후 키워드 추출기(`KeywordExtractor`)에 전달
+- 파서는 `services/parser/` 모듈 내 정의
+- 허용 확장자 설정은 `Config` 테이블의 `ALLOWED_EXTENSIONS` 항목으로 관리

@@ -1,0 +1,65 @@
+import logging
+import sys
+from datetime import datetime
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from db.db import Base, engine, SessionLocal
+from routers import projects, files, configs, extraction, admin, spacy_models
+from response_models import StatusResponse
+from services.config_service import ConfigService
+
+# 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('backend.log', encoding='utf-8'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+logger = logging.getLogger(__name__)
+
+app = FastAPI(
+    title="DocExtract API",
+    description="문서 업로드 및 키워드 추출 API 서버",
+    version="1.0.0"
+)
+
+# CORS 설정
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3001", "http://127.0.0.1:3001", "http://localhost:8080", "http://127.0.0.1:8080"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# DB 테이블 생성
+Base.metadata.create_all(bind=engine)
+logger.info("데이터베이스 테이블 생성 완료")
+
+# 기본 설정 값 초기화 및 캐시 초기화
+from services.config_cache import config_cache
+
+db = SessionLocal()
+try:
+    ConfigService.initialize_default_configs(db)
+    config_cache.initialize(db)
+    logger.info("기본 설정 초기화 및 캐시 초기화 완료")
+finally:
+    db.close()
+
+# 라우터 등록
+app.include_router(projects.router)
+app.include_router(files.router)
+app.include_router(configs.router)
+app.include_router(extraction.router)
+app.include_router(admin.router)
+app.include_router(spacy_models.router)
+logger.info("모든 라우터 등록 완료")
+
+@app.get("/", response_model=StatusResponse)
+def read_root():
+    logger.info("루트 엔드포인트 접근")
+    return {"message": "Keyword Extraction Server with SQLite is running."}
