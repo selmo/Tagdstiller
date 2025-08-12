@@ -287,6 +287,10 @@ frontend.log
 .pids/
 temp_*.py
 
+# Uploaded data files
+backend/data/uploads/
+backend/data/temp/
+
 # Debug logs and temp files
 debug_logs/
 temp/
