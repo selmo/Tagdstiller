@@ -169,6 +169,29 @@ async def get_file_root(db: Session = Depends(get_db)):
     return {"file_root": analyzer.get_file_root()}
 
 
+@router.get("/config/current-directory")
+async def get_current_directory():
+    """
+    백엔드 서버의 현재 작업 디렉토리를 조회합니다.
+    """
+    import os
+    from pathlib import Path
+    
+    current_dir = Path.cwd()
+    parent_dir = current_dir.parent
+    
+    return {
+        "current_directory": str(current_dir),
+        "parent_directory": str(parent_dir),
+        "relative_to_parent": "../",
+        "working_directory_info": {
+            "name": current_dir.name,
+            "exists": current_dir.exists(),
+            "is_directory": current_dir.is_dir()
+        }
+    }
+
+
 @router.get("/config/extractors")
 async def get_available_extractors(db: Session = Depends(get_db)):
     """
