@@ -175,15 +175,25 @@ class LocalFileAnalyzer:
                 print(f"기존 결과를 백업했습니다: {backup_path}")
         
         try:
+            # 파일 정보 수집
+            absolute_path = self.get_absolute_path(file_path)
+            
             # 파일 내용 파싱
             content = self.parse_file_content(file_path)
             
             # 키워드 추출
-            keywords = self.extract_keywords(content, extractors)
+            keywords = self.extract_keywords(content, extractors, filename=absolute_path.name)
             
-            # 파일 정보 수집
-            absolute_path = self.get_absolute_path(file_path)
+            # 파일 통계
             file_stats = absolute_path.stat()
+            
+            # 키워드를 추출기별로 그룹화
+            grouped_keywords = {}
+            for keyword in keywords:
+                extractor_name = keyword["extractor_name"]
+                if extractor_name not in grouped_keywords:
+                    grouped_keywords[extractor_name] = []
+                grouped_keywords[extractor_name].append(keyword)
             
             # 결과 구성
             result = {
@@ -201,9 +211,9 @@ class LocalFileAnalyzer:
                 },
                 "extraction_info": {
                     "extractors_used": extractors or [],
-                    "total_keywords": sum(len(kw_list) for kw_list in keywords.values())
+                    "total_keywords": len(keywords)
                 },
-                "keywords": keywords,
+                "keywords": grouped_keywords,
                 "analysis_status": "completed"
             }
             

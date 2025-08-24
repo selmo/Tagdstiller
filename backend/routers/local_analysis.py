@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 
-from db.database import get_db
+from dependencies import get_db
 from services.local_file_analyzer import LocalFileAnalyzer
 
 
