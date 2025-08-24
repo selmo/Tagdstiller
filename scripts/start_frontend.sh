@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 
 # 기본값 설정
 MODE=${1:-dev}
-PORT=${PORT:-8080}
+PORT=${PORT:-8088}
 
 echo -e "${BLUE}🎨 DocExtract Frontend 시작${NC}"
 echo -e "${YELLOW}모드: $MODE${NC}"

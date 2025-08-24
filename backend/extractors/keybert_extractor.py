@@ -11,7 +11,7 @@ from utils.debug_logger import get_debug_logger
 class KeyBERTExtractor(KeywordExtractor):
     """KeyBERT 기반 키워드 추출기"""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, db_session = None):
         super().__init__("keybert", config)
         self.model = None
         self.model_name = config.get('model', 'all-MiniLM-L6-v2') if config else 'all-MiniLM-L6-v2'

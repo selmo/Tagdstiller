@@ -93,10 +93,10 @@ if [[ -n "$BACKEND_PORT_PID" ]]; then
     stopped_any=true
 fi
 
-# 프론트엔드 포트 (8080) 확인
-FRONTEND_PORT_PID=$(lsof -ti :8080 2>/dev/null || true)
+# 프론트엔드 포트 (8088) 확인
+FRONTEND_PORT_PID=$(lsof -ti :8088 2>/dev/null || true)
 if [[ -n "$FRONTEND_PORT_PID" ]]; then
-    echo -e "${YELLOW}📍 포트 8080에서 실행 중인 프로세스 종료: $FRONTEND_PORT_PID${NC}"
+    echo -e "${YELLOW}📍 포트 8088에서 실행 중인 프로세스 종료: $FRONTEND_PORT_PID${NC}"
     kill $FRONTEND_PORT_PID 2>/dev/null || true
     stopped_any=true
 fi
@@ -154,9 +154,9 @@ else
     echo -e "${GREEN}✅ 포트 58000 사용 가능${NC}"
 fi
 
-if lsof -i :8080 > /dev/null 2>&1; then
-    echo -e "${YELLOW}⚠️ 포트 8080이 여전히 사용 중입니다${NC}"
-    lsof -i :8080
+if lsof -i :8088 > /dev/null 2>&1; then
+    echo -e "${YELLOW}⚠️ 포트 8088이 여전히 사용 중입니다${NC}"
+    lsof -i :8088
 else
-    echo -e "${GREEN}✅ 포트 8080 사용 가능${NC}"
+    echo -e "${GREEN}✅ 포트 8088 사용 가능${NC}"
 fi

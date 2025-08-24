@@ -322,19 +322,72 @@ const KeywordManagement: React.FC<KeywordManagementProps> = ({ projectId, onClos
   const getExtractorColor = (extractor: string): string => {
     const colors: { [key: string]: string } = {
       'keybert': 'bg-blue-100 text-blue-800',
-      'spacy_ner': 'bg-purple-100 text-purple-800',
-      'llm': 'bg-green-100 text-green-800',
-      'konlpy': 'bg-pink-100 text-pink-800'
+      'spacy_ner': 'bg-green-100 text-green-800',
+      'llm': 'bg-purple-100 text-purple-800',
+      'konlpy': 'bg-orange-100 text-orange-800',
+      'langextract': 'bg-teal-100 text-teal-800',
+      'metadata': 'bg-slate-100 text-slate-800'
     };
     return colors[extractor] || 'bg-gray-100 text-gray-800';
   };
 
   const getCategoryColor = (category: string): string => {
     const colors: { [key: string]: string } = {
+      // spaCy NER 카테고리
       'PERSON': 'bg-indigo-100 text-indigo-800',
-      'ORG': 'bg-teal-100 text-teal-800',
-      'LOC': 'bg-emerald-100 text-emerald-800',
+      'ORG': 'bg-emerald-100 text-emerald-800',
+      'LOC': 'bg-amber-100 text-amber-800',
+      'DATE': 'bg-lime-100 text-lime-800',
+      'MONEY': 'bg-rose-100 text-rose-800',
+      
+      // LangExtract 카테고리
       'technology': 'bg-cyan-100 text-cyan-800',
+      'person': 'bg-indigo-100 text-indigo-800',
+      'organization': 'bg-emerald-100 text-emerald-800',
+      'location': 'bg-amber-100 text-amber-800',
+      'concept': 'bg-purple-100 text-purple-800',
+      'general': 'bg-gray-100 text-gray-800',
+      
+      // LangExtract 의미적 유형
+      'technology_noun': 'bg-cyan-100 text-cyan-800',
+      'person_noun': 'bg-indigo-100 text-indigo-800',
+      'organization_noun': 'bg-emerald-100 text-emerald-800',
+      'location_noun': 'bg-amber-100 text-amber-800',
+      'concept_noun': 'bg-purple-100 text-purple-800',
+      'general_noun': 'bg-gray-100 text-gray-800',
+      
+      // Metadata 카테고리
+      'title_h1': 'bg-slate-100 text-slate-800',
+      'title_h2': 'bg-slate-100 text-slate-700',
+      'title_h3': 'bg-slate-100 text-slate-600',
+      'title_h4_h6': 'bg-slate-100 text-slate-600',
+      'list_item': 'bg-gray-100 text-gray-700',
+      'numbered_item': 'bg-gray-100 text-gray-700',
+      'doc_length': 'bg-blue-100 text-blue-700',
+      'word_count': 'bg-blue-100 text-blue-700',
+      'sentence_count': 'bg-blue-100 text-blue-700',
+      'paragraph_count': 'bg-blue-100 text-blue-700',
+      'sentence_length': 'bg-blue-100 text-blue-700',
+      'complexity': 'bg-blue-100 text-blue-700',
+      'url_reference': 'bg-green-100 text-green-700',
+      'email_reference': 'bg-green-100 text-green-700',
+      'date_korean': 'bg-yellow-100 text-yellow-700',
+      'date_iso': 'bg-yellow-100 text-yellow-700',
+      'date_us': 'bg-yellow-100 text-yellow-700',
+      'date_eu': 'bg-yellow-100 text-yellow-700',
+      'numeric_content': 'bg-purple-100 text-purple-700',
+      'file_format': 'bg-red-100 text-red-700',
+      'filename_keyword': 'bg-red-100 text-red-700',
+      'file_size': 'bg-red-100 text-red-700',
+      
+      // 요약 메타데이터 카테고리
+      'summary_intro': 'bg-emerald-100 text-emerald-800',
+      'summary_conclusion': 'bg-emerald-200 text-emerald-900',
+      'summary_core': 'bg-teal-200 text-teal-900',
+      'summary_topic': 'bg-cyan-100 text-cyan-800',
+      'summary_tone': 'bg-sky-100 text-sky-800',
+      
+      // 기타 카테고리
       'noun': 'bg-violet-100 text-violet-800'
     };
     return colors[category] || 'bg-gray-100 text-gray-800';

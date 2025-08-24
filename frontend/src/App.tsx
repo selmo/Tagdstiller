@@ -1,5 +1,5 @@
 import React from 'react';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ProjectForm from './components/ProjectForm';
 import FileUploader from './components/FileUploader';
 import ExtractorTrigger from './components/ExtractorTrigger';
@@ -8,8 +8,9 @@ import SettingsPanel from './components/SettingsPanel';
 import KeywordManagement from './components/KeywordManagement';
 import GlobalKeywordManagement from './components/GlobalKeywordManagement';
 import DocumentViewer from './components/DocumentViewerSimple';
-import { configApi, projectApi, fileApi, keywordsApi } from './services/api';
-import { Project, UploadedFile, ExtractionResponse, Config, KeywordStatisticsResponse, GlobalKeywordStatistics, ProjectKeywordStatistics } from './types/api';
+import MetadataViewer from './components/MetadataViewer';
+import { configApi, projectApi, fileApi } from './services/api';
+import { Project, UploadedFile, ExtractionResponse, Config, GlobalKeywordStatistics, ProjectKeywordStatistics } from './types/api';
 import { createComponentLogger } from './utils/logger';
 
 function App() {
@@ -26,21 +27,20 @@ function App() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [newProjectName, setNewProjectName] = useState('');
   // const [keywordStats, setKeywordStats] = useState<KeywordStatisticsResponse | null>(null);
-  const [rightPanelView, setRightPanelView] = useState<'project' | 'keywords' | 'project-keywords' | 'settings'>('project');
+  const [rightPanelView, setRightPanelView] = useState<'project' | 'keywords' | 'project-keywords' | 'settings' | 'metadata'>('project');
   const [extractingFileId, setExtractingFileId] = useState<number | null>(null);
   const [selectedFileIds, setSelectedFileIds] = useState<number[]>([]);
   const [showMultiFileExtraction, setShowMultiFileExtraction] = useState(false);
   const [showFileUploader, setShowFileUploader] = useState(false);
   const [showKeywordExtractor, setShowKeywordExtractor] = useState(false);
   const [showDocumentViewer, setShowDocumentViewer] = useState(false);
+  const [metadataFileId, setMetadataFileId] = useState<number | null>(null);
   const [viewerFile, setViewerFile] = useState<UploadedFile | null>(null);
   const [viewerKeywords, setViewerKeywords] = useState<string[]>([]);
   const [viewerTargetPosition, setViewerTargetPosition] = useState<{ page?: number; line?: number; column?: number } | undefined>(undefined);
-  const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [globalKeywordStats, setGlobalKeywordStats] = useState<GlobalKeywordStatistics | null>(null);
   const [projectKeywordStats, setProjectKeywordStats] = useState<ProjectKeywordStatistics | null>(null);
   const statsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastStatsRequestRef = useRef<{ projectId?: number; timestamp: number } | null>(null);
   const isMountedRef = useRef(false);
   const [leftSidebarWidth, setLeftSidebarWidth] = useState(300); // 기본 300px
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
@@ -255,7 +255,7 @@ function App() {
   };
 
   // 패널 뷰 변경 헬퍼 함수
-  const changeRightPanelView = (newView: 'project' | 'keywords' | 'project-keywords' | 'settings', reason?: string) => {
+  const changeRightPanelView = (newView: 'project' | 'keywords' | 'project-keywords' | 'settings' | 'metadata', reason?: string) => {
     if (rightPanelView !== newView) {
       logger.info('패널 뷰 변경', { 
         action: 'panel_view_change', 
@@ -424,6 +424,7 @@ function App() {
   const handleHideKeywordExtractor = () => {
     setShowKeywordExtractor(false);
   };
+
 
   const handleDeleteSelectedFiles = async () => {
     if (selectedFileIds.length === 0) {
@@ -709,6 +710,34 @@ function App() {
               </div>
             )}
 
+            {/* 메타데이터 뷰어 - 프로젝트 선택 시만 표시 */}
+            {selectedProject && (
+              <div 
+                className={`bg-white p-6 rounded-lg shadow-md cursor-pointer transition-colors ${
+                  rightPanelView === 'metadata' ? 'ring-2 ring-emerald-500 bg-emerald-50' : 'hover:bg-emerald-50'
+                }`}
+                onClick={() => changeRightPanelView(rightPanelView === 'metadata' ? 'project' : 'metadata', 'metadata_viewer_toggle')}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-lg font-semibold">📋 메타데이터 뷰어</h3>
+                    <p className="text-sm text-gray-600 mt-1">문서 구조, 요약, 통계 분석</p>
+                  </div>
+                  <div className="text-2xl">
+                    {rightPanelView === 'metadata' ? '📊' : '📋'}
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600">
+                  문서의 메타데이터를 체계적으로 분석하고 확인할 수 있습니다.
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    <span className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded">📝 AI 요약</span>
+                    <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">🏗️ 문서구조</span>
+                    <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded">📊 통계정보</span>
+                    <span className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded">🔗 콘텐츠</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 시스템 정보 */}
             <div 
@@ -871,6 +900,15 @@ function App() {
                 <div className="p-6">
                   <SettingsPanel onClose={() => setRightPanelView('project')} inline={true} />
                 </div>
+              </div>
+            ) : rightPanelView === 'metadata' && selectedProject ? (
+              /* 메타데이터 뷰어 */
+              <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                <MetadataViewer 
+                  projectId={selectedProject.id} 
+                  fileId={metadataFileId || undefined}
+                  onClose={() => setRightPanelView('project')}
+                />
               </div>
             ) : selectedProject ? (
               <>

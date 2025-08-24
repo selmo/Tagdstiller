@@ -10,7 +10,7 @@ from utils.debug_logger import get_debug_logger
 class KoNLPyExtractor(KeywordExtractor):
     """KoNLPy 기반 한국어 명사 추출기"""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, db_session = None):
         super().__init__("konlpy", config)
         self.tagger = None
         self.tagger_type = config.get('tagger', 'Okt') if config else 'Okt'  # Okt, Komoran, Hannanum 등

@@ -7,16 +7,21 @@ from .base import KeywordExtractor, Keyword
 from utils.text_cleaner import TextCleaner
 from utils.position_mapper import PositionMapper
 from utils.debug_logger import get_debug_logger
+from prompts.templates import get_prompt_template
+from prompts.config import PromptConfig
 
 class LLMExtractor(KeywordExtractor):
     """LLM 기반 키워드 추출기 (Ollama/OpenAI)"""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, db_session = None):
         super().__init__("llm", config)
         self.client = None
         self.provider = config.get('provider', 'ollama') if config else 'ollama'
         self.model_name = config.get('model', 'llama3.2') if config else 'llama3.2'
         self.base_url = config.get('base_url', 'http://localhost:11434') if config else 'http://localhost:11434'
+        
+        # 프롬프트 설정 초기화
+        self.prompt_config = PromptConfig(config, db_session)
     
     def load_model(self) -> bool:
         """LLM 클라이언트를 초기화합니다."""
@@ -191,9 +196,28 @@ class LLMExtractor(KeywordExtractor):
     
     def _create_extraction_prompt(self, text: str) -> str:
         """키워드 추출을 위한 프롬프트를 생성합니다."""
-        max_keywords = min(self.config.get('max_keywords', 20), 8)  # Ollama의 응답 길이 제한
+        import logging
+        logger = logging.getLogger(__name__)
         
-        return f"""You are a keyword extraction system. Extract exactly {max_keywords} important keywords from the text below.
+        try:
+            # 템플릿 이름 결정
+            template_name = self.prompt_config.get_template_name('keyword_extraction')
+            
+            # 템플릿 변수 생성
+            variables = self.prompt_config.get_template_variables('keyword_extraction', text[:600])
+            
+            # 프롬프트 생성
+            prompt = get_prompt_template('keyword_extraction', template_name, **variables)
+            
+            logger.debug(f"🎯 프롬프트 템플릿 사용: keyword_extraction.{template_name}")
+            return prompt
+            
+        except Exception as e:
+            logger.warning(f"⚠️ 프롬프트 템플릿 사용 실패, 기본 프롬프트 사용: {e}")
+            
+            # 폴백: 기존 방식
+            max_keywords = min(self.config.get('max_keywords', 20), 8)
+            return f"""You are a keyword extraction system. Extract exactly {max_keywords} important keywords from the text below.
 
 Text: {text[:600]}
 
@@ -209,14 +233,14 @@ Output:"""
         debug_logger = get_debug_logger()
         
         try:
+            # 프롬프트 설정에서 LLM 파라미터 가져오기
+            llm_params = self.prompt_config.get_llm_params('keyword_extraction')
+            
             payload = {
                 "model": self.model_name,
                 "prompt": prompt,
                 "stream": False,
-                "options": {
-                    "temperature": 0.1,  # 일관된 결과를 위해 낮은 temperature
-                    "num_predict": 500   # 응답 길이 제한
-                }
+                "options": llm_params
             }
             
             logger.info(f"🚀 Ollama API 호출 시작 - 모델: {self.model_name}, 온도: 0.1")

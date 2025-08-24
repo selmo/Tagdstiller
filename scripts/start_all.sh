@@ -90,7 +90,7 @@ trap cleanup SIGINT SIGTERM
 
 # 포트 충돌 확인
 BACKEND_PORT=${BACKEND_PORT:-58000}
-FRONTEND_PORT=${FRONTEND_PORT:-8080}
+FRONTEND_PORT=${FRONTEND_PORT:-8088}
 
 echo -e "${YELLOW}🔍 포트 사용 상태 확인 중...${NC}"
 

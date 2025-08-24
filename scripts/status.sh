@@ -73,19 +73,19 @@ else
     echo -e "${YELLOW}⚠️ 포트 58000: 사용 안함${NC}"
 fi
 
-# 프론트엔드 포트 (8080)
-if lsof -i :8080 > /dev/null 2>&1; then
-    PORT_8080_PID=$(lsof -ti :8080)
-    echo -e "${GREEN}✅ 포트 8080: 사용 중 (PID: $PORT_8080_PID)${NC}"
+# 프론트엔드 포트 (8088)
+if lsof -i :8088 > /dev/null 2>&1; then
+    PORT_8088_PID=$(lsof -ti :8088)
+    echo -e "${GREEN}✅ 포트 8088: 사용 중 (PID: $PORT_8088_PID)${NC}"
     
     # 웹 서버 응답 확인
-    if curl -s http://localhost:8080/ > /dev/null 2>&1; then
+    if curl -s http://localhost:8088/ > /dev/null 2>&1; then
         echo -e "${GREEN}  🌐 웹 서버 응답: 정상${NC}"
     else
         echo -e "${RED}  🌐 웹 서버 응답: 실패${NC}"
     fi
 else
-    echo -e "${YELLOW}⚠️ 포트 8080: 사용 안함${NC}"
+    echo -e "${YELLOW}⚠️ 포트 8088: 사용 안함${NC}"
 fi
 
 echo ""
@@ -175,7 +175,7 @@ echo -e "${PURPLE}📈 전체 상태 요약:${NC}"
 if [[ "$BACKEND_STATUS" == "running" && "$FRONTEND_STATUS" == "running" ]]; then
     echo -e "${GREEN}✅ 시스템 상태: 정상 실행 중${NC}"
     echo -e "${BLUE}🌐 접속 URL:${NC}"
-    echo -e "${GREEN}  📱 웹 애플리케이션: http://localhost:8080${NC}"
+    echo -e "${GREEN}  📱 웹 애플리케이션: http://localhost:8088${NC}"
     echo -e "${GREEN}  🔧 API 서버: http://localhost:58000${NC}"
     echo -e "${GREEN}  📚 API 문서: http://localhost:58000/docs${NC}"
 elif [[ "$BACKEND_STATUS" == "running" ]]; then

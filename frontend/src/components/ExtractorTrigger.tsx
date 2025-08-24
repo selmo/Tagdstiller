@@ -35,9 +35,21 @@ const ExtractorTrigger: React.FC<ExtractorTriggerProps> = ({
     if (savedSelection) {
       try {
         const parsed = JSON.parse(savedSelection);
-        setSelectedMethods(parsed);
+        // 배열인지 확인하고 유효한 항목만 필터링
+        if (Array.isArray(parsed)) {
+          // 유효한 추출기만 필터링 (중복 제거)
+          const validParsed = Array.from(new Set(parsed.filter(item => 
+            typeof item === 'string' && item.trim().length > 0
+          )));
+          setSelectedMethods(validParsed);
+          console.log('Restored extractor selection:', validParsed);
+        } else {
+          console.error('Invalid saved extractor selection format:', parsed);
+          localStorage.removeItem('extractorSelection');
+        }
       } catch (error) {
         console.error('Failed to parse saved extractor selection:', error);
+        localStorage.removeItem('extractorSelection');
       }
     }
   }, []);
@@ -57,7 +69,29 @@ const ExtractorTrigger: React.FC<ExtractorTriggerProps> = ({
       // 저장된 선택이 없는 경우에만 기본 추출기 설정
       const savedSelection = localStorage.getItem('extractorSelection');
       if (!savedSelection) {
-        setSelectedMethods(extractors.default_extractors);
+        const defaultExtractors = Array.from(new Set(extractors.default_extractors));
+        setSelectedMethods(defaultExtractors);
+        console.log('Set default extractors:', defaultExtractors);
+      } else {
+        // 기존 선택을 사용 가능한 추출기와 교차 확인
+        try {
+          const parsed = JSON.parse(savedSelection);
+          if (Array.isArray(parsed)) {
+            const validSelected = parsed.filter(method => 
+              extractors.available_extractors.includes(method)
+            );
+            if (validSelected.length !== parsed.length) {
+              console.log('Some saved extractors are no longer available, updating selection');
+              setSelectedMethods(validSelected);
+              localStorage.setItem('extractorSelection', JSON.stringify(validSelected));
+            }
+          }
+        } catch (error) {
+          console.error('Failed to validate saved selection:', error);
+          const defaultExtractors = Array.from(new Set(extractors.default_extractors));
+          setSelectedMethods(defaultExtractors);
+          localStorage.removeItem('extractorSelection');
+        }
       }
     } catch (err: any) {
       setError('추출기 정보를 불러오는데 실패했습니다.');
@@ -244,7 +278,9 @@ const ExtractorTrigger: React.FC<ExtractorTriggerProps> = ({
       'keybert': 'KeyBERT (의미 기반)',
       'spacy_ner': 'spaCy NER (개체명 인식)',
       'llm': 'LLM (대화형 AI)',
-      'konlpy': 'KoNLPy (한국어 형태소)'
+      'konlpy': 'KoNLPy (한국어 형태소)',
+      'langextract': 'LangExtract (구조화된 추출)',
+      'metadata': 'Metadata (메타데이터 추출)'
     };
     return displayNames[method] || method;
   };
@@ -254,9 +290,76 @@ const ExtractorTrigger: React.FC<ExtractorTriggerProps> = ({
       'keybert': 'BERT 임베딩을 사용한 의미 기반 키워드 추출',
       'spacy_ner': '개체명 인식을 통한 인명, 기관명, 장소명 등 추출',
       'llm': 'LLM을 활용한 맥락적 키워드 및 주제 추출',
-      'konlpy': '한국어 형태소 분석을 통한 명사 기반 키워드 추출'
+      'konlpy': '한국어 형태소 분석을 통한 명사 기반 키워드 추출',
+      'langextract': '스키마 기반 구조화된 정보 추출 (카테고리, 신뢰도 포함)',
+      'metadata': '문서 구조, 통계, 파일 정보 등 메타데이터 기반 키워드 추출'
     };
     return descriptions[method] || '';
+  };
+
+  const getExtractorColorClass = (method: string, selected: boolean = false): string => {
+    const colorClasses: { [key: string]: { bg: string; text: string; selectedBg: string; selectedText: string } } = {
+      'keybert': { 
+        bg: 'bg-blue-50', 
+        text: 'text-blue-700',
+        selectedBg: 'bg-blue-100',
+        selectedText: 'text-blue-800'
+      },
+      'spacy_ner': { 
+        bg: 'bg-green-50', 
+        text: 'text-green-700',
+        selectedBg: 'bg-green-100',
+        selectedText: 'text-green-800'
+      },
+      'llm': { 
+        bg: 'bg-purple-50', 
+        text: 'text-purple-700',
+        selectedBg: 'bg-purple-100',
+        selectedText: 'text-purple-800'
+      },
+      'konlpy': { 
+        bg: 'bg-orange-50', 
+        text: 'text-orange-700',
+        selectedBg: 'bg-orange-100',
+        selectedText: 'text-orange-800'
+      },
+      'langextract': { 
+        bg: 'bg-teal-50', 
+        text: 'text-teal-700',
+        selectedBg: 'bg-teal-100',
+        selectedText: 'text-teal-800'
+      },
+      'metadata': { 
+        bg: 'bg-slate-50', 
+        text: 'text-slate-700',
+        selectedBg: 'bg-slate-100',
+        selectedText: 'text-slate-800'
+      }
+    };
+    
+    const colors = colorClasses[method] || { 
+      bg: 'bg-gray-50', 
+      text: 'text-gray-700',
+      selectedBg: 'bg-gray-100',
+      selectedText: 'text-gray-800'
+    };
+    
+    if (selected) {
+      return `${colors.selectedBg} ${colors.selectedText}`;
+    }
+    return `${colors.bg} ${colors.text}`;
+  };
+
+  const getExtractorBorderColor = (method: string): string => {
+    const borderColors: { [key: string]: string } = {
+      'keybert': 'blue-200',
+      'spacy_ner': 'green-200',
+      'llm': 'purple-200',
+      'konlpy': 'orange-200',
+      'langextract': 'teal-200',
+      'metadata': 'slate-200'
+    };
+    return borderColors[method] || 'gray-200';
   };
 
   if (!availableExtractors) {
@@ -307,7 +410,7 @@ const ExtractorTrigger: React.FC<ExtractorTriggerProps> = ({
                   key={method} 
                   className={`flex items-start space-x-3 cursor-pointer p-3 rounded-lg border transition-colors ${
                     isSelected 
-                      ? 'border-blue-200 bg-blue-50' 
+                      ? `border-${getExtractorBorderColor(method)} ${getExtractorColorClass(method)}` 
                       : 'border-gray-200 hover:bg-gray-50'
                   } ${isExtracting ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
@@ -329,7 +432,7 @@ const ExtractorTrigger: React.FC<ExtractorTriggerProps> = ({
                         </span>
                       )}
                       {isSelected && (
-                        <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${getExtractorColorClass(method, true)}`}>
                           선택됨
                         </span>
                       )}
@@ -353,6 +456,25 @@ const ExtractorTrigger: React.FC<ExtractorTriggerProps> = ({
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-500">
             선택된 추출기: {selectedMethods.length}개
+            {/* 디버그 정보 */}
+            {process.env.NODE_ENV === 'development' && (
+              <>
+                <span className="text-xs text-red-500 ml-2">
+                  (Debug: {JSON.stringify(selectedMethods)})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.removeItem('extractorSelection');
+                    setSelectedMethods([]);
+                    console.log('LocalStorage cleared, selectedMethods reset');
+                  }}
+                  className="text-xs text-blue-500 underline ml-2"
+                >
+                  Reset
+                </button>
+              </>
+            )}
           </div>
           <button
             onClick={handleExtract}

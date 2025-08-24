@@ -130,7 +130,7 @@ tail -f backend.log frontend.log
 ps aux | grep -E "(uvicorn|npm|node)"
 
 # 포트 사용 상황
-lsof -i :58000 -i :8080
+lsof -i :58000 -i :8088
 ```
 
 ## 🚨 문제 해결
@@ -139,7 +139,7 @@ lsof -i :58000 -i :8080
 ```bash
 # 사용 중인 프로세스 찾기
 lsof -i :58000
-lsof -i :8080
+lsof -i :8088
 
 # 프로세스 강제 종료
 kill -9 <PID>
@@ -230,7 +230,7 @@ rm backend.log frontend.log
 
 시스템이 정상적으로 시작되면 다음 주소로 접속할 수 있습니다:
 
-- **🌐 웹 애플리케이션**: http://localhost:8080
+- **🌐 웹 애플리케이션**: http://localhost:8088
 - **🔧 API 서버**: http://localhost:58000  
 - **📚 API 문서**: http://localhost:58000/docs
 - **🛠️ 대체 API 문서**: http://localhost:58000/redoc

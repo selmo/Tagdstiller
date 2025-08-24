@@ -9,6 +9,8 @@ from extractors.keybert_extractor import KeyBERTExtractor
 from extractors.spacy_ner_extractor import SpaCyNERExtractor
 from extractors.llm_extractor import LLMExtractor
 from extractors.konlpy_extractor import KoNLPyExtractor
+from extractors.langextract_extractor import LangExtractExtractor
+from extractors.metadata_extractor import MetadataExtractor
 from services.config_service import ConfigService
 from services.statistics_cache_service import StatisticsCacheService
 
@@ -17,7 +19,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["extraction"])
 
 class ExtractionRequest(BaseModel):
-    methods: List[str]  # ["keybert", "spacy_ner", "llm", "konlpy"]
+    methods: List[str]  # ["keybert", "spacy_ner", "llm", "konlpy", "langextract", "metadata"]
     
 class KeywordOccurrenceResponse(BaseModel):
     keyword: str
@@ -79,7 +81,7 @@ class ExtractorManager:
                 "diversity": extractor_config.get("keybert_diversity", 0.5),
                 "keyphrase_ngram_range": extractor_config.get("keybert_keyphrase_ngram_range", [1, 2]),
                 "stop_words": extractor_config.get("keybert_stop_words", "english")
-            })
+            }, db_session=self.db_session)
             logger.info("✅ KeyBERT 추출기 등록 완료")
         
         # spaCy NER 추출기
@@ -89,7 +91,7 @@ class ExtractorManager:
                 "model": extractor_config.get("ner_model", "ko_core_news_sm"),
                 "auto_download": extractor_config.get("ner_auto_download", True),
                 "max_keywords": extractor_config.get("max_keywords", 20)
-            })
+            }, db_session=self.db_session)
             logger.info("✅ spaCy NER 추출기 등록 완료")
         
         # LLM 추출기
@@ -102,7 +104,7 @@ class ExtractorManager:
                 "model": ollama_config.get("model", "llama3.2"),
                 "base_url": ollama_config.get("base_url", "http://localhost:11434"),
                 "max_keywords": extractor_config.get("max_keywords", 20)
-            })
+            }, db_session=self.db_session)
             self.extractors["llm"] = llm_extractor
             logger.info("✅ LLM 추출기 등록 완료")
         
@@ -114,8 +116,44 @@ class ExtractorManager:
                 "min_length": extractor_config.get("konlpy_min_length", 2),
                 "min_frequency": extractor_config.get("konlpy_min_frequency", 1),
                 "max_keywords": extractor_config.get("konlpy_max_keywords", 15)
-            })
+            }, db_session=self.db_session)
             logger.info("✅ KoNLPy 추출기 등록 완료")
+        
+        # LangExtract 추출기 (API 호환성 문제로 기본 비활성화)
+        if extractor_config.get("langextract_enabled", False):
+            logger.info("📦 LangExtract 추출기 등록 중...")
+            ollama_config = ConfigService.get_ollama_config(self.db_session)
+            self.extractors["langextract"] = LangExtractExtractor({
+                "ollama_base_url": ollama_config.get("base_url", "http://localhost:11434"),
+                "ollama_model": ollama_config.get("model", "llama3.2"),
+                "ollama_timeout": ollama_config.get("timeout", 30),
+                "max_keywords": extractor_config.get("langextract_max_keywords", 15),
+                "chunk_size": extractor_config.get("langextract_chunk_size", 2000),
+                "overlap": extractor_config.get("langextract_overlap", 200),
+                "confidence_threshold": extractor_config.get("langextract_confidence_threshold", 0.6)
+            }, db_session=self.db_session)
+            logger.info("✅ LangExtract 추출기 등록 완료")
+        
+        # Metadata 추출기
+        if extractor_config.get("metadata_enabled", True):
+            logger.info("📦 Metadata 추출기 등록 중...")
+            self.extractors["metadata"] = MetadataExtractor({
+                "extract_structure": extractor_config.get("metadata_extract_structure", True),
+                "extract_statistics": extractor_config.get("metadata_extract_statistics", True),
+                "extract_content": extractor_config.get("metadata_extract_content", True),
+                "extract_file_info": extractor_config.get("metadata_extract_file_info", True),
+                "extract_summary": extractor_config.get("metadata_extract_summary", True),
+                "include_filename": extractor_config.get("metadata_include_filename", True),
+                "min_heading_length": extractor_config.get("metadata_min_heading_length", 2),
+                "max_metadata_keywords": extractor_config.get("metadata_max_metadata_keywords", 20),
+                # LLM 설정 추가
+                "llm_enabled": extractor_config.get("llm_enabled", False),
+                "llm_summary": extractor_config.get("metadata_llm_summary", True),
+                "ollama_base_url": ollama_config.get("base_url", "http://localhost:11434"),
+                "ollama_model": ollama_config.get("model", "gemma3n:latest"),
+                "ollama_timeout": ollama_config.get("timeout", 30)
+            }, db_session=self.db_session)
+            logger.info("✅ Metadata 추출기 등록 완료")
         
         logger.info(f"🎉 추출기 초기화 완료 - 등록된 추출기: {list(self.extractors.keys())}")
     
@@ -1055,7 +1093,7 @@ def test_llm_connection(db: Session = Depends(get_db)):
             "model": ollama_config.get("model", "llama3.2"),
             "base_url": ollama_config.get("base_url", "http://localhost:11434"),
             "timeout": ollama_config.get("timeout", 30)
-        })
+        }, db_session=db)
         
         # 연결 테스트
         connection_success = llm_extractor.load_model()

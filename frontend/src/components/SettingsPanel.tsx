@@ -58,12 +58,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, inline = false }
   const [nerSettings, setNERSettings] = useState<Config[]>([]);
   const [llmSettings, setLLMSettings] = useState<Config[]>([]);
   const [konlpySettings, setKonlpySettings] = useState<Config[]>([]);
+  const [langextractSettings, setLangextractSettings] = useState<Config[]>([]);
+  const [metadataSettings, setMetadataSettings] = useState<Config[]>([]);
   const [ollamaSettings, setOllamaSettings] = useState<Config[]>([]);
   const [fileSettings, setFileSettings] = useState<Config[]>([]);
   const [appSettings, setAppSettings] = useState<Config[]>([]);
   
   // 탭 상태 관리
-  const [activeExtractorTab, setActiveExtractorTab] = useState<'keybert' | 'ner' | 'llm' | 'konlpy'>('keybert');
+  const [activeExtractorTab, setActiveExtractorTab] = useState<'keybert' | 'ner' | 'llm' | 'konlpy' | 'langextract' | 'metadata'>('keybert');
   
   // 탭 스타일 헬퍼 함수
   const getTabButtonClass = (tabKey: string, color: string, isActive: boolean) => {
@@ -74,7 +76,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, inline = false }
         blue: "border-blue-500 text-blue-600",
         green: "border-green-500 text-green-600", 
         purple: "border-purple-500 text-purple-600",
-        orange: "border-orange-500 text-orange-600"
+        orange: "border-orange-500 text-orange-600",
+        teal: "border-teal-500 text-teal-600",
+        slate: "border-slate-500 text-slate-600"
       };
       return `${baseClass} ${activeClasses[color as keyof typeof activeClasses]}`;
     } else {
@@ -90,7 +94,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, inline = false }
         blue: "bg-blue-100 text-blue-800",
         green: "bg-green-100 text-green-800",
         purple: "bg-purple-100 text-purple-800", 
-        orange: "bg-orange-100 text-orange-800"
+        orange: "bg-orange-100 text-orange-800",
+        teal: "bg-teal-100 text-teal-800",
+        slate: "bg-slate-100 text-slate-800"
       };
       return `${baseClass} ${activeClasses[color as keyof typeof activeClasses]}`;
     } else {
@@ -134,6 +140,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, inline = false }
       
       setKonlpySettings(configData.filter(c => 
         c.key.startsWith('extractor.konlpy.')
+      ));
+      
+      setLangextractSettings(configData.filter(c => 
+        c.key.startsWith('extractor.langextract.')
+      ));
+      
+      setMetadataSettings(configData.filter(c => 
+        c.key.startsWith('extractor.metadata.')
       ));
       
       // Ollama 설정은 LLM 탭으로 통합됨
@@ -277,8 +291,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, inline = false }
     }
   };
 
-  // 추출기 활성화 상태 확인 함수
-  const isExtractorEnabled = (extractorType: 'keybert' | 'ner' | 'llm' | 'konlpy') => {
+  // 추출기 활성화 상태 확인 함수 (metadata 포함)
+  const isExtractorEnabled = (extractorType: 'keybert' | 'ner' | 'llm' | 'konlpy' | 'langextract' | 'metadata') => {
     // DEFAULT_EXTRACTORS 또는 extractor.default_method에서 활성화 상태 확인
     const defaultExtractorsConfig = configs.find(c => c.key === 'DEFAULT_EXTRACTORS') || 
                                    extractorBaseSettings.find(c => c.key === 'DEFAULT_EXTRACTORS');
@@ -1254,7 +1268,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, inline = false }
               { key: 'keybert', label: 'KeyBERT', color: 'blue', count: keyBERTSettings.length },
               { key: 'ner', label: 'NER', color: 'green', count: nerSettings.length },
               { key: 'llm', label: 'LLM', color: 'purple', count: llmSettings.length },
-              { key: 'konlpy', label: 'KoNLPy', color: 'orange', count: konlpySettings.length }
+              { key: 'konlpy', label: 'KoNLPy', color: 'orange', count: konlpySettings.length },
+              { key: 'langextract', label: 'LangExtract', color: 'teal', count: langextractSettings.length },
+              { key: 'metadata', label: 'Metadata', color: 'slate', count: metadataSettings.length }
             ].map(tab => (
               <button
                 key={tab.key}
@@ -1367,11 +1383,100 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose, inline = false }
             </div>
           )}
           
+          {activeExtractorTab === 'langextract' && langextractSettings.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2 mb-4">
+                <div className="w-4 h-4 bg-teal-500 rounded"></div>
+                <h4 className="text-md font-medium text-gray-900">LangExtract 추출기 설정</h4>
+                {isExtractorEnabled('langextract') ? (
+                  <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">활성화됨</span>
+                ) : (
+                  <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">비활성화됨</span>
+                )}
+              </div>
+              
+              {/* LangExtract 전용 설정 UI */}
+              <div className="bg-teal-50 p-4 rounded-lg border border-teal-200">
+                <div className="flex items-center space-x-2 mb-3">
+                  <div className="w-3 h-3 bg-teal-400 rounded-full"></div>
+                  <span className="text-sm font-medium text-teal-800">구조화된 정보 추출</span>
+                </div>
+                <p className="text-sm text-teal-700 mb-4">
+                  LangExtract는 스키마 기반으로 일관된 키워드를 추출하며, 카테고리와 신뢰도 정보를 제공합니다.
+                  기존 Ollama 설정을 사용하여 동작합니다.
+                </p>
+                <div className="text-xs text-teal-600">
+                  📋 청킹 전략으로 대용량 문서 처리 지원 | 🎯 정확한 위치 매핑 | 📊 신뢰도 기반 품질 평가
+                </div>
+              </div>
+              
+              {renderConfigSection('', langextractSettings)}
+              
+              {/* Ollama 연결 상태 표시 */}
+              <div className="bg-gray-50 p-4 rounded-lg border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-purple-400 rounded-full"></div>
+                    <span className="text-sm font-medium text-gray-700">Ollama 연결 상태</span>
+                  </div>
+                  <button
+                    onClick={testLLMConnection}
+                    disabled={connectionTest.status === 'testing'}
+                    className="px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 disabled:opacity-50"
+                  >
+                    {connectionTest.status === 'testing' ? '테스트 중...' : '연결 테스트'}
+                  </button>
+                </div>
+                {connectionTest.message && (
+                  <div className={`mt-2 text-xs ${
+                    connectionTest.status === 'success' ? 'text-green-600' : 
+                    connectionTest.status === 'error' ? 'text-red-600' : 'text-gray-600'
+                  }`}>
+                    {connectionTest.message}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {activeExtractorTab === 'metadata' && metadataSettings.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2 mb-4">
+                <div className="w-4 h-4 bg-slate-500 rounded"></div>
+                <h4 className="text-md font-medium text-gray-900">Metadata 추출기 설정</h4>
+                {isExtractorEnabled('metadata') ? (
+                  <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">활성화됨</span>
+                ) : (
+                  <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">비활성화됨</span>
+                )}
+              </div>
+              
+              {/* 메타데이터 추출기 설명 */}
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <div className="flex items-center space-x-2 mb-3">
+                  <div className="w-3 h-3 bg-slate-400 rounded-full"></div>
+                  <span className="text-sm font-medium text-slate-800">문서 메타데이터 기반 추출</span>
+                </div>
+                <p className="text-sm text-slate-700 mb-4">
+                  Metadata 추출기는 문서의 구조적 정보, 통계적 특성, 파일 속성 등을 분석하여 
+                  메타데이터 기반 키워드를 추출합니다.
+                </p>
+                <div className="text-xs text-slate-600">
+                  📋 제목/목록 구조 분석 | 📊 텍스트 통계 추출 | 📁 파일 정보 활용 | 🔗 URL/이메일 감지
+                </div>
+              </div>
+              
+              {renderConfigSection('', metadataSettings)}
+            </div>
+          )}
+          
           {/* 탭에 해당하는 설정이 없는 경우 */}
           {((activeExtractorTab === 'keybert' && keyBERTSettings.length === 0) ||
             (activeExtractorTab === 'ner' && nerSettings.length === 0) ||
             (activeExtractorTab === 'llm' && llmSettings.length === 0) ||
-            (activeExtractorTab === 'konlpy' && konlpySettings.length === 0)) && (
+            (activeExtractorTab === 'konlpy' && konlpySettings.length === 0) ||
+            (activeExtractorTab === 'langextract' && langextractSettings.length === 0) ||
+            (activeExtractorTab === 'metadata' && metadataSettings.length === 0)) && (
             <div className="text-center py-8 text-gray-500">
               <div className="text-lg mb-2">📋</div>
               <div>이 추출기에 대한 설정이 없습니다.</div>

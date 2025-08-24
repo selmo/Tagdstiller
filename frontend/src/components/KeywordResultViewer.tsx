@@ -93,24 +93,142 @@ const KeywordResultViewer: React.FC<KeywordResultViewerProps> = ({
   const getExtractorColor = (extractor: string): string => {
     const colors: { [key: string]: string } = {
       'keybert': 'bg-blue-100 text-blue-800',
-      'spacy_ner': 'bg-purple-100 text-purple-800',
-      'llm': 'bg-green-100 text-green-800',
-      'konlpy': 'bg-pink-100 text-pink-800'
+      'spacy_ner': 'bg-green-100 text-green-800',
+      'llm': 'bg-purple-100 text-purple-800',
+      'konlpy': 'bg-orange-100 text-orange-800',
+      'langextract': 'bg-teal-100 text-teal-800',
+      'metadata': 'bg-slate-100 text-slate-800'
     };
     return colors[extractor] || 'bg-gray-100 text-gray-800';
   };
 
   const getCategoryColor = (category: string): string => {
     const colors: { [key: string]: string } = {
+      // spaCy NER 카테고리
       'PERSON': 'bg-indigo-100 text-indigo-800',
-      'ORG': 'bg-teal-100 text-teal-800',
-      'LOC': 'bg-emerald-100 text-emerald-800',
-      'DATE': 'bg-amber-100 text-amber-800',
-      'MONEY': 'bg-lime-100 text-lime-800',
+      'ORG': 'bg-emerald-100 text-emerald-800',
+      'LOC': 'bg-amber-100 text-amber-800',
+      'DATE': 'bg-lime-100 text-lime-800',
+      'MONEY': 'bg-rose-100 text-rose-800',
+      
+      // LangExtract 카테고리
       'technology': 'bg-cyan-100 text-cyan-800',
+      'person': 'bg-indigo-100 text-indigo-800',
+      'organization': 'bg-emerald-100 text-emerald-800',
+      'location': 'bg-amber-100 text-amber-800',
+      'concept': 'bg-purple-100 text-purple-800',
+      'general': 'bg-gray-100 text-gray-800',
+      
+      // LangExtract 의미적 유형
+      'technology_noun': 'bg-cyan-100 text-cyan-800',
+      'person_noun': 'bg-indigo-100 text-indigo-800',
+      'organization_noun': 'bg-emerald-100 text-emerald-800',
+      'location_noun': 'bg-amber-100 text-amber-800',
+      'concept_noun': 'bg-purple-100 text-purple-800',
+      'general_noun': 'bg-gray-100 text-gray-800',
+      
+      // Metadata 카테고리
+      'title_h1': 'bg-slate-100 text-slate-800',
+      'title_h2': 'bg-slate-100 text-slate-700',
+      'title_h3': 'bg-slate-100 text-slate-600',
+      'title_h4_h6': 'bg-slate-100 text-slate-600',
+      'list_item': 'bg-gray-100 text-gray-700',
+      'numbered_item': 'bg-gray-100 text-gray-700',
+      'doc_length': 'bg-blue-100 text-blue-700',
+      'word_count': 'bg-blue-100 text-blue-700',
+      'sentence_count': 'bg-blue-100 text-blue-700',
+      'paragraph_count': 'bg-blue-100 text-blue-700',
+      'sentence_length': 'bg-blue-100 text-blue-700',
+      'complexity': 'bg-blue-100 text-blue-700',
+      'url_reference': 'bg-green-100 text-green-700',
+      'email_reference': 'bg-green-100 text-green-700',
+      'date_korean': 'bg-yellow-100 text-yellow-700',
+      'date_iso': 'bg-yellow-100 text-yellow-700',
+      'date_us': 'bg-yellow-100 text-yellow-700',
+      'date_eu': 'bg-yellow-100 text-yellow-700',
+      'numeric_content': 'bg-purple-100 text-purple-700',
+      'file_format': 'bg-red-100 text-red-700',
+      'filename_keyword': 'bg-red-100 text-red-700',
+      'file_size': 'bg-red-100 text-red-700',
+      
+      // 요약 메타데이터 카테고리
+      'summary_intro': 'bg-emerald-100 text-emerald-800',
+      'summary_conclusion': 'bg-emerald-200 text-emerald-900',
+      'summary_core': 'bg-teal-200 text-teal-900',
+      'summary_topic': 'bg-cyan-100 text-cyan-800',
+      'summary_tone': 'bg-sky-100 text-sky-800',
+      
+      // 기타 카테고리
       'noun': 'bg-violet-100 text-violet-800'
     };
     return colors[category] || 'bg-gray-100 text-gray-800';
+  };
+
+  // LangExtract 키워드 전용 컴포넌트
+  const LangExtractKeywordCard: React.FC<{ keyword: KeywordOccurrence }> = ({ keyword }) => (
+    <div className="border rounded-lg p-3 bg-teal-50 border-teal-200">
+      <div className="flex justify-between items-start mb-2">
+        <span className="font-medium text-teal-900">{keyword.keyword}</span>
+        <div className="flex gap-2">
+          {/* 신뢰도 표시 */}
+          <span className={`px-2 py-1 rounded text-xs font-medium ${
+            keyword.score > 0.8 ? 'bg-green-100 text-green-800' :
+            keyword.score > 0.6 ? 'bg-yellow-100 text-yellow-800' :
+            'bg-red-100 text-red-800'
+          }`}>
+            {(keyword.score * 100).toFixed(0)}%
+          </span>
+          
+          {/* 카테고리 표시 */}
+          {keyword.category && (
+            <span className={`px-2 py-1 rounded text-xs font-medium ${getCategoryColor(keyword.category)}`}>
+              {keyword.category}
+            </span>
+          )}
+        </div>
+      </div>
+      
+      {/* 위치 정보 */}
+      {keyword.start_position !== null && (
+        <div className="text-xs text-teal-600 mb-1">
+          📍 위치: {keyword.start_position}-{keyword.end_position}
+          {keyword.page_number && ` (페이지 ${keyword.page_number})`}
+        </div>
+      )}
+      
+      {/* 컨텍스트 */}
+      {keyword.context_snippet && (
+        <div className="text-xs text-gray-600 bg-white p-2 rounded border">
+          "{keyword.context_snippet}"
+        </div>
+      )}
+    </div>
+  );
+
+  // 신뢰도 표시 컴포넌트
+  const ConfidenceIndicator: React.FC<{ score: number; size?: 'sm' | 'md' }> = ({ score, size = 'sm' }) => {
+    const confidence = score * 100;
+    const getConfidenceColor = () => {
+      if (confidence >= 80) return 'bg-green-500';
+      if (confidence >= 60) return 'bg-yellow-500';
+      return 'bg-red-500';
+    };
+    
+    const sizeClasses = size === 'sm' ? 'w-12 h-2' : 'w-16 h-3';
+    
+    return (
+      <div className="flex items-center gap-2">
+        <div className={`${sizeClasses} bg-gray-200 rounded-full overflow-hidden`}>
+          <div 
+            className={`h-full ${getConfidenceColor()} transition-all duration-300`}
+            style={{ width: `${Math.min(confidence, 100)}%` }}
+          />
+        </div>
+        <span className={`text-gray-600 ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>
+          {confidence.toFixed(0)}%
+        </span>
+      </div>
+    );
   };
 
   if (keywords.length === 0) {
@@ -164,7 +282,11 @@ const KeywordResultViewer: React.FC<KeywordResultViewerProps> = ({
         <h4 className="text-md font-semibold text-gray-800 mb-3">📊 추출기별 상세 통계</h4>
         
         {extractorStats.map((stats, index) => (
-          <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+          <div key={index} className={`border rounded-lg p-4 ${
+            stats.name === 'langextract' 
+              ? 'border-teal-200 bg-teal-50' 
+              : 'border-gray-200 bg-gray-50'
+          }`}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-2">
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${getExtractorColor(stats.name)}`}>
@@ -178,8 +300,32 @@ const KeywordResultViewer: React.FC<KeywordResultViewerProps> = ({
                 <div className="text-sm text-gray-600">
                   고유: {stats.uniqueKeywords}개
                 </div>
+                {/* LangExtract의 경우 평균 신뢰도 표시 */}
+                {stats.name === 'langextract' && (
+                  <div className="mt-1">
+                    <ConfidenceIndicator score={stats.avgScore} size="sm" />
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* LangExtract 전용 향상된 정보 */}
+            {stats.name === 'langextract' && (
+              <div className="mb-3 p-3 bg-white rounded border border-teal-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 bg-teal-400 rounded-full"></div>
+                  <span className="text-sm font-medium text-teal-800">구조화된 추출 정보</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="text-gray-600">
+                    <span className="font-medium">평균 신뢰도:</span> {(stats.avgScore * 100).toFixed(1)}%
+                  </div>
+                  <div className="text-gray-600">
+                    <span className="font-medium">최고 점수:</span> {(stats.maxScore * 100).toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
               <div className="text-center bg-white p-2 rounded">

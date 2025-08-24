@@ -129,9 +129,133 @@ class ConfigService:
             "description": "허용 확장자"
         },
         
-        # 기본 추출기 설정
+        # LangExtract 설정 (API 호환성 문제로 비활성화)
+        "extractor.langextract.enabled": {
+            "value": "false",
+            "description": "활성화"
+        },
+        "extractor.langextract.max_keywords": {
+            "value": "15",
+            "description": "최대 키워드 수"
+        },
+        "extractor.langextract.chunk_size": {
+            "value": "2000",
+            "description": "청크 크기"
+        },
+        "extractor.langextract.overlap": {
+            "value": "200",
+            "description": "청크 오버랩"
+        },
+        "extractor.langextract.confidence_threshold": {
+            "value": "0.6",
+            "description": "신뢰도 임계값 (0.0-1.0)"
+        },
+        
+        # Metadata 추출기 설정
+        "extractor.metadata.enabled": {
+            "value": "true",
+            "description": "활성화"
+        },
+        "extractor.metadata.extract_structure": {
+            "value": "true",
+            "description": "구조 메타데이터 추출"
+        },
+        "extractor.metadata.extract_statistics": {
+            "value": "true", 
+            "description": "통계 메타데이터 추출"
+        },
+        "extractor.metadata.extract_content": {
+            "value": "true",
+            "description": "콘텐츠 메타데이터 추출"
+        },
+        "extractor.metadata.extract_file_info": {
+            "value": "true",
+            "description": "파일 메타데이터 추출"
+        },
+        "extractor.metadata.extract_summary": {
+            "value": "true",
+            "description": "문서 요약 메타데이터 추출"
+        },
+        "extractor.metadata.llm_summary": {
+            "value": "true",
+            "description": "LLM 기반 요약 사용 (비활성화 시 규칙 기반 요약)"
+        },
+        "extractor.metadata.include_filename": {
+            "value": "true",
+            "description": "파일명 키워드 포함"
+        },
+        "extractor.metadata.min_heading_length": {
+            "value": "2",
+            "description": "최소 제목 길이"
+        },
+        "extractor.metadata.max_metadata_keywords": {
+            "value": "20",
+            "description": "최대 메타데이터 키워드 수"
+        },
+        
+        # 프롬프트 템플릿 설정
+        "prompt.keyword_extraction.language": {
+            "value": "auto",
+            "description": "키워드 추출 프롬프트 언어 (auto, ko, en)"
+        },
+        "prompt.keyword_extraction.domain": {
+            "value": "general",
+            "description": "키워드 추출 도메인 (general, academic, technical)"
+        },
+        "prompt.keyword_extraction.max_keywords": {
+            "value": "20",
+            "description": "키워드 추출 최대 개수"
+        },
+        "prompt.keyword_extraction.temperature": {
+            "value": "0.1",
+            "description": "키워드 추출 LLM 온도"
+        },
+        "prompt.keyword_extraction.max_tokens": {
+            "value": "500",
+            "description": "키워드 추출 최대 토큰 수"
+        },
+        "prompt.document_summary.language": {
+            "value": "auto",
+            "description": "문서 요약 프롬프트 언어 (auto, ko, en)"
+        },
+        "prompt.document_summary.domain": {
+            "value": "general",
+            "description": "문서 요약 도메인 (general, academic, technical)"
+        },
+        "prompt.document_summary.temperature": {
+            "value": "0.3",
+            "description": "문서 요약 LLM 온도"
+        },
+        "prompt.document_summary.max_tokens": {
+            "value": "1000",
+            "description": "문서 요약 최대 토큰 수"
+        },
+        "prompt.document_summary.chunk_size": {
+            "value": "4000",
+            "description": "문서 청킹 크기"
+        },
+        "prompt.metadata_extraction.language": {
+            "value": "ko",
+            "description": "메타데이터 추출 프롬프트 언어"
+        },
+        "prompt.metadata_extraction.temperature": {
+            "value": "0.2",
+            "description": "메타데이터 추출 LLM 온도"
+        },
+        "prompt.metadata_extraction.max_tokens": {
+            "value": "800",
+            "description": "메타데이터 추출 최대 토큰 수"
+        },
+        
+        # 커스텀 프롬프트 저장 공간
+        "custom_prompts": {
+            "value": "{}",
+            "description": "사용자 정의 프롬프트 템플릿"
+        },
+        
+        # 기본 추출기 설정 (LangExtract 제외)
         "DEFAULT_EXTRACTORS": {
-            "value": json.dumps(["keybert", "ner", "konlpy"]),
+            "value": json.dumps(["keybert", "ner", "konlpy", "metadata"]),
             "description": "기본 추출기"
         },
         "MAX_KEYWORDS_PER_DOCUMENT": {
@@ -143,6 +267,12 @@ class ConfigService:
         "APP_DEBUG_MODE": {
             "value": "false",
             "description": "디버그 모드"
+        },
+        
+        # 로컬 파일 분석 설정
+        "LOCAL_FILE_ROOT": {
+            "value": ".",
+            "description": "로컬 파일 분석 루트 디렉토리"
         }
     }
     
@@ -294,6 +424,30 @@ class ConfigService:
             "llm_enabled": cls.get_bool_config(db, "ENABLE_LLM_EXTRACTION", False),
             "llm_provider": "ollama",
             "konlpy_enabled": cls.get_bool_config(db, "extractor.konlpy.enabled", False),
+            "konlpy_tagger": cls.get_config_value(db, "extractor.konlpy.tagger", "Okt"),
+            "konlpy_min_length": cls.get_int_config(db, "extractor.konlpy.min_length", 2),
+            "konlpy_min_frequency": cls.get_int_config(db, "extractor.konlpy.min_frequency", 1),
+            "konlpy_max_keywords": cls.get_int_config(db, "extractor.konlpy.max_keywords", 15),
+            
+            # LangExtract 설정 (API 호환성 문제로 비활성화)
+            "langextract_enabled": cls.get_bool_config(db, "extractor.langextract.enabled", False),
+            "langextract_max_keywords": cls.get_int_config(db, "extractor.langextract.max_keywords", 15),
+            "langextract_chunk_size": cls.get_int_config(db, "extractor.langextract.chunk_size", 2000),
+            "langextract_overlap": cls.get_int_config(db, "extractor.langextract.overlap", 200),
+            "langextract_confidence_threshold": cls.get_float_config(db, "extractor.langextract.confidence_threshold", 0.6),
+            
+            # Metadata 설정
+            "metadata_enabled": cls.get_bool_config(db, "extractor.metadata.enabled", True),
+            "metadata_extract_structure": cls.get_bool_config(db, "extractor.metadata.extract_structure", True),
+            "metadata_extract_statistics": cls.get_bool_config(db, "extractor.metadata.extract_statistics", True),
+            "metadata_extract_content": cls.get_bool_config(db, "extractor.metadata.extract_content", True),
+            "metadata_extract_file_info": cls.get_bool_config(db, "extractor.metadata.extract_file_info", True),
+            "metadata_extract_summary": cls.get_bool_config(db, "extractor.metadata.extract_summary", True),
+            "metadata_llm_summary": cls.get_bool_config(db, "extractor.metadata.llm_summary", True),
+            "metadata_include_filename": cls.get_bool_config(db, "extractor.metadata.include_filename", True),
+            "metadata_min_heading_length": cls.get_int_config(db, "extractor.metadata.min_heading_length", 2),
+            "metadata_max_metadata_keywords": cls.get_int_config(db, "extractor.metadata.max_metadata_keywords", 20),
+            
             "max_keywords": cls.get_int_config(db, "app.max_keywords", 20)
         }
     

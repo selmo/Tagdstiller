@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from db.db import Base, engine, SessionLocal
-from routers import projects, files, configs, extraction, admin, spacy_models
+from routers import projects, files, configs, extraction, admin, spacy_models, prompts, local_analysis
 from response_models import StatusResponse
 from services.config_service import ConfigService
 
@@ -29,7 +29,7 @@ app = FastAPI(
 # CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001", "http://127.0.0.1:3001", "http://localhost:8080", "http://127.0.0.1:8080"],
+    allow_origins=["http://localhost:3001", "http://127.0.0.1:3001", "http://localhost:8088", "http://127.0.0.1:8088"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,6 +57,8 @@ app.include_router(configs.router)
 app.include_router(extraction.router)
 app.include_router(admin.router)
 app.include_router(spacy_models.router)
+app.include_router(prompts.router)
+app.include_router(local_analysis.router)
 logger.info("모든 라우터 등록 완료")
 
 @app.get("/", response_model=StatusResponse)

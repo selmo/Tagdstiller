@@ -9,7 +9,7 @@ from utils.debug_logger import get_debug_logger
 class SpaCyNERExtractor(KeywordExtractor):
     """spaCy NER 기반 키워드 추출기"""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, db_session = None):
         super().__init__("spacy_ner", config)
         self.nlp = None
         self.model_name = config.get('model', 'ko_core_news_sm') if config else 'ko_core_news_sm'
