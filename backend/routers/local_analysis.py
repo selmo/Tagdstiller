@@ -180,6 +180,38 @@ async def get_current_directory():
     current_dir = Path.cwd()
     parent_dir = current_dir.parent
     
+    # 현재 디렉토리의 파일 목록 수집
+    files = []
+    directories = []
+    
+    try:
+        for item in current_dir.iterdir():
+            item_info = {
+                "name": item.name,
+                "path": str(item),
+                "size": item.stat().st_size if item.is_file() else None,
+                "modified": item.stat().st_mtime,
+                "is_hidden": item.name.startswith(".")
+            }
+            
+            if item.is_file():
+                item_info["extension"] = item.suffix.lower()
+                files.append(item_info)
+            elif item.is_dir():
+                try:
+                    # 디렉토리 내 항목 개수 계산
+                    item_count = len(list(item.iterdir()))
+                    item_info["item_count"] = item_count
+                except (PermissionError, OSError):
+                    item_info["item_count"] = 0
+                directories.append(item_info)
+    except (PermissionError, OSError):
+        pass  # 권한 오류 시 빈 목록 반환
+    
+    # 이름순 정렬
+    files.sort(key=lambda x: x["name"].lower())
+    directories.sort(key=lambda x: x["name"].lower())
+    
     return {
         "current_directory": str(current_dir),
         "parent_directory": str(parent_dir),
@@ -188,8 +220,84 @@ async def get_current_directory():
             "name": current_dir.name,
             "exists": current_dir.exists(),
             "is_directory": current_dir.is_dir()
+        },
+        "contents": {
+            "directories": directories,
+            "files": files,
+            "total_directories": len(directories),
+            "total_files": len(files)
         }
     }
+
+
+@router.post("/config/change-directory")
+async def change_directory(
+    request: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    현재 작업 디렉토리를 변경합니다.
+    """
+    import os
+    from pathlib import Path
+    
+    new_directory = request.get("directory")
+    if not new_directory:
+        raise HTTPException(status_code=400, detail="디렉토리 경로가 필요합니다")
+    
+    new_path = Path(new_directory)
+    
+    # 절대 경로로 변환
+    if not new_path.is_absolute():
+        new_path = Path.cwd() / new_path
+    
+    # 디렉토리 존재 여부 확인
+    if not new_path.exists():
+        raise HTTPException(status_code=404, detail=f"디렉토리를 찾을 수 없습니다: {new_path}")
+    
+    if not new_path.is_dir():
+        raise HTTPException(status_code=400, detail=f"경로가 디렉토리가 아닙니다: {new_path}")
+    
+    try:
+        # 디렉토리 변경
+        old_directory = str(Path.cwd())
+        os.chdir(new_path)
+        new_current_directory = str(Path.cwd())
+        
+        return {
+            "success": True,
+            "message": "디렉토리가 성공적으로 변경되었습니다",
+            "old_directory": old_directory,
+            "new_directory": new_current_directory
+        }
+        
+    except PermissionError:
+        raise HTTPException(status_code=403, detail=f"디렉토리에 접근할 권한이 없습니다: {new_path}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"디렉토리 변경 중 오류가 발생했습니다: {str(e)}")
+
+
+@router.post("/config/change-directory-and-list") 
+async def change_directory_and_list(
+    request: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    디렉토리를 변경하고 해당 디렉토리의 파일 목록을 반환합니다.
+    """
+    # 먼저 디렉토리 변경
+    change_result = await change_directory(request, db)
+    
+    if change_result["success"]:
+        # 변경된 디렉토리의 파일 목록 조회
+        current_dir_info = await get_current_directory()
+        
+        return {
+            **change_result,
+            "contents": current_dir_info["contents"]
+        }
+    else:
+        return change_result
 
 
 @router.get("/config/extractors")

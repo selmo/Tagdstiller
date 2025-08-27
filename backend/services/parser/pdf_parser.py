@@ -68,16 +68,89 @@ class PdfParser(DocumentParser):
             cleaned_text = TextCleaner.clean_text(text)
             word_count = len(cleaned_text.split()) if cleaned_text else 0
             
-            # 메타데이터 생성
+            # 확장된 메타데이터 생성
+            from datetime import datetime
+            import os
+            
+            # 앱 버전 가져오기 (환경변수 또는 기본값)
+            app_version = os.getenv("APP_VERSION", "1.0.0")
+            
+            # 파일 날짜 변환
+            file_stat = file_path.stat()
+            created_timestamp = datetime.fromtimestamp(file_stat.st_ctime).isoformat()
+            modified_timestamp = datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+            
+            # 텍스트 언어 감지 (간단한 휴리스틱)
+            def detect_language(text_sample):
+                if not text_sample:
+                    return "unknown"
+                # 한글 문자 비율 확인
+                korean_chars = sum(1 for c in text_sample[:1000] if '\uAC00' <= c <= '\uD7A3')
+                if korean_chars > len(text_sample[:1000]) * 0.1:
+                    return "ko"
+                # 영어 알파벳 비율 확인
+                english_chars = sum(1 for c in text_sample[:1000] if c.isascii() and c.isalpha())
+                if english_chars > len(text_sample[:1000]) * 0.5:
+                    return "en"
+                return "unknown"
+                
+            detected_language = detect_language(cleaned_text)
+            
+            # Dublin Core 메타데이터 매핑
+            dc_title = metadata_dict.get('title') or file_path.stem
+            dc_creator = metadata_dict.get('author')
+            dc_date = metadata_dict.get('creationDate')
+            
             metadata = DocumentMetadata(
-                title=metadata_dict.get('title') or file_path.stem,
-                author=metadata_dict.get('author'),
-                created_date=metadata_dict.get('creationDate'),
+                # 기존 필드 (호환성)
+                title=dc_title,
+                author=dc_creator,
+                created_date=dc_date,
                 modified_date=metadata_dict.get('modDate'),
                 page_count=metadata_dict.get('page_count', 0),
                 word_count=word_count,
                 file_size=file_info.get("file_size"),
-                mime_type="application/pdf"
+                mime_type="application/pdf",
+                
+                # Dublin Core 메타데이터
+                dc_title=dc_title,
+                dc_creator=dc_creator,
+                dc_subject=metadata_dict.get('subject'),
+                dc_description=metadata_dict.get('subject') or f"PDF 문서, {metadata_dict.get('page_count', 0)}페이지",
+                dc_publisher=metadata_dict.get('producer'),
+                dc_contributor=metadata_dict.get('author'),
+                dc_date=dc_date,
+                dc_type="document",
+                dc_format="application/pdf",
+                dc_identifier=file_path.name,
+                dc_source=str(file_path),
+                dc_language=detected_language,
+                dc_rights=None,
+                
+                # Dublin Core Terms
+                dcterms_created=dc_date,
+                dcterms_modified=metadata_dict.get('modDate'),
+                dcterms_extent=f"{file_info.get('file_size', 0)} bytes",
+                dcterms_medium="digital",
+                
+                # 파일 메타데이터
+                file_name=file_path.name,
+                file_path=str(file_path),
+                file_extension=file_path.suffix.lower(),
+                
+                # 문서 메타데이터
+                doc_page_count=metadata_dict.get('page_count', 0),
+                doc_word_count=word_count,
+                doc_character_count=len(cleaned_text) if cleaned_text else 0,
+                doc_type_code="pdf",
+                doc_supported="yes",
+                
+                # 애플리케이션 메타데이터
+                app_version=app_version,
+                
+                # 파서 정보
+                parser_name=f"{self.parser_name}_{used_engine}",
+                parser_version="1.0"
             )
             
             return ParseResult(

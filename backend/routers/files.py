@@ -56,6 +56,7 @@ async def upload_file(
     parsed_content = None
     parse_status = "not_parsed"
     parse_error = None
+    metadata = None
     
     if auto_parse:
         try:
@@ -65,6 +66,7 @@ async def upload_file(
             if parse_result.success:
                 parsed_content = parse_result.text
                 parse_status = "success"
+                metadata = parse_result.metadata
             else:
                 parse_status = "failed"
                 parse_error = parse_result.error_message
@@ -73,7 +75,7 @@ async def upload_file(
             parse_status = "failed"
             parse_error = str(e)
     
-    # Save file info to database
+    # Save file info to database with metadata
     db_file = FileModel(
         project_id=project_id,
         filename=file.filename,
@@ -82,7 +84,51 @@ async def upload_file(
         mime_type=mime_type,
         content=parsed_content,
         parse_status=parse_status,
-        parse_error=parse_error
+        parse_error=parse_error,
+        
+        # Dublin Core 메타데이터
+        dc_title=metadata.dc_title if metadata else None,
+        dc_creator=metadata.dc_creator if metadata else None,
+        dc_subject=metadata.dc_subject if metadata else None,
+        dc_description=metadata.dc_description if metadata else None,
+        dc_publisher=metadata.dc_publisher if metadata else None,
+        dc_contributor=metadata.dc_contributor if metadata else None,
+        dc_date=metadata.dc_date if metadata else None,
+        dc_type=metadata.dc_type if metadata else None,
+        dc_format=metadata.dc_format if metadata else mime_type,
+        dc_identifier=metadata.dc_identifier if metadata else file.filename,
+        dc_source=metadata.dc_source if metadata else str(file_path),
+        dc_language=metadata.dc_language if metadata else None,
+        dc_relation=metadata.dc_relation if metadata else None,
+        dc_coverage=metadata.dc_coverage if metadata else None,
+        dc_rights=metadata.dc_rights if metadata else None,
+        
+        # Dublin Core Terms
+        dcterms_created=metadata.dcterms_created if metadata else None,
+        dcterms_modified=metadata.dcterms_modified if metadata else None,
+        dcterms_extent=metadata.dcterms_extent if metadata else f"{file_size} bytes",
+        dcterms_medium=metadata.dcterms_medium if metadata else "digital",
+        dcterms_audience=metadata.dcterms_audience if metadata else None,
+        
+        # 파일 메타데이터
+        file_name=metadata.file_name if metadata else file.filename,
+        file_path=metadata.file_path if metadata else str(file_path),
+        file_size=metadata.file_size if metadata else file_size,
+        file_extension=metadata.file_extension if metadata else file_path_obj.suffix.lower(),
+        
+        # 문서 메타데이터
+        doc_page_count=metadata.doc_page_count if metadata else None,
+        doc_word_count=metadata.doc_word_count if metadata else None,
+        doc_character_count=metadata.doc_character_count if metadata else None,
+        doc_type_code=metadata.doc_type_code if metadata else None,
+        doc_supported=metadata.doc_supported if metadata else "yes",
+        
+        # 애플리케이션 메타데이터
+        app_version=metadata.app_version if metadata else None,
+        
+        # 파서 정보
+        parser_name=metadata.parser_name if metadata else None,
+        parser_version=metadata.parser_version if metadata else None
     )
     db.add(db_file)
     db.commit()
@@ -218,6 +264,7 @@ async def _process_uploaded_file(
         parsed_content = None
         parse_status = "not_parsed"
         parse_error = None
+        metadata = None
         
         if auto_parse:
             try:
@@ -227,6 +274,7 @@ async def _process_uploaded_file(
                 if parse_result.success:
                     parsed_content = parse_result.text
                     parse_status = "success"
+                    metadata = parse_result.metadata
                 else:
                     parse_status = "failed"
                     parse_error = parse_result.error_message
@@ -235,7 +283,7 @@ async def _process_uploaded_file(
                 parse_status = "failed"
                 parse_error = str(e)
         
-        # Save file info to database
+        # Save file info to database with metadata
         db_file = FileModel(
             project_id=project_id,
             filename=filename,
@@ -244,7 +292,51 @@ async def _process_uploaded_file(
             mime_type=mime_type,
             content=parsed_content,
             parse_status=parse_status,
-            parse_error=parse_error
+            parse_error=parse_error,
+            
+            # Dublin Core 메타데이터
+            dc_title=metadata.dc_title if metadata else None,
+            dc_creator=metadata.dc_creator if metadata else None,
+            dc_subject=metadata.dc_subject if metadata else None,
+            dc_description=metadata.dc_description if metadata else None,
+            dc_publisher=metadata.dc_publisher if metadata else None,
+            dc_contributor=metadata.dc_contributor if metadata else None,
+            dc_date=metadata.dc_date if metadata else None,
+            dc_type=metadata.dc_type if metadata else None,
+            dc_format=metadata.dc_format if metadata else mime_type,
+            dc_identifier=metadata.dc_identifier if metadata else filename,
+            dc_source=metadata.dc_source if metadata else str(file_path),
+            dc_language=metadata.dc_language if metadata else None,
+            dc_relation=metadata.dc_relation if metadata else None,
+            dc_coverage=metadata.dc_coverage if metadata else None,
+            dc_rights=metadata.dc_rights if metadata else None,
+            
+            # Dublin Core Terms
+            dcterms_created=metadata.dcterms_created if metadata else None,
+            dcterms_modified=metadata.dcterms_modified if metadata else None,
+            dcterms_extent=metadata.dcterms_extent if metadata else f"{file_size} bytes",
+            dcterms_medium=metadata.dcterms_medium if metadata else "digital",
+            dcterms_audience=metadata.dcterms_audience if metadata else None,
+            
+            # 파일 메타데이터
+            file_name=metadata.file_name if metadata else filename,
+            file_path=metadata.file_path if metadata else str(file_path),
+            file_size=metadata.file_size if metadata else file_size,
+            file_extension=metadata.file_extension if metadata else file_path.suffix.lower(),
+            
+            # 문서 메타데이터
+            doc_page_count=metadata.doc_page_count if metadata else None,
+            doc_word_count=metadata.doc_word_count if metadata else None,
+            doc_character_count=metadata.doc_character_count if metadata else None,
+            doc_type_code=metadata.doc_type_code if metadata else None,
+            doc_supported=metadata.doc_supported if metadata else "yes",
+            
+            # 애플리케이션 메타데이터
+            app_version=metadata.app_version if metadata else None,
+            
+            # 파서 정보
+            parser_name=metadata.parser_name if metadata else None,
+            parser_version=metadata.parser_version if metadata else None
         )
         db.add(db_file)
         db.commit()
@@ -414,6 +506,156 @@ def get_file_content_direct(file_id: int, db: Session = Depends(get_db)):
         "parse_error": db_file.parse_error,
         "word_count": len(db_file.content.split()) if db_file.content else 0
     }
+
+@router.get("/{file_id}/metadata")
+def get_file_metadata(file_id: int, db: Session = Depends(get_db)):
+    """파일의 메타데이터를 반환합니다."""
+    # 파일 정보 조회
+    db_file = db.query(FileModel).filter(FileModel.id == file_id).first()
+    
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # 메타데이터 구성 (null 값 제외)
+    metadata_dict = {
+        "file_id": file_id,
+        "filename": db_file.filename,
+    }
+    
+    # Dublin Core 메타데이터 (표준 형식) - null이 아닌 값만 포함
+    dc_data = {
+        "dc:title": db_file.dc_title or db_file.filename,
+        "dc:creator": db_file.dc_creator,
+        "dc:subject": db_file.dc_subject,
+        "dc:description": db_file.dc_description,
+        "dc:publisher": db_file.dc_publisher,
+        "dc:contributor": db_file.dc_contributor,
+        "dc:date": db_file.dc_date,
+        "dc:type": db_file.dc_type,
+        "dc:format": db_file.dc_format or db_file.mime_type,
+        "dc:identifier": db_file.dc_identifier or db_file.filename,
+        "dc:source": db_file.dc_source or db_file.filepath,
+        "dc:language": db_file.dc_language,
+        "dc:relation": db_file.dc_relation,
+        "dc:coverage": db_file.dc_coverage,
+        "dc:rights": db_file.dc_rights,
+    }
+    
+    # Dublin Core Terms 확장
+    dcterms_data = {
+        "dcterms:created": db_file.dcterms_created,
+        "dcterms:modified": db_file.dcterms_modified,
+        "dcterms:extent": db_file.dcterms_extent or f"{db_file.file_size or db_file.size or 0} bytes",
+        "dcterms:medium": db_file.dcterms_medium or "digital",
+        "dcterms:audience": db_file.dcterms_audience,
+        "dcterms:alternative": db_file.file_name or db_file.filename,
+        "dcterms:isPartOf": f"project_{db_file.project_id}",
+        "dcterms:hasFormat": db_file.file_extension or (db_file.filepath.split('.')[-1] if db_file.filepath and '.' in db_file.filepath else None),
+    }
+    
+    # 문서 특정 정보 (DC 확장)
+    doc_data = {
+        "doc:pageCount": db_file.doc_page_count,
+        "doc:wordCount": db_file.doc_word_count,
+        "doc:characterCount": db_file.doc_character_count,
+        "doc:typeCode": db_file.doc_type_code,
+        "doc:supported": db_file.doc_supported,
+    }
+    
+    # 처리 정보
+    processing_data = {
+        "processing:parserName": db_file.parser_name,
+        "processing:parserVersion": db_file.parser_version,
+        "processing:extractionDate": db_file.extraction_date.isoformat() if db_file.extraction_date else None,
+        "processing:appVersion": db_file.app_version,
+        "processing:parseStatus": db_file.parse_status,
+        "processing:uploadDate": db_file.uploaded_at.isoformat() if db_file.uploaded_at else None,
+    }
+    
+    # null이 아닌 값만 추가
+    for data_dict in [dc_data, dcterms_data, doc_data, processing_data]:
+        for key, value in data_dict.items():
+            if value is not None and value != "":
+                metadata_dict[key] = value
+    
+    return metadata_dict
+
+@router.get("/{project_id}/files/{file_id}/metadata")
+def get_project_file_metadata(project_id: int, file_id: int, db: Session = Depends(get_db)):
+    """프로젝트 내 파일의 메타데이터를 반환합니다."""
+    # 파일 정보 조회
+    db_file = db.query(FileModel).filter(
+        FileModel.id == file_id,
+        FileModel.project_id == project_id
+    ).first()
+    
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # 메타데이터 구성 (null 값 제외)
+    metadata_dict = {
+        "file_id": file_id,
+        "project_id": project_id,
+        "filename": db_file.filename,
+    }
+    
+    # Dublin Core 메타데이터 (표준 형식) - null이 아닌 값만 포함
+    dc_data = {
+        "dc:title": db_file.dc_title or db_file.filename,
+        "dc:creator": db_file.dc_creator,
+        "dc:subject": db_file.dc_subject,
+        "dc:description": db_file.dc_description,
+        "dc:publisher": db_file.dc_publisher,
+        "dc:contributor": db_file.dc_contributor,
+        "dc:date": db_file.dc_date,
+        "dc:type": db_file.dc_type,
+        "dc:format": db_file.dc_format or db_file.mime_type,
+        "dc:identifier": db_file.dc_identifier or db_file.filename,
+        "dc:source": db_file.dc_source or db_file.filepath,
+        "dc:language": db_file.dc_language,
+        "dc:relation": db_file.dc_relation,
+        "dc:coverage": db_file.dc_coverage,
+        "dc:rights": db_file.dc_rights,
+    }
+    
+    # Dublin Core Terms 확장
+    dcterms_data = {
+        "dcterms:created": db_file.dcterms_created,
+        "dcterms:modified": db_file.dcterms_modified,
+        "dcterms:extent": db_file.dcterms_extent or f"{db_file.file_size or db_file.size or 0} bytes",
+        "dcterms:medium": db_file.dcterms_medium or "digital",
+        "dcterms:audience": db_file.dcterms_audience,
+        "dcterms:alternative": db_file.file_name or db_file.filename,
+        "dcterms:isPartOf": f"project_{project_id}",
+        "dcterms:hasFormat": db_file.file_extension or (db_file.filepath.split('.')[-1] if db_file.filepath and '.' in db_file.filepath else None),
+    }
+    
+    # 문서 특정 정보 (DC 확장)
+    doc_data = {
+        "doc:pageCount": db_file.doc_page_count,
+        "doc:wordCount": db_file.doc_word_count,
+        "doc:characterCount": db_file.doc_character_count,
+        "doc:typeCode": db_file.doc_type_code,
+        "doc:supported": db_file.doc_supported,
+    }
+    
+    # 처리 정보
+    processing_data = {
+        "processing:parserName": db_file.parser_name,
+        "processing:parserVersion": db_file.parser_version,
+        "processing:extractionDate": db_file.extraction_date.isoformat() if db_file.extraction_date else None,
+        "processing:appVersion": db_file.app_version,
+        "processing:parseStatus": db_file.parse_status,
+        "processing:uploadDate": db_file.uploaded_at.isoformat() if db_file.uploaded_at else None,
+    }
+    
+    # null이 아닌 값만 추가
+    for data_dict in [dc_data, dcterms_data, doc_data, processing_data]:
+        for key, value in data_dict.items():
+            if value is not None and value != "":
+                metadata_dict[key] = value
+    
+    return metadata_dict
 
 @router.get("/{file_id}/download")
 def download_file(file_id: int, db: Session = Depends(get_db)):

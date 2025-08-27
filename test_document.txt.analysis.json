@@ -1,0 +1,11 @@
+{
+  "file_path": "../test_document.txt",
+  "analysis_timestamp": "2025-08-25T08:12:46.688415",
+  "analyzer_version": "1.0.0",
+  "file_info": {
+    "path": "../test_document.txt",
+    "error": "'list' object has no attribute 'values'"
+  },
+  "analysis_status": "failed",
+  "error_message": "'list' object has no attribute 'values'"
+}

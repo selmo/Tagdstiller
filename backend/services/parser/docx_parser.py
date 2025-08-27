@@ -70,15 +70,84 @@ class DocxParser(DocumentParser):
             # 문서 속성에서 메타데이터 추출
             core_props = doc.core_properties
             
-            # 메타데이터 생성
+            # 확장된 메타데이터 생성
+            from datetime import datetime
+            import os
+            
+            # 앱 버전 가져오기
+            app_version = os.getenv("APP_VERSION", "1.0.0")
+            
+            # 언어 감지
+            def detect_language(text_sample):
+                if not text_sample:
+                    return "unknown"
+                korean_chars = sum(1 for c in text_sample[:1000] if '\uAC00' <= c <= '\uD7A3')
+                if korean_chars > len(text_sample[:1000]) * 0.1:
+                    return "ko"
+                english_chars = sum(1 for c in text_sample[:1000] if c.isascii() and c.isalpha())
+                if english_chars > len(text_sample[:1000]) * 0.5:
+                    return "en"
+                return "unknown"
+                
+            detected_language = detect_language(full_text)
+            
+            # 페이지 수 추정 (평균 250단어/페이지 기준)
+            estimated_pages = max(1, word_count // 250)
+            
+            # Dublin Core 메타데이터 매핑
+            dc_title = core_props.title or file_path.stem
+            dc_creator = core_props.author
+            dc_date = str(core_props.created) if core_props.created else None
+            
             metadata = DocumentMetadata(
-                title=core_props.title or file_path.stem,
-                author=core_props.author,
-                created_date=str(core_props.created) if core_props.created else None,
+                # 기존 필드 (호환성)
+                title=dc_title,
+                author=dc_creator,
+                created_date=dc_date,
                 modified_date=str(core_props.modified) if core_props.modified else None,
                 word_count=word_count,
                 file_size=file_info.get("file_size"),
-                mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                
+                # Dublin Core 메타데이터
+                dc_title=dc_title,
+                dc_creator=dc_creator,
+                dc_subject=core_props.subject,
+                dc_description=core_props.comments or f"Word 문서, 약 {estimated_pages}페이지",
+                dc_publisher=None,
+                dc_contributor=core_props.last_modified_by,
+                dc_date=dc_date,
+                dc_type="document",
+                dc_format="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                dc_identifier=file_path.name,
+                dc_source=str(file_path),
+                dc_language=detected_language,
+                dc_rights=None,
+                
+                # Dublin Core Terms
+                dcterms_created=dc_date,
+                dcterms_modified=str(core_props.modified) if core_props.modified else None,
+                dcterms_extent=f"{file_info.get('file_size', 0)} bytes",
+                dcterms_medium="digital",
+                
+                # 파일 메타데이터
+                file_name=file_path.name,
+                file_path=str(file_path),
+                file_extension=file_path.suffix.lower(),
+                
+                # 문서 메타데이터
+                doc_page_count=estimated_pages,
+                doc_word_count=word_count,
+                doc_character_count=len(full_text) if full_text else 0,
+                doc_type_code="docx",
+                doc_supported="yes",
+                
+                # 애플리케이션 메타데이터
+                app_version=app_version,
+                
+                # 파서 정보
+                parser_name=self.parser_name,
+                parser_version="1.0"
             )
             
             return ParseResult(

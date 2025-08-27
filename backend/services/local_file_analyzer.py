@@ -22,8 +22,21 @@ class LocalFileAnalyzer:
         self.extractor_manager = ExtractorManager(db)
         
     def get_file_root(self) -> str:
-        """설정에서 파일 루트 디렉토리를 가져옴"""
-        return ConfigService.get_config_value(self.db, "LOCAL_FILE_ROOT", ".")
+        """설정에서 파일 루트 디렉토리를 가져오고 없으면 생성"""
+        root_path = ConfigService.get_config_value(self.db, "LOCAL_FILE_ROOT", "./data/uploads")
+        root_dir = Path(root_path)
+        
+        # 디렉토리가 존재하지 않으면 생성
+        if not root_dir.exists():
+            try:
+                root_dir.mkdir(parents=True, exist_ok=True)
+                print(f"업로드 디렉토리를 생성했습니다: {root_dir.resolve()}")
+            except Exception as e:
+                print(f"업로드 디렉토리 생성 실패: {e}")
+                # 생성 실패 시 현재 디렉토리 사용
+                return "."
+        
+        return root_path
     
     def get_absolute_path(self, file_path: str) -> Path:
         """상대 경로를 절대 경로로 변환"""
@@ -210,7 +223,9 @@ class LocalFileAnalyzer:
                     "line_count": len(content.splitlines())
                 },
                 "extraction_info": {
-                    "extractors_used": extractors or [],
+                    "extractors_used": extractors if extractors is not None else ConfigService.get_json_config(
+                        self.db, "DEFAULT_EXTRACTORS", ["keybert", "ner", "konlpy", "metadata"]
+                    ),
                     "total_keywords": len(keywords)
                 },
                 "keywords": grouped_keywords,

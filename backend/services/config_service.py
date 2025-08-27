@@ -271,7 +271,7 @@ class ConfigService:
         
         # 로컬 파일 분석 설정
         "LOCAL_FILE_ROOT": {
-            "value": ".",
+            "value": "./data/uploads",
             "description": "로컬 파일 분석 루트 디렉토리"
         }
     }
