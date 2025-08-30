@@ -11,6 +11,16 @@ from utils.position_mapper import PositionMapper
 from utils.debug_logger import get_debug_logger
 from prompts.templates import get_prompt_template
 from prompts.config import PromptConfig
+from utils.llm_logger import log_prompt_and_response
+
+# LangChain imports
+try:
+    from langchain_ollama import OllamaLLM
+except ImportError:
+    try:
+        from langchain_community.llms import Ollama as OllamaLLM
+    except ImportError:
+        OllamaLLM = None
 
 
 class MetadataExtractor(KeywordExtractor):
@@ -22,6 +32,9 @@ class MetadataExtractor(KeywordExtractor):
         
         # 프롬프트 설정 초기화
         self.prompt_config = PromptConfig(config, db_session)
+        
+        # LangChain Ollama 인스턴스 초기화
+        self.ollama_client = None
         
     def load_model(self) -> bool:
         """메타데이터 추출기는 별도 모델 로드가 필요하지 않습니다."""
@@ -416,24 +429,37 @@ class MetadataExtractor(KeywordExtractor):
             return []
     
     def _call_llm_for_summary(self, text: str, ollama_config: Dict[str, any]) -> List[Keyword]:
-        """실제 LLM API를 호출하여 요약을 생성합니다."""
-        import requests
-        import json
+        """LangChain을 사용하여 LLM API를 호출하고 요약을 생성합니다."""
         logger = logging.getLogger(__name__)
         
         try:
+            # LangChain Ollama 클라이언트 초기화 (필요시)
+            if not self.ollama_client:
+                try:
+                    if not OllamaLLM:
+                        raise ImportError("LangChain Ollama not available")
+                    
+                    self.ollama_client = OllamaLLM(
+                        base_url=ollama_config['base_url'],
+                        model=ollama_config['model'],
+                        timeout=ollama_config['timeout']
+                    )
+                    logger.debug(f"✅ LangChain Ollama 클라이언트 초기화 성공")
+                except Exception as e:
+                    logger.error(f"❌ LangChain Ollama 클라이언트 초기화 실패: {e}")
+                    # 폴백: 기존 requests 방식 사용
+                    return self._call_llm_for_summary_fallback(text, ollama_config)
+            
             # 프롬프트 템플릿 사용
-            template_name = self.prompt_config.get_template_name('document_summary')
-            variables = self.prompt_config.get_template_variables('document_summary', text)
-            prompt = get_prompt_template('document_summary', template_name, **variables)
-            
-            logger.debug(f"🎯 문서 요약 템플릿 사용: document_summary.{template_name}")
-            
-        except Exception as e:
-            logger.warning(f"⚠️ 프롬프트 템플릿 사용 실패, 기본 프롬프트 사용: {e}")
-            
-            # 폴백: 기존 방식
-            prompt = f"""다음 문서를 분석하여 5가지 유형의 요약을 생성해주세요. 각 요약은 간결하고 핵심적인 내용으로 작성해주세요.
+            try:
+                template_name = self.prompt_config.get_template_name('document_summary')
+                variables = self.prompt_config.get_template_variables('document_summary', text)
+                prompt = get_prompt_template('document_summary', template_name, **variables)
+                logger.debug(f"🎯 문서 요약 템플릿 사용: document_summary.{template_name}")
+            except Exception as e:
+                logger.warning(f"⚠️ 프롬프트 템플릿 사용 실패, 기본 프롬프트 사용: {e}")
+                # 폴백: 기존 방식
+                prompt = f"""다음 문서를 분석하여 5가지 유형의 요약을 생성해주세요. 각 요약은 간결하고 핵심적인 내용으로 작성해주세요.
 
 문서 내용:
 {text}
@@ -449,7 +475,72 @@ class MetadataExtractor(KeywordExtractor):
 
 JSON 형식으로만 응답해주세요:"""
         
+            # LangChain을 통해 LLM 호출
+            logger.debug(f"🚀 LangChain Ollama 호출 - 모델: {ollama_config['model']}")
+            
+            start_time = time.time()
+            response = self.ollama_client.invoke(prompt)
+            call_duration = time.time() - start_time
+            
+            logger.debug(f"✅ LangChain LLM 응답 수신 - 길이: {len(response)}자, 소요시간: {call_duration:.2f}초")
+
+            # 프롬프트/응답 파일 저장 및 로그 기록
+            log_prompt_and_response(
+                label="document_summary",
+                provider="ollama",
+                model=ollama_config['model'],
+                prompt=prompt,
+                response=response,
+                logger=logger,
+                meta={
+                    "base_url": ollama_config['base_url'],
+                    "timeout": ollama_config['timeout'],
+                    "langchain_version": True,
+                    "call_duration": call_duration,
+                },
+            )
+
+            # JSON 응답 파싱
+            return self._parse_llm_summary_response(response)
+                
+        except Exception as e:
+            logger.error(f"❌ LangChain LLM API 호출 실패: {e}")
+            # 폴백: 기존 requests 방식 사용
+            logger.info("기존 requests 방식으로 폴백 시도...")
+            return self._call_llm_for_summary_fallback(text, ollama_config)
+    
+    def _call_llm_for_summary_fallback(self, text: str, ollama_config: Dict[str, any]) -> List[Keyword]:
+        """기존 requests 방식의 LLM API 호출 (폴백용)."""
+        import requests
+        import json
+        logger = logging.getLogger(__name__)
+        
         try:
+            # 프롬프트 템플릿 사용
+            try:
+                template_name = self.prompt_config.get_template_name('document_summary')
+                variables = self.prompt_config.get_template_variables('document_summary', text)
+                prompt = get_prompt_template('document_summary', template_name, **variables)
+                logger.debug(f"🎯 문서 요약 템플릿 사용 (폴백): document_summary.{template_name}")
+            except Exception as e:
+                logger.warning(f"⚠️ 프롬프트 템플릿 사용 실패, 기본 프롬프트 사용: {e}")
+                # 폴백: 기존 방식
+                prompt = f"""다음 문서를 분석하여 5가지 유형의 요약을 생성해주세요. 각 요약은 간결하고 핵심적인 내용으로 작성해주세요.
+
+문서 내용:
+{text}
+
+다음 JSON 형식으로 응답해주세요:
+{{
+  "intro": "문서의 도입부나 시작 부분을 한 문장으로 요약",
+  "conclusion": "문서의 결론이나 마무리 부분을 한 문장으로 요약", 
+  "core": "문서의 가장 핵심적인 내용을 한 문장으로 요약",
+  "topics": ["주요", "키워드", "목록", "5개", "이내"],
+  "tone": "문서의 전반적인 톤이나 성격 (예: 공식적, 학술적, 기술적, 설명적, 정보제공적)"
+}}
+
+JSON 형식으로만 응답해주세요:"""
+            
             # 프롬프트 설정에서 LLM 파라미터 가져오기
             llm_params = self.prompt_config.get_llm_params('document_summary')
             
@@ -460,7 +551,7 @@ JSON 형식으로만 응답해주세요:"""
                 "options": llm_params
             }
             
-            logger.debug(f"🚀 Ollama API 호출 - 모델: {ollama_config['model']}")
+            logger.debug(f"🚀 Ollama API 폴백 호출 - 모델: {ollama_config['model']}")
             
             response = requests.post(
                 f"{ollama_config['base_url']}/api/generate",
@@ -468,18 +559,39 @@ JSON 형식으로만 응답해주세요:"""
                 timeout=ollama_config['timeout']
             )
             
+            # 프롬프트/응답 파일 저장 및 로그 기록 (상태 코드 무관하게 저장)
+            resp_text = ""
             if response.status_code == 200:
-                result = response.json().get("response", "")
-                logger.debug(f"✅ LLM 응답 수신 - 길이: {len(result)}자")
-                
-                # JSON 응답 파싱
-                return self._parse_llm_summary_response(result)
+                resp_text = response.json().get("response", "")
             else:
-                logger.error(f"❌ Ollama API 오류: {response.status_code}")
+                resp_text = response.text or ""
+
+            log_prompt_and_response(
+                label="document_summary",
+                provider="ollama",
+                model=ollama_config['model'],
+                prompt=prompt,
+                response=resp_text,
+                logger=logger,
+                meta={
+                    "base_url": ollama_config['base_url'],
+                    "status_code": response.status_code,
+                    "timeout": ollama_config['timeout'],
+                    "options": llm_params,
+                    "fallback_mode": True,
+                },
+            )
+
+            if response.status_code == 200:
+                logger.debug(f"✅ LLM 폴백 응답 수신 - 길이: {len(resp_text)}자")
+                # JSON 응답 파싱
+                return self._parse_llm_summary_response(resp_text)
+            else:
+                logger.error(f"❌ Ollama API 폴백 오류: {response.status_code}")
                 return []
                 
         except Exception as e:
-            logger.error(f"❌ LLM API 호출 실패: {e}")
+            logger.error(f"❌ LLM API 폴백 호출 실패: {e}")
             return []
     
     def _parse_llm_summary_response(self, response: str) -> List[Keyword]:

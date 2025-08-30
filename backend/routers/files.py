@@ -12,6 +12,7 @@ from services.parser import AutoParser, get_supported_extensions
 from services.parser.zip_parser import ZipParser
 
 router = APIRouter(prefix="/projects", tags=["files"])
+files_router = APIRouter(prefix="/files", tags=["files-direct"])
 
 UPLOAD_DIR = Path(__file__).parent.parent / "data" / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -135,6 +136,7 @@ async def upload_file(
     db.refresh(db_file)
     
     return db_file
+
 
 @router.post("/{project_id}/upload_bulk", response_model=List[FileResponse])
 async def upload_bulk_files(
@@ -509,80 +511,76 @@ def get_file_content_direct(file_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{file_id}/metadata")
 def get_file_metadata(file_id: int, db: Session = Depends(get_db)):
-    """파일의 메타데이터를 반환합니다."""
+    """프로젝트 컨텍스트에서 파일의 메타데이터를 반환합니다 (메타데이터 스키마 준수)."""
     # 파일 정보 조회
     db_file = db.query(FileModel).filter(FileModel.id == file_id).first()
     
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
     
-    # 메타데이터 구성 (null 값 제외)
-    metadata_dict = {
-        "file_id": file_id,
-        "filename": db_file.filename,
-    }
+    # 데이터베이스 값을 DocumentMetadata 객체로 변환
+    from services.parser.base import DocumentMetadata
     
-    # Dublin Core 메타데이터 (표준 형식) - null이 아닌 값만 포함
-    dc_data = {
-        "dc:title": db_file.dc_title or db_file.filename,
-        "dc:creator": db_file.dc_creator,
-        "dc:subject": db_file.dc_subject,
-        "dc:description": db_file.dc_description,
-        "dc:publisher": db_file.dc_publisher,
-        "dc:contributor": db_file.dc_contributor,
-        "dc:date": db_file.dc_date,
-        "dc:type": db_file.dc_type,
-        "dc:format": db_file.dc_format or db_file.mime_type,
-        "dc:identifier": db_file.dc_identifier or db_file.filename,
-        "dc:source": db_file.dc_source or db_file.filepath,
-        "dc:language": db_file.dc_language,
-        "dc:relation": db_file.dc_relation,
-        "dc:coverage": db_file.dc_coverage,
-        "dc:rights": db_file.dc_rights,
-    }
+    metadata = DocumentMetadata(
+        # 기본 필드
+        title=db_file.filename,
+        author=db_file.dc_creator,
+        created_date=db_file.dcterms_created,
+        modified_date=db_file.dcterms_modified,
+        page_count=db_file.doc_page_count,
+        word_count=db_file.doc_word_count,
+        file_size=getattr(db_file, 'file_size', db_file.size),
+        mime_type=db_file.dc_format or db_file.mime_type,
+        
+        # Dublin Core 필드
+        dc_title=db_file.dc_title or db_file.filename,
+        dc_creator=db_file.dc_creator,
+        dc_subject=db_file.dc_subject,
+        dc_description=db_file.dc_description,
+        dc_publisher=db_file.dc_publisher,
+        dc_contributor=db_file.dc_contributor,
+        dc_date=db_file.dc_date,
+        dc_type=db_file.dc_type,
+        dc_format=db_file.dc_format or db_file.mime_type,
+        dc_identifier=db_file.dc_identifier,
+        dc_source=db_file.dc_source,
+        dc_language=db_file.dc_language,
+        dc_relation=db_file.dc_relation,
+        dc_coverage=db_file.dc_coverage,
+        dc_rights=db_file.dc_rights,
+        
+        # Dublin Core Terms
+        dcterms_created=db_file.dcterms_created,
+        dcterms_modified=db_file.dcterms_modified,
+        dcterms_extent=db_file.dcterms_extent,
+        dcterms_medium=db_file.dcterms_medium,
+        dcterms_audience=db_file.dcterms_audience,
+        dcterms_accessrights=getattr(db_file, 'dcterms_accessrights', 'public'),
+        
+        # 파일 정보
+        file_name=db_file.filename,
+        file_path=db_file.filepath,
+        file_extension=Path(db_file.filename).suffix if db_file.filename else None,
+        
+        # 문서 정보
+        doc_page_count=db_file.doc_page_count,
+        doc_word_count=db_file.doc_word_count,
+        doc_character_count=db_file.doc_character_count,
+        doc_type_code=db_file.doc_type_code,
+        doc_supported=db_file.doc_supported,
+        
+        # 처리 정보
+        app_version=db_file.app_version,
+        parser_name=db_file.parser_name,
+        parser_version=db_file.parser_version,
+    )
     
-    # Dublin Core Terms 확장
-    dcterms_data = {
-        "dcterms:created": db_file.dcterms_created,
-        "dcterms:modified": db_file.dcterms_modified,
-        "dcterms:extent": db_file.dcterms_extent or f"{db_file.file_size or db_file.size or 0} bytes",
-        "dcterms:medium": db_file.dcterms_medium or "digital",
-        "dcterms:audience": db_file.dcterms_audience,
-        "dcterms:alternative": db_file.file_name or db_file.filename,
-        "dcterms:isPartOf": f"project_{db_file.project_id}",
-        "dcterms:hasFormat": db_file.file_extension or (db_file.filepath.split('.')[-1] if db_file.filepath and '.' in db_file.filepath else None),
-    }
-    
-    # 문서 특정 정보 (DC 확장)
-    doc_data = {
-        "doc:pageCount": db_file.doc_page_count,
-        "doc:wordCount": db_file.doc_word_count,
-        "doc:characterCount": db_file.doc_character_count,
-        "doc:typeCode": db_file.doc_type_code,
-        "doc:supported": db_file.doc_supported,
-    }
-    
-    # 처리 정보
-    processing_data = {
-        "processing:parserName": db_file.parser_name,
-        "processing:parserVersion": db_file.parser_version,
-        "processing:extractionDate": db_file.extraction_date.isoformat() if db_file.extraction_date else None,
-        "processing:appVersion": db_file.app_version,
-        "processing:parseStatus": db_file.parse_status,
-        "processing:uploadDate": db_file.uploaded_at.isoformat() if db_file.uploaded_at else None,
-    }
-    
-    # null이 아닌 값만 추가
-    for data_dict in [dc_data, dcterms_data, doc_data, processing_data]:
-        for key, value in data_dict.items():
-            if value is not None and value != "":
-                metadata_dict[key] = value
-    
-    return metadata_dict
+    # 스키마 준수 형식으로 변환
+    return metadata.to_schema_compliant_dict(file_id=file_id, project_id=db_file.project_id)
 
 @router.get("/{project_id}/files/{file_id}/metadata")
 def get_project_file_metadata(project_id: int, file_id: int, db: Session = Depends(get_db)):
-    """프로젝트 내 파일의 메타데이터를 반환합니다."""
+    """프로젝트 내 파일의 메타데이터를 반환합니다 (메타데이터 스키마 준수)."""
     # 파일 정보 조회
     db_file = db.query(FileModel).filter(
         FileModel.id == file_id,
@@ -592,70 +590,174 @@ def get_project_file_metadata(project_id: int, file_id: int, db: Session = Depen
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
     
-    # 메타데이터 구성 (null 값 제외)
-    metadata_dict = {
+    # 데이터베이스 값을 DocumentMetadata 객체로 변환
+    from services.parser.base import DocumentMetadata
+    
+    metadata = DocumentMetadata(
+        # 기본 필드
+        title=db_file.filename,
+        author=db_file.dc_creator,
+        created_date=db_file.dcterms_created,
+        modified_date=db_file.dcterms_modified,
+        page_count=db_file.doc_page_count,
+        word_count=db_file.doc_word_count,
+        file_size=getattr(db_file, 'file_size', db_file.size),
+        mime_type=db_file.dc_format or db_file.mime_type,
+        
+        # Dublin Core 필드
+        dc_title=db_file.dc_title or db_file.filename,
+        dc_creator=db_file.dc_creator,
+        dc_subject=db_file.dc_subject,
+        dc_description=db_file.dc_description,
+        dc_publisher=db_file.dc_publisher,
+        dc_contributor=db_file.dc_contributor,
+        dc_date=db_file.dc_date,
+        dc_type=db_file.dc_type,
+        dc_format=db_file.dc_format or db_file.mime_type,
+        dc_identifier=db_file.dc_identifier,
+        dc_source=db_file.dc_source,
+        dc_language=db_file.dc_language,
+        dc_relation=db_file.dc_relation,
+        dc_coverage=db_file.dc_coverage,
+        dc_rights=db_file.dc_rights,
+        
+        # Dublin Core Terms
+        dcterms_created=db_file.dcterms_created,
+        dcterms_modified=db_file.dcterms_modified,
+        dcterms_extent=db_file.dcterms_extent,
+        dcterms_medium=db_file.dcterms_medium,
+        dcterms_audience=db_file.dcterms_audience,
+        dcterms_accessrights=getattr(db_file, 'dcterms_accessrights', 'public'),
+        
+        # 파일 정보
+        file_name=db_file.filename,
+        file_path=db_file.filepath,
+        file_extension=Path(db_file.filename).suffix if db_file.filename else None,
+        
+        # 문서 정보
+        doc_page_count=db_file.doc_page_count,
+        doc_word_count=db_file.doc_word_count,
+        doc_character_count=db_file.doc_character_count,
+        doc_type_code=db_file.doc_type_code,
+        doc_supported=db_file.doc_supported,
+        
+        # 처리 정보
+        app_version=db_file.app_version,
+        parser_name=db_file.parser_name,
+        parser_version=db_file.parser_version,
+    )
+    
+    # 스키마 준수 형식으로 변환
+    return metadata.to_schema_compliant_dict(file_id=file_id, project_id=project_id)
+
+# 직접 파일 접근용 메타데이터 엔드포인트
+@files_router.get("/{file_id}/metadata")
+def get_direct_file_metadata(file_id: int, db: Session = Depends(get_db)):
+    """파일의 메타데이터를 반환합니다 (직접 접근, 메타데이터 스키마 준수)."""
+    # 파일 정보 조회
+    db_file = db.query(FileModel).filter(FileModel.id == file_id).first()
+    
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # 데이터베이스 값을 DocumentMetadata 객체로 변환
+    from services.parser.base import DocumentMetadata
+    
+    metadata = DocumentMetadata(
+        # 기본 필드
+        title=db_file.filename,
+        author=db_file.dc_creator,
+        created_date=db_file.dcterms_created,
+        modified_date=db_file.dcterms_modified,
+        page_count=db_file.doc_page_count,
+        word_count=db_file.doc_word_count,
+        file_size=getattr(db_file, 'file_size', db_file.size),
+        mime_type=db_file.dc_format or db_file.mime_type,
+        
+        # Dublin Core 필드
+        dc_title=db_file.dc_title or db_file.filename,
+        dc_creator=db_file.dc_creator,
+        dc_subject=db_file.dc_subject,
+        dc_description=db_file.dc_description,
+        dc_publisher=db_file.dc_publisher,
+        dc_contributor=db_file.dc_contributor,
+        dc_date=db_file.dc_date,
+        dc_type=db_file.dc_type,
+        dc_format=db_file.dc_format or db_file.mime_type,
+        dc_identifier=db_file.dc_identifier,
+        dc_source=db_file.dc_source,
+        dc_language=db_file.dc_language,
+        dc_relation=db_file.dc_relation,
+        dc_coverage=db_file.dc_coverage,
+        dc_rights=db_file.dc_rights,
+        
+        # Dublin Core Terms
+        dcterms_created=db_file.dcterms_created,
+        dcterms_modified=db_file.dcterms_modified,
+        dcterms_extent=db_file.dcterms_extent,
+        dcterms_medium=db_file.dcterms_medium,
+        dcterms_audience=db_file.dcterms_audience,
+        dcterms_accessrights=getattr(db_file, 'dcterms_accessrights', 'public'),
+        
+        # 파일 정보
+        file_name=db_file.filename,
+        file_path=db_file.filepath,
+        file_extension=Path(db_file.filename).suffix if db_file.filename else None,
+        
+        # 문서 정보
+        doc_page_count=db_file.doc_page_count,
+        doc_word_count=db_file.doc_word_count,
+        doc_character_count=db_file.doc_character_count,
+        doc_type_code=db_file.doc_type_code,
+        doc_supported=db_file.doc_supported,
+        
+        # 처리 정보
+        app_version=db_file.app_version,
+        parser_name=db_file.parser_name,
+        parser_version=db_file.parser_version,
+    )
+    
+    # 스키마 준수 형식으로 변환
+    return metadata.to_schema_compliant_dict(file_id=file_id, project_id=db_file.project_id)
+
+@files_router.get("/{file_id}/download")
+def download_direct_file(file_id: int, db: Session = Depends(get_db)):
+    """파일을 다운로드합니다 (직접 접근)."""
+    from fastapi.responses import FileResponse
+    
+    # 파일 정보 조회
+    db_file = db.query(FileModel).filter(FileModel.id == file_id).first()
+    
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    file_path = Path(db_file.filepath)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    return FileResponse(
+        path=str(file_path),
+        filename=db_file.filename,
+        media_type=db_file.mime_type or 'application/octet-stream'
+    )
+
+@files_router.get("/{file_id}/content")
+def get_direct_file_content(file_id: int, db: Session = Depends(get_db)):
+    """파일의 내용을 반환합니다 (직접 접근)."""
+    # 파일 정보 조회
+    db_file = db.query(FileModel).filter(FileModel.id == file_id).first()
+    
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    return {
         "file_id": file_id,
-        "project_id": project_id,
         "filename": db_file.filename,
+        "content": db_file.content or "",
+        "parse_status": db_file.parse_status,
+        "parse_error": db_file.parse_error,
+        "word_count": len(db_file.content.split()) if db_file.content else 0
     }
-    
-    # Dublin Core 메타데이터 (표준 형식) - null이 아닌 값만 포함
-    dc_data = {
-        "dc:title": db_file.dc_title or db_file.filename,
-        "dc:creator": db_file.dc_creator,
-        "dc:subject": db_file.dc_subject,
-        "dc:description": db_file.dc_description,
-        "dc:publisher": db_file.dc_publisher,
-        "dc:contributor": db_file.dc_contributor,
-        "dc:date": db_file.dc_date,
-        "dc:type": db_file.dc_type,
-        "dc:format": db_file.dc_format or db_file.mime_type,
-        "dc:identifier": db_file.dc_identifier or db_file.filename,
-        "dc:source": db_file.dc_source or db_file.filepath,
-        "dc:language": db_file.dc_language,
-        "dc:relation": db_file.dc_relation,
-        "dc:coverage": db_file.dc_coverage,
-        "dc:rights": db_file.dc_rights,
-    }
-    
-    # Dublin Core Terms 확장
-    dcterms_data = {
-        "dcterms:created": db_file.dcterms_created,
-        "dcterms:modified": db_file.dcterms_modified,
-        "dcterms:extent": db_file.dcterms_extent or f"{db_file.file_size or db_file.size or 0} bytes",
-        "dcterms:medium": db_file.dcterms_medium or "digital",
-        "dcterms:audience": db_file.dcterms_audience,
-        "dcterms:alternative": db_file.file_name or db_file.filename,
-        "dcterms:isPartOf": f"project_{project_id}",
-        "dcterms:hasFormat": db_file.file_extension or (db_file.filepath.split('.')[-1] if db_file.filepath and '.' in db_file.filepath else None),
-    }
-    
-    # 문서 특정 정보 (DC 확장)
-    doc_data = {
-        "doc:pageCount": db_file.doc_page_count,
-        "doc:wordCount": db_file.doc_word_count,
-        "doc:characterCount": db_file.doc_character_count,
-        "doc:typeCode": db_file.doc_type_code,
-        "doc:supported": db_file.doc_supported,
-    }
-    
-    # 처리 정보
-    processing_data = {
-        "processing:parserName": db_file.parser_name,
-        "processing:parserVersion": db_file.parser_version,
-        "processing:extractionDate": db_file.extraction_date.isoformat() if db_file.extraction_date else None,
-        "processing:appVersion": db_file.app_version,
-        "processing:parseStatus": db_file.parse_status,
-        "processing:uploadDate": db_file.uploaded_at.isoformat() if db_file.uploaded_at else None,
-    }
-    
-    # null이 아닌 값만 추가
-    for data_dict in [dc_data, dcterms_data, doc_data, processing_data]:
-        for key, value in data_dict.items():
-            if value is not None and value != "":
-                metadata_dict[key] = value
-    
-    return metadata_dict
 
 @router.get("/{file_id}/download")
 def download_file(file_id: int, db: Session = Depends(get_db)):
@@ -697,3 +799,4 @@ def download_file(file_id: int, db: Session = Depends(get_db)):
         filename=db_file.filename,
         media_type=media_type
     )
+

@@ -1,12 +1,16 @@
 # 📄 CLAUDE.md - DocExtract 시스템
 
-## 프로젝트 개요 ✅ 완성됨 (2025.08.07)
+## 프로젝트 개요 ✅ 완성됨 (2025.08.29)
 이 프로젝트는 문서를 프로젝트 단위로 업로드하고 키워드를 추출하여 관리하는 **완전한 풀스택 시스템**입니다. 
 
-### 핵심 기능 (최종 업데이트 2025.08.07)
+### 핵심 기능 (최종 업데이트 2025.08.29)
 - **다중 파일 형식 지원**: PDF, DOCX, HTML, Markdown, TXT, ZIP 자동 추출
 - **다중 키워드 추출기**: KeyBERT, spaCy NER, LLM(Ollama), KoNLPy
-- **🐛 고급 디버그 로깅 시스템**: 모든 추출 과정의 중간 결과물을 상세 기록 및 분석 **NEW!**
+- **🎯 Dublin Core 메타데이터 시스템**: 국제 표준 메타데이터 스키마 완전 준수
+- **🔍 Docling 파서**: 고급 PDF 구조 추출 (테이블, 섹션, 이미지) **NEW!**
+- **🧠 지식 그래프 구축**: 키워드 관계 분석 및 네트워크 시각화 **NEW!**
+- **📊 로컬 분석 API**: 프로젝트 없이 직접 파일 분석 가능 **NEW!**
+- **🐛 고급 디버그 로깅 시스템**: 모든 추출 과정의 중간 결과물을 상세 기록 및 분석
 - **실시간 LLM 연동**: Ollama 서버와 완전 통합, 동적 모델 로딩
 - **spaCy 모델 자동 관리**: 모델 자동 다운로드, 설치 상태 확인, 테스트 기능
 - **고급 키워드 관리**: 키워드 중심/문서 중심 뷰, 추출기별 필터링
@@ -378,6 +382,52 @@ open debug_logs/YYYYMMDD_HHMMSS_SESSION/summary_report.html
 - 텍스트 내용이 포함되므로 **민감한 문서 처리 시 주의**
 - 필요 시 디버그 파일 자동 삭제 기능 구현 가능
 
+## Dublin Core 메타데이터 시스템 <!-- SPEC: dublin_core_metadata --> 🎯 신규 완성됨 (2025.08.28)
+
+### 기능 개요
+- **국제 표준 준수**: Dublin Core 메타데이터 표준을 완전히 구현한 문서 메타데이터 시스템
+- **스키마 기반 구조**: [metadata-schema.md](docs/metadata-schema.md)에 정의된 엄격한 스키마 준수
+- **자동 메타데이터 추출**: 파일 업로드 시 Dublin Core 표준에 따른 메타데이터 자동 생성
+- **다중 네임스페이스 지원**: dc:, dcterms:, doc:, processing:, file: 네임스페이스 완전 지원
+
+### 주요 특징
+1. **필수 필드 보장**: Dublin Core 필수 7개 필드 자동 생성 (dc:title, dc:identifier, dc:creator, dc:type, dc:format, dc:language, dcterms:created)
+2. **스마트 폴백 시스템**: 메타데이터 누락 시 적절한 기본값 자동 제공
+3. **타입 정규화**: 문자열→배열, 타임스탬프→ISO 8601 등 자동 변환
+4. **언어 감지**: 문서 내용 분석을 통한 자동 언어 코드 설정
+5. **고유 식별자 생성**: 파일 ID + UUID 조합으로 전역 고유 식별자 생성
+
+### API 엔드포인트
+- `GET /files/{file_id}/metadata` - 직접 파일 메타데이터 접근
+- `GET /projects/{project_id}/files/{file_id}/metadata` - 프로젝트 스코프 메타데이터 접근
+
+### 응답 예시
+```json
+{
+  "@context": "http://purl.org/dc/terms/",
+  "dc:title": "test_document.txt",
+  "dc:identifier": "file-1-adf12f58",
+  "dc:creator": "Unknown",
+  "dc:type": "Text",
+  "dc:format": "text/plain", 
+  "dc:language": "ko",
+  "dcterms:accessRights": "public",
+  "file:name": "test_document.txt",
+  "file:size": 1162,
+  "dcterms:extent": "1162 bytes",
+  "dcterms:medium": "digital",
+  "dcterms:isPartOf": "project_1",
+  "doc:supported": "yes",
+  "processing:parseStatus": "success"
+}
+```
+
+### 기술 구현
+- **DocumentMetadata.to_schema_compliant_dict()**: 스키마 준수 변환 메서드
+- **자동 MIME 타입 감지**: 파일 확장자 기반 MIME 타입 자동 매핑
+- **Dublin Core 타입 매핑**: 파일 형식을 표준 Dublin Core 타입으로 변환
+- **Null 값 필터링**: 응답에서 null 값 자동 제외로 깨끗한 JSON 출력
+
 ## 탭 기반 설정 관리 시스템 <!-- SPEC: tab_based_settings --> ✅ 신규 완성됨 (2025.08.04)
 
 ### 기능 개요
@@ -412,3 +462,94 @@ open debug_logs/YYYYMMDD_HHMMSS_SESSION/summary_report.html
 - 내부적으로 모든 문서를 plain text로 변환 후 키워드 추출기(`KeywordExtractor`)에 전달
 - 파서는 `services/parser/` 모듈 내 정의
 - 허용 확장자 설정은 `Config` 테이블의 `ALLOWED_EXTENSIONS` 항목으로 관리
+
+## Docling 고급 파서 시스템 <!-- SPEC: docling_parser --> 🔍 신규 완성됨 (2025.08.29)
+
+### 개요
+Docling은 IBM에서 개발한 고급 문서 파싱 라이브러리로, PDF 파일의 복잡한 구조를 정확하게 추출할 수 있습니다.
+
+### 주요 기능
+- **테이블 구조 추출**: PDF 내 테이블을 Markdown 형식으로 정확하게 변환
+- **섹션 계층 분석**: 헤딩 레벨과 문서 구조 자동 인식
+- **이미지 캡션 추출**: 이미지와 관련된 캡션 텍스트 추출
+- **레이아웃 보존**: 원본 문서의 레이아웃 정보 유지
+
+### 사용법
+```bash
+# 로컬 분석에서 Docling 파서 활성화
+curl -X POST "http://localhost:58000/local-analysis/analyze" \
+  -H "Content-Type: application/json" \
+  -d '{"file_path": "document.pdf", "use_docling": true}'
+```
+
+### 구현 특징
+- **선택적 활성화**: `use_docling=true` 파라미터로 선택적 사용
+- **폴백 시스템**: Docling 실패 시 기본 PDF 파서로 자동 전환
+- **성능 고려**: 큰 파일의 경우 처리 시간이 길어질 수 있음
+- **호환성 문제**: Pydantic 버전 충돌 시 자동으로 기본 파서 사용
+
+### 알려진 문제
+- **Pydantic SerializationInfo 오류**: 라이브러리 버전 간 호환성 문제
+- **해결 방법**: 자동 폴백 메커니즘으로 기본 PDF 파서 사용
+- **권장 사항**: 중요한 문서 분석 시 `use_docling=false` 명시적 설정
+
+## 지식 그래프 구축 시스템 <!-- SPEC: knowledge_graph --> 🧠 신규 완성됨 (2025.08.29)
+
+### 개요
+추출된 키워드 간의 관계를 분석하여 지식 그래프를 구축하고 시각화하는 기능입니다.
+
+### 주요 기능
+- **키워드 관계 분석**: 동시 출현 빈도 기반 관계 추출
+- **그래프 구축**: 노드(키워드)와 엣지(관계) 생성
+- **다양한 내보내기 형식**: JSON, GraphML, DOT 형식 지원
+- **통계 정보**: 그래프 메트릭 및 중심성 분석
+
+### API 엔드포인트
+- `POST /kg/build` - 지식 그래프 구축
+- `GET /kg/export` - 그래프 데이터 내보내기
+- `GET /kg/stats` - 그래프 통계 정보
+
+### 구현 위치
+- 라우터: `backend/routers/kg.py`
+- 서비스: `backend/services/kg_builder.py`
+
+## 로컬 분석 API 시스템 <!-- SPEC: local_analysis_api --> 📊 신규 완성됨 (2025.08.29)
+
+### 개요
+프로젝트 생성 없이 로컬 파일 시스템의 문서를 직접 분석할 수 있는 독립적인 API 시스템입니다.
+
+### 주요 기능
+- **프로젝트 독립적**: 별도 프로젝트 생성 없이 바로 분석
+- **디렉토리 탐색**: 작업 디렉토리 변경 및 파일 탐색
+- **실시간 분석**: 즉시 키워드 추출 결과 제공
+- **메타데이터 전용 추출**: 키워드 추출 없이 메타데이터만 빠르게 확인
+- **다중 추출기 지원**: 여러 키워드 추출기 동시 사용
+
+### 핵심 API
+```bash
+# 현재 디렉토리 확인
+curl "http://localhost:58000/local-analysis/config/current-directory"
+
+# 디렉토리 변경
+curl -X POST "http://localhost:58000/local-analysis/config/change-directory" \
+  -H "Content-Type: application/json" \
+  -d '{"directory": "/path/to/documents"}'
+
+# 파일 분석
+curl -X POST "http://localhost:58000/local-analysis/analyze" \
+  -H "Content-Type: application/json" \
+  -d '{"file_path": "document.pdf", "extractors": ["KeyBERT", "spaCy NER"]}'
+
+# 메타데이터만 추출
+curl "http://localhost:58000/local-analysis/metadata?file_path=document.pdf"
+```
+
+### 구현 위치
+- 라우터: `backend/routers/local_analysis.py`
+- 서비스: `backend/services/local_file_analyzer.py`
+- 사용법 가이드: `LOCAL_ANALYSIS_USAGE.md`
+
+### 특징
+- **상대 경로 기반**: 현재 작업 디렉토리 기준으로 모든 파일 경로 해석
+- **결과 파일 저장**: 분석 결과를 `.analysis.json` 파일로 자동 저장
+- **Dublin Core 메타데이터**: 국제 표준 메타데이터 함께 제공

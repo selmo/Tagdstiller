@@ -1,0 +1,5 @@
+---
+title: test_document
+---
+
+III II : Docling II II III: 2025-08-29 09:04:34 III: DocExtract III 1. II I III Docling III III IIIII II III PDF IIIII. III, II II, III III III III IIII IIII. 2. III II 3. II II - III II II - Markdown II II - II II II II - Dublin Core IIIII II II |II|II|I| |---|---|---| |II|PDFII II II|Docling| |II|II II II|PDF, DOCX| |II|II II|II II| |II|II II|II| 4. II II I IIII II III II III IIIII II II IIIIII. Docling III II IIII II III IIII III I III III. 5. II II |II|II|III|II| |---|---|---|---| |pypdf|II|II|II| |PyMuPDF|II|II|II| |Docling|II|II II|II|

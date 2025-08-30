@@ -1,0 +1,26 @@
+{
+  "file_path": "test_document.txt",
+  "analysis_timestamp": "2025-08-29T20:03:48.586514",
+  "analyzer_version": "1.0.0",
+  "file_info": {
+    "path": "test_document.txt",
+    "absolute_path": "/Users/selmo/Workspaces/DocExtract/test/test_document.txt",
+    "size": 1162,
+    "modified": "2025-08-24T18:00:00.460412",
+    "extension": ".txt"
+  },
+  "content_info": {
+    "length": 557,
+    "word_count": 112,
+    "line_count": 1
+  },
+  "extraction_info": {
+    "extractors_used": [
+      "KeyBERT",
+      "spaCy NER"
+    ],
+    "total_keywords": 0
+  },
+  "keywords": {},
+  "analysis_status": "completed"
+}

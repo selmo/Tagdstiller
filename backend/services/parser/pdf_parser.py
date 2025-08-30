@@ -23,6 +23,7 @@ class PdfParser(DocumentParser):
             
             # 여러 PDF 파싱 엔진을 순서대로 시도
             parsing_engines = [
+                ("docling", self._parse_with_docling),  # Docling 최우선 (테이블/이미지 보존)
                 ("pymupdf4llm", self._parse_with_pymupdf4llm),
                 ("pdfplumber", self._parse_with_pdfplumber),
                 ("pymupdf_advanced", self._parse_with_pymupdf_advanced),
@@ -157,7 +158,8 @@ class PdfParser(DocumentParser):
                 text=cleaned_text,
                 metadata=metadata,
                 success=True,
-                parser_name=f"{self.parser_name}_{used_engine}"
+                parser_name=f"{self.parser_name}_{used_engine}",
+                md_file_path=best_result[1].get('md_file_path')
             )
             
         except Exception as e:
@@ -263,24 +265,65 @@ class PdfParser(DocumentParser):
         
         return max(0.0, min(1.0, quality_score))
     
+    def _parse_with_docling(self, file_path: Path) -> Tuple[str, dict]:
+        """PDFDocling으로 구조 보존 파싱 (테이블, 이미지 포함)"""
+        try:
+            from services.parser.docling_parser import DoclingParser
+            
+            docling_parser = DoclingParser()
+            result = docling_parser.parse(file_path)
+            
+            if result.success:
+                metadata = {}
+                if result.metadata:
+                    # 메타데이터를 딕셔너리로 변환
+                    metadata = {
+                        'title': result.metadata.title,
+                        'author': result.metadata.author,
+                        'page_count': result.metadata.page_count,
+                        'tables_count': getattr(result.metadata, 'tables_count', 0),
+                        'images_count': getattr(result.metadata, 'images_count', 0),
+                        'document_structure': getattr(result.metadata, 'document_structure', {}),
+                        'created': result.metadata.created_date,
+                        'subject': getattr(result.metadata, 'dc_subject', None),
+                        'keywords': getattr(result.metadata, 'keywords', None),
+                        'md_file_path': result.md_file_path  # MD 파일 경로 포함
+                    }
+                
+                # Markdown 형식 텍스트와 구조화된 메타데이터 반환
+                return result.text, metadata
+            else:
+                raise Exception(f"Docling 파싱 실패: {result.error_message}")
+                
+        except Exception as e:
+            # Docling 실패 시 다음 엔진으로 넘어감
+            self.logger.debug(f"Docling 파싱 건너뜀: {e}")
+            raise
+    
     def _parse_with_pymupdf4llm(self, file_path: Path) -> Tuple[str, dict]:
         """PyMuPDF4LLM으로 고품질 텍스트 추출"""
         try:
             import pymupdf4llm
-            text = pymupdf4llm.to_markdown(str(file_path))
+            markdown_text = pymupdf4llm.to_markdown(str(file_path))
             
-            # 마크다운에서 일반 텍스트로 변환
+            # pymupdf4llm 결과를 MD 파일로 저장
+            md_file_path = self._save_pymupdf4llm_as_markdown(file_path, markdown_text)
+            
+            # 마크다운에서 일반 텍스트로 변환 (내부 처리용)
             import re
             # 마크다운 문법 제거
-            text = re.sub(r'#+\s*', '', text)  # 헤더
-            text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)  # 볼드
-            text = re.sub(r'\*(.*?)\*', r'\1', text)  # 이탤릭
-            text = re.sub(r'`(.*?)`', r'\1', text)  # 코드
+            plain_text = re.sub(r'#+\s*', '', markdown_text)  # 헤더
+            plain_text = re.sub(r'\*\*(.*?)\*\*', r'\1', plain_text)  # 볼드
+            plain_text = re.sub(r'\*(.*?)\*', r'\1', plain_text)  # 이탤릭
+            plain_text = re.sub(r'`(.*?)`', r'\1', plain_text)  # 코드
             
             # 기본 메타데이터 (pymupdf4llm은 메타데이터 추출이 제한적)
-            metadata = {'page_count': text.count('\n---\n') + 1 if '\n---\n' in text else 1}
+            metadata = {
+                'page_count': markdown_text.count('\n---\n') + 1 if '\n---\n' in markdown_text else 1,
+                'md_file_path': md_file_path
+            }
             
-            return text, metadata
+            return plain_text, metadata
             
         except ImportError:
             raise ImportError("pymupdf4llm이 설치되지 않았습니다")
@@ -392,13 +435,13 @@ class PdfParser(DocumentParser):
     def _parse_with_pypdf2(self, file_path: Path) -> Tuple[str, dict]:
         """PyPDF2로 텍스트 추출"""
         try:
-            import pypdf2
+            import PyPDF2
             
             text_parts = []
             metadata = {}
             
             with open(file_path, 'rb') as file:
-                reader = pypdf2.PdfReader(file)
+                reader = PyPDF2.PdfReader(file)
                 metadata['page_count'] = len(reader.pages)
                 
                 for page in reader.pages:
@@ -443,3 +486,34 @@ class PdfParser(DocumentParser):
                     text_parts.append(block_text)
         
         return '\n'.join(text_parts)
+    
+    def _save_pymupdf4llm_as_markdown(self, original_file_path: Path, markdown_content: str) -> str:
+        """PyMuPDF4LLM 파싱 결과를 MD 파일로 저장"""
+        try:
+            # 파일별 전용 디렉토리 생성 (filename_without_extension/)
+            output_dir = original_file_path.parent / original_file_path.stem
+            output_dir.mkdir(exist_ok=True)
+            
+            # MD 파일 경로 생성 (filename_without_extension/pymupdf4llm.md)
+            md_file_path = output_dir / "pymupdf4llm.md"
+            
+            # MD 파일로 저장
+            with open(md_file_path, 'w', encoding='utf-8') as f:
+                f.write(f"# {original_file_path.stem}\n\n")
+                f.write(f"**파서:** PyMuPDF4LLM\n")
+                f.write(f"**생성일시:** {self._get_current_time()}\n")
+                f.write(f"**원본파일:** {original_file_path.name}\n\n")
+                f.write("---\n\n")
+                f.write(markdown_content)
+            
+            self.logger.info(f"📝 PyMuPDF4LLM MD 파일 저장 완료: {md_file_path}")
+            return str(md_file_path)
+            
+        except Exception as e:
+            self.logger.warning(f"⚠️ PyMuPDF4LLM MD 파일 저장 실패: {e}")
+            return None
+    
+    def _get_current_time(self) -> str:
+        """현재 시간을 문자열로 반환"""
+        from datetime import datetime
+        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")

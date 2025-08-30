@@ -15,7 +15,7 @@ import numpy as np
 class DebugLogger:
     """키워드 추출 과정의 디버그 정보를 체계적으로 로깅하는 클래스"""
     
-    def __init__(self, base_dir: str = "debug_logs", enable_debug: bool = False):
+    def __init__(self, base_dir: str = "tests/debug_outputs", enable_debug: bool = False):
         """
         Args:
             base_dir: 디버그 로그를 저장할 기본 디렉토리

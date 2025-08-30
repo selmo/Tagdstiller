@@ -296,6 +296,11 @@ debug_logs/
 temp/
 tmp/
 
+# Test output files (moved to tests directory)
+backend/tests/outputs/
+backend/tests/debug_outputs/
+backend/parser_outputs/
+
 # Model cache
 *.model
 cache/

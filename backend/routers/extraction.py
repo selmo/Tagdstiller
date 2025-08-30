@@ -94,11 +94,27 @@ class ExtractorManager:
             }, db_session=self.db_session)
             logger.info("✅ spaCy NER 추출기 등록 완료")
         
-        # LLM 추출기
+        # LLM 추출기 및 Ollama 설정 초기화
         llm_enabled = extractor_config.get("llm_enabled", False)
+        # LLM 설정이 필요한 경우 또는 Metadata 추출기에서 LLM을 사용하는 경우 Ollama 설정을 가져옴
+        needs_ollama_config = (
+            llm_enabled or 
+            extractor_config.get("langextract_enabled", False) or
+            (extractor_config.get("metadata_enabled", True) and extractor_config.get("metadata_llm_summary", False))
+        )
+        
+        if needs_ollama_config:
+            ollama_config = ConfigService.get_ollama_config(self.db_session)
+        else:
+            # 기본값 제공
+            ollama_config = {
+                "base_url": "http://localhost:11434",
+                "model": "llama3.2", 
+                "timeout": 30
+            }
+        
         if llm_enabled:
             logger.info("📦 LLM 추출기 등록 중...")
-            ollama_config = ConfigService.get_ollama_config(self.db_session)
             llm_extractor = LLMExtractor({
                 "provider": extractor_config.get("llm_provider", "ollama"),
                 "model": ollama_config.get("model", "llama3.2"),
@@ -122,7 +138,6 @@ class ExtractorManager:
         # LangExtract 추출기 (API 호환성 문제로 기본 비활성화)
         if extractor_config.get("langextract_enabled", False):
             logger.info("📦 LangExtract 추출기 등록 중...")
-            ollama_config = ConfigService.get_ollama_config(self.db_session)
             self.extractors["langextract"] = LangExtractExtractor({
                 "ollama_base_url": ollama_config.get("base_url", "http://localhost:11434"),
                 "ollama_model": ollama_config.get("model", "llama3.2"),
