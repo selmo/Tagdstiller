@@ -1,0 +1,9 @@
+{
+  "title": "test_document",
+  "page_count": 1,
+  "word_count": 145,
+  "file_size": 3369,
+  "mime_type": "application/pdf",
+  "parser_name": "pdf_parser_docling",
+  "parser_version": "1.0"
+}
