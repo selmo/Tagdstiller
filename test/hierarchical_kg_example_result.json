@@ -1,0 +1,290 @@
+{
+  "entities": [
+    {
+      "id": "doc_1a2b3c4d",
+      "type": "Document",
+      "properties": {
+        "title": "hierarchical_kg_test_document.md",
+        "domain": "technical",
+        "hierarchical_root": true,
+        "size": 4521,
+        "extension": ".md"
+      }
+    },
+    {
+      "id": "section_doc_1a2b3c4d_0",
+      "type": "Section",
+      "properties": {
+        "title": "API 개발 가이드",
+        "level": 1,
+        "domain": "technical",
+        "structural_element": true,
+        "index": 0
+      }
+    },
+    {
+      "id": "section_doc_1a2b3c4d_1",
+      "type": "Section", 
+      "properties": {
+        "title": "1. 서론",
+        "level": 2,
+        "domain": "technical",
+        "structural_element": true,
+        "index": 1,
+        "content_preview": "이 문서는 REST API 개발을 위한 종합적인 가이드입니다..."
+      }
+    },
+    {
+      "id": "section_doc_1a2b3c4d_2",
+      "type": "Section",
+      "properties": {
+        "title": "2. 기술 스택",
+        "level": 2,
+        "domain": "technical",
+        "structural_element": true,
+        "index": 2
+      }
+    },
+    {
+      "id": "section_doc_1a2b3c4d_3", 
+      "type": "Section",
+      "properties": {
+        "title": "2.1 백엔드 프레임워크",
+        "level": 3,
+        "domain": "technical", 
+        "structural_element": true,
+        "index": 3
+      }
+    },
+    {
+      "id": "table_doc_1a2b3c4d_0",
+      "type": "Table",
+      "properties": {
+        "content": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |",
+        "domain": "technical",
+        "structural_element": true,
+        "row_count": 4,
+        "column_count": 3,
+        "index": 0
+      }
+    },
+    {
+      "id": "technology_5f3a2b1c_section_doc_1a2b3c4d_1_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "FastAPI",
+        "domain": "technical",
+        "source_structure": "section_doc_1a2b3c4d_3",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.95,
+        "category": "framework",
+        "hierarchical_entity": true,
+        "version": "latest",
+        "language": "python"
+      }
+    },
+    {
+      "id": "database_8e7c1f2a_table_doc_1a2b3c4d_0_llm",
+      "type": "Database", 
+      "properties": {
+        "text": "PostgreSQL",
+        "domain": "technical",
+        "source_structure": "table_doc_1a2b3c4d_0",
+        "source_structure_type": "Table",
+        "extractor": "llm",
+        "score": 0.92,
+        "category": "database",
+        "hierarchical_entity": true,
+        "type": "relational",
+        "features": ["ACID", "확장성"]
+      }
+    },
+    {
+      "id": "framework_4d9e2c1b_section_doc_1a2b3c4d_3_llm",
+      "type": "Framework",
+      "properties": {
+        "text": "SQLAlchemy",
+        "domain": "technical",
+        "source_structure": "section_doc_1a2b3c4d_3", 
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.88,
+        "category": "orm",
+        "hierarchical_entity": true,
+        "purpose": "데이터베이스 ORM"
+      }
+    },
+    {
+      "id": "concept_7a5b3e9f_section_doc_1a2b3c4d_4_llm",
+      "type": "Concept",
+      "properties": {
+        "text": "RESTful",
+        "domain": "technical",
+        "source_structure": "section_doc_1a2b3c4d_4",
+        "source_structure_type": "Section", 
+        "extractor": "llm",
+        "score": 0.91,
+        "category": "architecture",
+        "hierarchical_entity": true,
+        "principles": ["리소스 식별", "HTTP 메서드", "상태 없음"]
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "source": "doc_1a2b3c4d",
+      "target": "section_doc_1a2b3c4d_0",
+      "type": "CONTAINS_STRUCTURE",
+      "properties": {
+        "structure_type": "Section",
+        "relationship_name": "CONTAINS_SECTION",
+        "domain": "technical"
+      }
+    },
+    {
+      "source": "doc_1a2b3c4d", 
+      "target": "section_doc_1a2b3c4d_1",
+      "type": "CONTAINS_STRUCTURE",
+      "properties": {
+        "structure_type": "Section",
+        "relationship_name": "CONTAINS_SECTION",
+        "domain": "technical"
+      }
+    },
+    {
+      "source": "section_doc_1a2b3c4d_2",
+      "target": "section_doc_1a2b3c4d_3", 
+      "type": "CONTAINS_STRUCTURE",
+      "properties": {
+        "structure_type": "Section",
+        "relationship_name": "CONTAINS_SUBSECTION",
+        "domain": "technical"
+      }
+    },
+    {
+      "source": "doc_1a2b3c4d",
+      "target": "table_doc_1a2b3c4d_0",
+      "type": "CONTAINS_STRUCTURE", 
+      "properties": {
+        "structure_type": "Table",
+        "relationship_name": "CONTAINS_TABLE",
+        "domain": "technical"
+      }
+    },
+    {
+      "source": "section_doc_1a2b3c4d_3",
+      "target": "technology_5f3a2b1c_section_doc_1a2b3c4d_1_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "MENTIONS",
+        "extraction_method": "llm",
+        "confidence_score": 0.95,
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "table_doc_1a2b3c4d_0",
+      "target": "database_8e7c1f2a_table_doc_1a2b3c4d_0_llm", 
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "DESCRIBES",
+        "extraction_method": "llm",
+        "confidence_score": 0.92,
+        "context_snippet": "PostgreSQL  | 메인 DB | ACID 준수, 확장성",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "section_doc_1a2b3c4d_3",
+      "target": "framework_4d9e2c1b_section_doc_1a2b3c4d_3_llm",
+      "type": "RELATED_TO", 
+      "properties": {
+        "relationship_name": "USES",
+        "extraction_method": "llm",
+        "confidence_score": 0.88,
+        "context_snippet": "SQLAlchemy: 데이터베이스 ORM",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "technology_5f3a2b1c_section_doc_1a2b3c4d_1_llm",
+      "target": "database_8e7c1f2a_table_doc_1a2b3c4d_0_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "INTEGRATES_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI와 PostgreSQL 연동",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "framework_4d9e2c1b_section_doc_1a2b3c4d_3_llm",
+      "target": "database_8e7c1f2a_table_doc_1a2b3c4d_0_llm", 
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "CONNECTS_TO",
+        "domain": "technical",
+        "context_snippet": "SQLAlchemy ORM으로 PostgreSQL 접근",
+        "hierarchical_relationship": true
+      }
+    }
+  ],
+  "structural_hierarchy": [
+    {
+      "id": "doc_1a2b3c4d",
+      "type": "Document", 
+      "level": 0,
+      "children": ["section_doc_1a2b3c4d_0", "section_doc_1a2b3c4d_1", "section_doc_1a2b3c4d_2", "table_doc_1a2b3c4d_0"]
+    },
+    {
+      "id": "section_doc_1a2b3c4d_0",
+      "type": "Section",
+      "parent_id": "doc_1a2b3c4d",
+      "level": 1,
+      "children": []
+    },
+    {
+      "id": "section_doc_1a2b3c4d_1", 
+      "type": "Section",
+      "parent_id": "doc_1a2b3c4d",
+      "level": 1,
+      "children": []
+    },
+    {
+      "id": "section_doc_1a2b3c4d_2",
+      "type": "Section", 
+      "parent_id": "doc_1a2b3c4d",
+      "level": 1,
+      "children": ["section_doc_1a2b3c4d_3"]
+    },
+    {
+      "id": "section_doc_1a2b3c4d_3",
+      "type": "Section",
+      "parent_id": "section_doc_1a2b3c4d_2", 
+      "level": 2,
+      "children": []
+    },
+    {
+      "id": "table_doc_1a2b3c4d_0",
+      "type": "Table",
+      "parent_id": "doc_1a2b3c4d",
+      "level": 1,
+      "children": []
+    }
+  ],
+  "metadata": {
+    "created_at": "2025-08-30T10:30:45.123456",
+    "file_path": "test/hierarchical_kg_test_document.md",
+    "hierarchical_structure": true,
+    "detected_domain": "technical",
+    "domain_confidence": 0.95,
+    "extractors_used": ["llm"],
+    "memgraph_saved": true,
+    "memgraph_saved_at": "2025-08-30T10:30:46.789012"
+  }
+}

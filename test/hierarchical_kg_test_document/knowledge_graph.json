@@ -1,0 +1,1147 @@
+{
+  "file_info": {
+    "name": "hierarchical_kg_test_document.md",
+    "path": "/Users/selmo/Workspaces/DocExtract/test/hierarchical_kg_test_document.md",
+    "size": 4019,
+    "extension": "md",
+    "modified": 1756539410.5585716
+  },
+  "generation_timestamp": "2025-08-31T01:03:24.835192",
+  "source_parser": "md_parser",
+  "keywords_used": 1,
+  "knowledge_graph": {
+    "entities": [
+      {
+        "id": "ec11295d71bc6afb",
+        "type": "Document",
+        "properties": {
+          "title": "hierarchical_kg_test_document.md",
+          "path": "/Users/selmo/Workspaces/DocExtract/test/hierarchical_kg_test_document.md",
+          "domain": "technical",
+          "size": 4019,
+          "extension": "md",
+          "parser_count": 1,
+          "best_parser": "md_parser",
+          "hierarchical_root": true
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_0",
+        "type": "Section",
+        "properties": {
+          "title": "백엔드 프레임워크",
+          "level": 2,
+          "line": 7,
+          "parser": "local_analysis",
+          "index": 0,
+          "number": "2.1",
+          "domain": "technical",
+          "structural_element": true,
+          "content_preview": "",
+          "has_content": false
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_1",
+        "type": "Section",
+        "properties": {
+          "title": "데이터베이스",
+          "level": 2,
+          "line": 12,
+          "parser": "local_analysis",
+          "index": 1,
+          "number": "2.2",
+          "domain": "technical",
+          "structural_element": true,
+          "content_preview": "",
+          "has_content": false
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_2",
+        "type": "Section",
+        "properties": {
+          "title": "RESTful 원칙",
+          "level": 2,
+          "line": 21,
+          "parser": "local_analysis",
+          "index": 2,
+          "number": "3.1",
+          "domain": "technical",
+          "structural_element": true,
+          "content_preview": "",
+          "has_content": false
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_3",
+        "type": "Section",
+        "properties": {
+          "title": "인증 시스템",
+          "level": 2,
+          "line": 27,
+          "parser": "local_analysis",
+          "index": 3,
+          "number": "3.2",
+          "domain": "technical",
+          "structural_element": true,
+          "content_preview": "",
+          "has_content": false
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_4",
+        "type": "Section",
+        "properties": {
+          "title": "데이터베이스 최적화",
+          "level": 2,
+          "line": 30,
+          "parser": "local_analysis",
+          "index": 4,
+          "number": "4.1",
+          "domain": "technical",
+          "structural_element": true,
+          "content_preview": "",
+          "has_content": false
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_5",
+        "type": "Section",
+        "properties": {
+          "title": "캐싱 전략",
+          "level": 2,
+          "line": 35,
+          "parser": "local_analysis",
+          "index": 5,
+          "number": "4.2",
+          "domain": "technical",
+          "structural_element": true,
+          "content_preview": "",
+          "has_content": false
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_6",
+        "type": "Section",
+        "properties": {
+          "title": "인증 및 권한",
+          "level": 2,
+          "line": 41,
+          "parser": "local_analysis",
+          "index": 6,
+          "number": "5.1",
+          "domain": "technical",
+          "structural_element": true,
+          "content_preview": "",
+          "has_content": false
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_7",
+        "type": "Section",
+        "properties": {
+          "title": "JWT 토큰을 사용한 인증 시스템 구현",
+          "level": 2,
+          "line": 43,
+          "parser": "local_analysis",
+          "index": 7,
+          "number": null,
+          "domain": "technical",
+          "structural_element": true,
+          "content_preview": "",
+          "has_content": false
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_8",
+        "type": "Section",
+        "properties": {
+          "title": "데이터 보호",
+          "level": 2,
+          "line": 48,
+          "parser": "local_analysis",
+          "index": 8,
+          "number": "5.2",
+          "domain": "technical",
+          "structural_element": true,
+          "content_preview": "",
+          "has_content": false
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_9",
+        "type": "Section",
+        "properties": {
+          "title": "로깅 시스템",
+          "level": 2,
+          "line": 54,
+          "parser": "local_analysis",
+          "index": 9,
+          "number": "6.1",
+          "domain": "technical",
+          "structural_element": true,
+          "content_preview": "",
+          "has_content": false
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_10",
+        "type": "Section",
+        "properties": {
+          "title": "성능 모니터링",
+          "level": 2,
+          "line": 56,
+          "parser": "local_analysis",
+          "index": 10,
+          "number": "6.2",
+          "domain": "technical",
+          "structural_element": true,
+          "content_preview": "",
+          "has_content": false
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_11",
+        "type": "Section",
+        "properties": {
+          "title": "컨테이너화",
+          "level": 2,
+          "line": 62,
+          "parser": "local_analysis",
+          "index": 11,
+          "number": "7.1",
+          "domain": "technical",
+          "structural_element": true,
+          "content_preview": "",
+          "has_content": false
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_12",
+        "type": "Section",
+        "properties": {
+          "title": "Docker를 사용한 애플리케이션 컨테이너화",
+          "level": 2,
+          "line": 64,
+          "parser": "local_analysis",
+          "index": 12,
+          "number": null,
+          "domain": "technical",
+          "structural_element": true,
+          "content_preview": "",
+          "has_content": false
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_13",
+        "type": "Section",
+        "properties": {
+          "title": "CI/CD 파이프라인",
+          "level": 2,
+          "line": 66,
+          "parser": "local_analysis",
+          "index": 13,
+          "number": "7.2",
+          "domain": "technical",
+          "structural_element": true,
+          "content_preview": "",
+          "has_content": false
+        }
+      },
+      {
+        "id": "table_ec11295d71bc6afb_collection",
+        "type": "Table",
+        "properties": {
+          "title": "Tables (5)",
+          "count": 5,
+          "parser": "local_analysis",
+          "index": 14,
+          "domain": "technical",
+          "structural_element": true,
+          "content_preview": "",
+          "has_content": false
+        }
+      },
+      {
+        "id": "framework_0610b86adbefa85c_2e480ec401a8e746_llm",
+        "type": "Framework",
+        "properties": {
+          "text": "FastAPI",
+          "domain": "technical",
+          "source_structure": "section_ec11295d71bc6afb_0",
+          "source_structure_type": "Section",
+          "extractor": "llm",
+          "score": 0.95,
+          "category": "기술",
+          "extraction_context": {
+            "structure_type": "Section",
+            "content": "",
+            "properties": {
+              "title": "백엔드 프레임워크",
+              "level": 2,
+              "line": 7,
+              "parser": "local_analysis",
+              "index": 0,
+              "number": "2.1"
+            },
+            "position": {
+              "line": 7
+            },
+            "context": ""
+          },
+          "hierarchical_entity": true
+        }
+      },
+      {
+        "id": "database_24fd6c2d1150de6a_2e480ec401a8e746_llm",
+        "type": "Database",
+        "properties": {
+          "text": "PostgreSQL",
+          "domain": "technical",
+          "source_structure": "section_ec11295d71bc6afb_0",
+          "source_structure_type": "Section",
+          "extractor": "llm",
+          "score": 0.93,
+          "category": "데이터베이스",
+          "extraction_context": {
+            "structure_type": "Section",
+            "content": "",
+            "properties": {
+              "title": "백엔드 프레임워크",
+              "level": 2,
+              "line": 7,
+              "parser": "local_analysis",
+              "index": 0,
+              "number": "2.1"
+            },
+            "position": {
+              "line": 7
+            },
+            "context": ""
+          },
+          "hierarchical_entity": true
+        }
+      },
+      {
+        "id": "technology_9a6665bbfdc12263_2e480ec401a8e746_llm",
+        "type": "Technology",
+        "properties": {
+          "text": "RESTful",
+          "domain": "technical",
+          "source_structure": "section_ec11295d71bc6afb_0",
+          "source_structure_type": "Section",
+          "extractor": "llm",
+          "score": 0.92,
+          "category": "software",
+          "extraction_context": {
+            "structure_type": "Section",
+            "content": "",
+            "properties": {
+              "title": "백엔드 프레임워크",
+              "level": 2,
+              "line": 7,
+              "parser": "local_analysis",
+              "index": 0,
+              "number": "2.1"
+            },
+            "position": {
+              "line": 7
+            },
+            "context": ""
+          },
+          "hierarchical_entity": true,
+          "maturity": "stable"
+        }
+      },
+      {
+        "id": "technology_3c93452bf7af2f15_2e480ec401a8e746_llm",
+        "type": "Technology",
+        "properties": {
+          "text": "SQLAlchemy",
+          "domain": "technical",
+          "source_structure": "section_ec11295d71bc6afb_0",
+          "source_structure_type": "Section",
+          "extractor": "llm",
+          "score": 0.9,
+          "category": "software",
+          "extraction_context": {
+            "structure_type": "Section",
+            "content": "",
+            "properties": {
+              "title": "백엔드 프레임워크",
+              "level": 2,
+              "line": 7,
+              "parser": "local_analysis",
+              "index": 0,
+              "number": "2.1"
+            },
+            "position": {
+              "line": 7
+            },
+            "context": ""
+          },
+          "hierarchical_entity": true,
+          "maturity": "stable"
+        }
+      },
+      {
+        "id": "database_24071b57a13027c0_2e480ec401a8e746_llm",
+        "type": "Database",
+        "properties": {
+          "text": "Redis",
+          "domain": "technical",
+          "source_structure": "section_ec11295d71bc6afb_0",
+          "source_structure_type": "Section",
+          "extractor": "llm",
+          "score": 0.89,
+          "category": "데이터베이스",
+          "extraction_context": {
+            "structure_type": "Section",
+            "content": "",
+            "properties": {
+              "title": "백엔드 프레임워크",
+              "level": 2,
+              "line": 7,
+              "parser": "local_analysis",
+              "index": 0,
+              "number": "2.1"
+            },
+            "position": {
+              "line": 7
+            },
+            "context": ""
+          },
+          "hierarchical_entity": true
+        }
+      },
+      {
+        "id": "technology_f1b5e195dd16a7e4_2e480ec401a8e746_llm",
+        "type": "Technology",
+        "properties": {
+          "text": "Pydantic",
+          "domain": "technical",
+          "source_structure": "section_ec11295d71bc6afb_0",
+          "source_structure_type": "Section",
+          "extractor": "llm",
+          "score": 0.88,
+          "category": "software",
+          "extraction_context": {
+            "structure_type": "Section",
+            "content": "",
+            "properties": {
+              "title": "백엔드 프레임워크",
+              "level": 2,
+              "line": 7,
+              "parser": "local_analysis",
+              "index": 0,
+              "number": "2.1"
+            },
+            "position": {
+              "line": 7
+            },
+            "context": ""
+          },
+          "hierarchical_entity": true,
+          "maturity": "stable"
+        }
+      },
+      {
+        "id": "technology_8a9699c063b3d19f_2e480ec401a8e746_llm",
+        "type": "Technology",
+        "properties": {
+          "text": "인덱스 활용",
+          "domain": "technical",
+          "source_structure": "section_ec11295d71bc6afb_0",
+          "source_structure_type": "Section",
+          "extractor": "llm",
+          "score": 0.86,
+          "category": "software",
+          "extraction_context": {
+            "structure_type": "Section",
+            "content": "",
+            "properties": {
+              "title": "백엔드 프레임워크",
+              "level": 2,
+              "line": 7,
+              "parser": "local_analysis",
+              "index": 0,
+              "number": "2.1"
+            },
+            "position": {
+              "line": 7
+            },
+            "context": ""
+          },
+          "hierarchical_entity": true,
+          "maturity": "stable"
+        }
+      },
+      {
+        "id": "database_85bb5d88d7f7c89b_2e480ec401a8e746_llm",
+        "type": "Database",
+        "properties": {
+          "text": "Elasticsearch",
+          "domain": "technical",
+          "source_structure": "section_ec11295d71bc6afb_0",
+          "source_structure_type": "Section",
+          "extractor": "llm",
+          "score": 0.85,
+          "category": "데이터베이스",
+          "extraction_context": {
+            "structure_type": "Section",
+            "content": "",
+            "properties": {
+              "title": "백엔드 프레임워크",
+              "level": 2,
+              "line": 7,
+              "parser": "local_analysis",
+              "index": 0,
+              "number": "2.1"
+            },
+            "position": {
+              "line": 7
+            },
+            "context": ""
+          },
+          "hierarchical_entity": true
+        }
+      }
+    ],
+    "relationships": [
+      {
+        "source": "ec11295d71bc6afb",
+        "target": "section_ec11295d71bc6afb_0",
+        "type": "CONTAINS_STRUCTURE",
+        "properties": {
+          "structure_type": "Section",
+          "relationship_name": "CONTAINS_SECTION",
+          "position_info": {
+            "line": 7
+          },
+          "domain": "technical"
+        }
+      },
+      {
+        "source": "ec11295d71bc6afb",
+        "target": "section_ec11295d71bc6afb_1",
+        "type": "CONTAINS_STRUCTURE",
+        "properties": {
+          "structure_type": "Section",
+          "relationship_name": "CONTAINS_SECTION",
+          "position_info": {
+            "line": 12
+          },
+          "domain": "technical"
+        }
+      },
+      {
+        "source": "ec11295d71bc6afb",
+        "target": "section_ec11295d71bc6afb_2",
+        "type": "CONTAINS_STRUCTURE",
+        "properties": {
+          "structure_type": "Section",
+          "relationship_name": "CONTAINS_SECTION",
+          "position_info": {
+            "line": 21
+          },
+          "domain": "technical"
+        }
+      },
+      {
+        "source": "ec11295d71bc6afb",
+        "target": "section_ec11295d71bc6afb_3",
+        "type": "CONTAINS_STRUCTURE",
+        "properties": {
+          "structure_type": "Section",
+          "relationship_name": "CONTAINS_SECTION",
+          "position_info": {
+            "line": 27
+          },
+          "domain": "technical"
+        }
+      },
+      {
+        "source": "ec11295d71bc6afb",
+        "target": "section_ec11295d71bc6afb_4",
+        "type": "CONTAINS_STRUCTURE",
+        "properties": {
+          "structure_type": "Section",
+          "relationship_name": "CONTAINS_SECTION",
+          "position_info": {
+            "line": 30
+          },
+          "domain": "technical"
+        }
+      },
+      {
+        "source": "ec11295d71bc6afb",
+        "target": "section_ec11295d71bc6afb_5",
+        "type": "CONTAINS_STRUCTURE",
+        "properties": {
+          "structure_type": "Section",
+          "relationship_name": "CONTAINS_SECTION",
+          "position_info": {
+            "line": 35
+          },
+          "domain": "technical"
+        }
+      },
+      {
+        "source": "ec11295d71bc6afb",
+        "target": "section_ec11295d71bc6afb_6",
+        "type": "CONTAINS_STRUCTURE",
+        "properties": {
+          "structure_type": "Section",
+          "relationship_name": "CONTAINS_SECTION",
+          "position_info": {
+            "line": 41
+          },
+          "domain": "technical"
+        }
+      },
+      {
+        "source": "ec11295d71bc6afb",
+        "target": "section_ec11295d71bc6afb_7",
+        "type": "CONTAINS_STRUCTURE",
+        "properties": {
+          "structure_type": "Section",
+          "relationship_name": "CONTAINS_SECTION",
+          "position_info": {
+            "line": 43
+          },
+          "domain": "technical"
+        }
+      },
+      {
+        "source": "ec11295d71bc6afb",
+        "target": "section_ec11295d71bc6afb_8",
+        "type": "CONTAINS_STRUCTURE",
+        "properties": {
+          "structure_type": "Section",
+          "relationship_name": "CONTAINS_SECTION",
+          "position_info": {
+            "line": 48
+          },
+          "domain": "technical"
+        }
+      },
+      {
+        "source": "ec11295d71bc6afb",
+        "target": "section_ec11295d71bc6afb_9",
+        "type": "CONTAINS_STRUCTURE",
+        "properties": {
+          "structure_type": "Section",
+          "relationship_name": "CONTAINS_SECTION",
+          "position_info": {
+            "line": 54
+          },
+          "domain": "technical"
+        }
+      },
+      {
+        "source": "ec11295d71bc6afb",
+        "target": "section_ec11295d71bc6afb_10",
+        "type": "CONTAINS_STRUCTURE",
+        "properties": {
+          "structure_type": "Section",
+          "relationship_name": "CONTAINS_SECTION",
+          "position_info": {
+            "line": 56
+          },
+          "domain": "technical"
+        }
+      },
+      {
+        "source": "ec11295d71bc6afb",
+        "target": "section_ec11295d71bc6afb_11",
+        "type": "CONTAINS_STRUCTURE",
+        "properties": {
+          "structure_type": "Section",
+          "relationship_name": "CONTAINS_SECTION",
+          "position_info": {
+            "line": 62
+          },
+          "domain": "technical"
+        }
+      },
+      {
+        "source": "ec11295d71bc6afb",
+        "target": "section_ec11295d71bc6afb_12",
+        "type": "CONTAINS_STRUCTURE",
+        "properties": {
+          "structure_type": "Section",
+          "relationship_name": "CONTAINS_SECTION",
+          "position_info": {
+            "line": 64
+          },
+          "domain": "technical"
+        }
+      },
+      {
+        "source": "ec11295d71bc6afb",
+        "target": "section_ec11295d71bc6afb_13",
+        "type": "CONTAINS_STRUCTURE",
+        "properties": {
+          "structure_type": "Section",
+          "relationship_name": "CONTAINS_SECTION",
+          "position_info": {
+            "line": 66
+          },
+          "domain": "technical"
+        }
+      },
+      {
+        "source": "ec11295d71bc6afb",
+        "target": "table_ec11295d71bc6afb_collection",
+        "type": "CONTAINS_STRUCTURE",
+        "properties": {
+          "structure_type": "Table",
+          "relationship_name": "CONTAINS_TABLE",
+          "position_info": {},
+          "domain": "technical"
+        }
+      },
+      {
+        "source": "section_ec11295d71bc6afb_0",
+        "target": "framework_0610b86adbefa85c_2e480ec401a8e746_llm",
+        "type": "RELATED_TO",
+        "properties": {
+          "relationship_name": "ASSOCIATED_WITH",
+          "extraction_method": "llm",
+          "confidence_score": 0.95,
+          "context_snippet": "",
+          "domain": "technical",
+          "hierarchical_relationship": true
+        }
+      },
+      {
+        "source": "section_ec11295d71bc6afb_0",
+        "target": "database_24fd6c2d1150de6a_2e480ec401a8e746_llm",
+        "type": "RELATED_TO",
+        "properties": {
+          "relationship_name": "ASSOCIATED_WITH",
+          "extraction_method": "llm",
+          "confidence_score": 0.93,
+          "context_snippet": "",
+          "domain": "technical",
+          "hierarchical_relationship": true
+        }
+      },
+      {
+        "source": "section_ec11295d71bc6afb_0",
+        "target": "technology_9a6665bbfdc12263_2e480ec401a8e746_llm",
+        "type": "RELATED_TO",
+        "properties": {
+          "relationship_name": "ASSOCIATED_WITH",
+          "extraction_method": "llm",
+          "confidence_score": 0.92,
+          "context_snippet": "",
+          "domain": "technical",
+          "hierarchical_relationship": true
+        }
+      },
+      {
+        "source": "section_ec11295d71bc6afb_0",
+        "target": "technology_3c93452bf7af2f15_2e480ec401a8e746_llm",
+        "type": "RELATED_TO",
+        "properties": {
+          "relationship_name": "ASSOCIATED_WITH",
+          "extraction_method": "llm",
+          "confidence_score": 0.9,
+          "context_snippet": "",
+          "domain": "technical",
+          "hierarchical_relationship": true
+        }
+      },
+      {
+        "source": "section_ec11295d71bc6afb_0",
+        "target": "database_24071b57a13027c0_2e480ec401a8e746_llm",
+        "type": "RELATED_TO",
+        "properties": {
+          "relationship_name": "ASSOCIATED_WITH",
+          "extraction_method": "llm",
+          "confidence_score": 0.89,
+          "context_snippet": "",
+          "domain": "technical",
+          "hierarchical_relationship": true
+        }
+      },
+      {
+        "source": "section_ec11295d71bc6afb_0",
+        "target": "technology_f1b5e195dd16a7e4_2e480ec401a8e746_llm",
+        "type": "RELATED_TO",
+        "properties": {
+          "relationship_name": "ASSOCIATED_WITH",
+          "extraction_method": "llm",
+          "confidence_score": 0.88,
+          "context_snippet": "",
+          "domain": "technical",
+          "hierarchical_relationship": true
+        }
+      },
+      {
+        "source": "section_ec11295d71bc6afb_0",
+        "target": "technology_8a9699c063b3d19f_2e480ec401a8e746_llm",
+        "type": "RELATED_TO",
+        "properties": {
+          "relationship_name": "ASSOCIATED_WITH",
+          "extraction_method": "llm",
+          "confidence_score": 0.86,
+          "context_snippet": "",
+          "domain": "technical",
+          "hierarchical_relationship": true
+        }
+      },
+      {
+        "source": "section_ec11295d71bc6afb_0",
+        "target": "database_85bb5d88d7f7c89b_2e480ec401a8e746_llm",
+        "type": "RELATED_TO",
+        "properties": {
+          "relationship_name": "ASSOCIATED_WITH",
+          "extraction_method": "llm",
+          "confidence_score": 0.85,
+          "context_snippet": "",
+          "domain": "technical",
+          "hierarchical_relationship": true
+        }
+      },
+      {
+        "source": "framework_0610b86adbefa85c_2e480ec401a8e746_llm",
+        "target": "database_24fd6c2d1150de6a_2e480ec401a8e746_llm",
+        "type": "RELATED_TO",
+        "properties": {
+          "relationship_name": "CONNECTS_TO",
+          "domain": "technical",
+          "context_snippet": ": Docker 이미지 빌드 후 프로덕션 배포\n모니터링: 배포 후 시스템 상태 모니터링\n결론\n\n현대적인 API 개발에는 다양한 기술과 고려사항이 필요합니다. 이 가이드에서 소개한 ",
+          "extraction_method": "llm",
+          "confidence_score": 0.8440000000000001,
+          "entity_to_entity": true,
+          "inferred": true
+        }
+      },
+      {
+        "source": "framework_0610b86adbefa85c_2e480ec401a8e746_llm",
+        "target": "database_24071b57a13027c0_2e480ec401a8e746_llm",
+        "type": "RELATED_TO",
+        "properties": {
+          "relationship_name": "CONNECTS_TO",
+          "domain": "technical",
+          "context_snippet": ": Docker 이미지 빌드 후 프로덕션 배포\n모니터링: 배포 후 시스템 상태 모니터링\n결론\n\n현대적인 API 개발에는 다양한 기술과 고려사항이 필요합니다. 이 가이드에서 소개한 ",
+          "extraction_method": "llm",
+          "confidence_score": 0.812,
+          "entity_to_entity": true,
+          "inferred": true
+        }
+      },
+      {
+        "source": "framework_0610b86adbefa85c_2e480ec401a8e746_llm",
+        "target": "technology_3c93452bf7af2f15_2e480ec401a8e746_llm",
+        "type": "RELATED_TO",
+        "properties": {
+          "relationship_name": "INTEGRATED_BY",
+          "domain": "technical",
+          "context_snippet": "이 문서는 REST API 개발을 위한 종합적인 가이드입니다. FastAPI를 사용하여 현대적인 웹 API를 구축하는 방법을 설명합니다.\n기술 스택\n\n2.1 백엔드 프레임워크\nFa",
+          "extraction_method": "llm",
+          "confidence_score": 0.64,
+          "entity_to_entity": true,
+          "inferred": true
+        }
+      },
+      {
+        "source": "framework_0610b86adbefa85c_2e480ec401a8e746_llm",
+        "target": "technology_f1b5e195dd16a7e4_2e480ec401a8e746_llm",
+        "type": "RELATED_TO",
+        "properties": {
+          "relationship_name": "INTEGRATED_BY",
+          "domain": "technical",
+          "context_snippet": "이 문서는 REST API 개발을 위한 종합적인 가이드입니다. FastAPI를 사용하여 현대적인 웹 API를 구축하는 방법을 설명합니다.\n기술 스택\n\n2.1 백엔드 프레임워크\nFa",
+          "extraction_method": "llm",
+          "confidence_score": 0.628,
+          "entity_to_entity": true,
+          "inferred": true
+        }
+      },
+      {
+        "source": "framework_0610b86adbefa85c_2e480ec401a8e746_llm",
+        "target": "technology_3c93452bf7af2f15_2e480ec401a8e746_llm",
+        "type": "RELATED_TO",
+        "properties": {
+          "relationship_name": "INTEGRATES_WITH",
+          "domain": "technical",
+          "pattern_based": true,
+          "confidence_score": 0.8,
+          "entity_to_entity": true,
+          "inferred": true
+        }
+      },
+      {
+        "source": "database_24fd6c2d1150de6a_2e480ec401a8e746_llm",
+        "target": "database_24071b57a13027c0_2e480ec401a8e746_llm",
+        "type": "RELATED_TO",
+        "properties": {
+          "relationship_name": "COMPLEMENTS",
+          "domain": "technical",
+          "pattern_based": true,
+          "confidence_score": 0.8,
+          "entity_to_entity": true,
+          "inferred": true
+        }
+      }
+    ],
+    "structural_hierarchy": [
+      {
+        "id": "section_ec11295d71bc6afb_0",
+        "type": "Section",
+        "parent_id": "ec11295d71bc6afb",
+        "children": [],
+        "level": 1,
+        "properties": {
+          "title": "백엔드 프레임워크",
+          "level": 2,
+          "line": 7,
+          "parser": "local_analysis",
+          "index": 0,
+          "number": "2.1"
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_1",
+        "type": "Section",
+        "parent_id": "ec11295d71bc6afb",
+        "children": [],
+        "level": 1,
+        "properties": {
+          "title": "데이터베이스",
+          "level": 2,
+          "line": 12,
+          "parser": "local_analysis",
+          "index": 1,
+          "number": "2.2"
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_10",
+        "type": "Section",
+        "parent_id": "ec11295d71bc6afb",
+        "children": [],
+        "level": 1,
+        "properties": {
+          "title": "성능 모니터링",
+          "level": 2,
+          "line": 56,
+          "parser": "local_analysis",
+          "index": 10,
+          "number": "6.2"
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_11",
+        "type": "Section",
+        "parent_id": "ec11295d71bc6afb",
+        "children": [],
+        "level": 1,
+        "properties": {
+          "title": "컨테이너화",
+          "level": 2,
+          "line": 62,
+          "parser": "local_analysis",
+          "index": 11,
+          "number": "7.1"
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_12",
+        "type": "Section",
+        "parent_id": "ec11295d71bc6afb",
+        "children": [],
+        "level": 1,
+        "properties": {
+          "title": "Docker를 사용한 애플리케이션 컨테이너화",
+          "level": 2,
+          "line": 64,
+          "parser": "local_analysis",
+          "index": 12,
+          "number": null
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_13",
+        "type": "Section",
+        "parent_id": "ec11295d71bc6afb",
+        "children": [],
+        "level": 1,
+        "properties": {
+          "title": "CI/CD 파이프라인",
+          "level": 2,
+          "line": 66,
+          "parser": "local_analysis",
+          "index": 13,
+          "number": "7.2"
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_2",
+        "type": "Section",
+        "parent_id": "ec11295d71bc6afb",
+        "children": [],
+        "level": 1,
+        "properties": {
+          "title": "RESTful 원칙",
+          "level": 2,
+          "line": 21,
+          "parser": "local_analysis",
+          "index": 2,
+          "number": "3.1"
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_3",
+        "type": "Section",
+        "parent_id": "ec11295d71bc6afb",
+        "children": [],
+        "level": 1,
+        "properties": {
+          "title": "인증 시스템",
+          "level": 2,
+          "line": 27,
+          "parser": "local_analysis",
+          "index": 3,
+          "number": "3.2"
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_4",
+        "type": "Section",
+        "parent_id": "ec11295d71bc6afb",
+        "children": [],
+        "level": 1,
+        "properties": {
+          "title": "데이터베이스 최적화",
+          "level": 2,
+          "line": 30,
+          "parser": "local_analysis",
+          "index": 4,
+          "number": "4.1"
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_5",
+        "type": "Section",
+        "parent_id": "ec11295d71bc6afb",
+        "children": [],
+        "level": 1,
+        "properties": {
+          "title": "캐싱 전략",
+          "level": 2,
+          "line": 35,
+          "parser": "local_analysis",
+          "index": 5,
+          "number": "4.2"
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_6",
+        "type": "Section",
+        "parent_id": "ec11295d71bc6afb",
+        "children": [],
+        "level": 1,
+        "properties": {
+          "title": "인증 및 권한",
+          "level": 2,
+          "line": 41,
+          "parser": "local_analysis",
+          "index": 6,
+          "number": "5.1"
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_7",
+        "type": "Section",
+        "parent_id": "ec11295d71bc6afb",
+        "children": [],
+        "level": 1,
+        "properties": {
+          "title": "JWT 토큰을 사용한 인증 시스템 구현",
+          "level": 2,
+          "line": 43,
+          "parser": "local_analysis",
+          "index": 7,
+          "number": null
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_8",
+        "type": "Section",
+        "parent_id": "ec11295d71bc6afb",
+        "children": [],
+        "level": 1,
+        "properties": {
+          "title": "데이터 보호",
+          "level": 2,
+          "line": 48,
+          "parser": "local_analysis",
+          "index": 8,
+          "number": "5.2"
+        }
+      },
+      {
+        "id": "section_ec11295d71bc6afb_9",
+        "type": "Section",
+        "parent_id": "ec11295d71bc6afb",
+        "children": [],
+        "level": 1,
+        "properties": {
+          "title": "로깅 시스템",
+          "level": 2,
+          "line": 54,
+          "parser": "local_analysis",
+          "index": 9,
+          "number": "6.1"
+        }
+      },
+      {
+        "id": "table_ec11295d71bc6afb_collection",
+        "type": "Table",
+        "parent_id": "ec11295d71bc6afb",
+        "children": [],
+        "level": 1,
+        "properties": {
+          "title": "Tables (5)",
+          "count": 5,
+          "parser": "local_analysis",
+          "index": 14
+        }
+      }
+    ],
+    "metadata": {
+      "created_at": "2025-08-31T01:03:02.120616",
+      "file_path": "/Users/selmo/Workspaces/DocExtract/test/hierarchical_kg_test_document.md",
+      "hierarchical_structure": true,
+      "detected_domain": "technical",
+      "domain_confidence": 0.26666666666666666,
+      "extractors_used": [
+        "llm"
+      ],
+      "memgraph_saved": true,
+      "memgraph_saved_at": "2025-08-31T01:03:24.835112"
+    }
+  },
+  "statistics": {
+    "total_entities": 24,
+    "total_relationships": 29,
+    "structural_elements": 15,
+    "entity_types": {
+      "Document": 1,
+      "Section": 14,
+      "Table": 1,
+      "Framework": 1,
+      "Database": 3,
+      "Technology": 4
+    },
+    "relationship_types": {
+      "CONTAINS_STRUCTURE": 15,
+      "RELATED_TO": 14
+    }
+  }
+}

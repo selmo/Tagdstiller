@@ -1,0 +1,670 @@
+{
+  "entities": [
+    {
+      "id": "240c31a6e66f941c",
+      "type": "Document",
+      "properties": {
+        "title": "hierarchical_kg_test_document.md",
+        "path": "test/hierarchical_kg_test_document.md",
+        "domain": "technical",
+        "size": 2639,
+        "extension": ".md",
+        "parser_count": 0,
+        "best_parser": null,
+        "hierarchical_root": true
+      }
+    },
+    {
+      "id": "default_section_240c31a6e66f941c",
+      "type": "Section",
+      "properties": {
+        "title": "Default Section",
+        "level": 1,
+        "parser": "default",
+        "index": 0,
+        "domain": "technical",
+        "structural_element": true,
+        "content_preview": "",
+        "has_content": false
+      }
+    },
+    {
+      "id": "technology_0610b86adbefa85c_ac790ac0fbe5ad28_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "FastAPI",
+        "domain": "technical",
+        "source_structure": "default_section_240c31a6e66f941c",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.95,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "",
+          "properties": {
+            "title": "Default Section",
+            "level": 1,
+            "parser": "default",
+            "index": 0
+          },
+          "position": {},
+          "context": ""
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_24fd6c2d1150de6a_ac790ac0fbe5ad28_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "PostgreSQL",
+        "domain": "technical",
+        "source_structure": "default_section_240c31a6e66f941c",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.92,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "",
+          "properties": {
+            "title": "Default Section",
+            "level": 1,
+            "parser": "default",
+            "index": 0
+          },
+          "position": {},
+          "context": ""
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_3c93452bf7af2f15_ac790ac0fbe5ad28_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "SQLAlchemy",
+        "domain": "technical",
+        "source_structure": "default_section_240c31a6e66f941c",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.88,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "",
+          "properties": {
+            "title": "Default Section",
+            "level": 1,
+            "parser": "default",
+            "index": 0
+          },
+          "position": {},
+          "context": ""
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_24071b57a13027c0_ac790ac0fbe5ad28_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "Redis",
+        "domain": "technical",
+        "source_structure": "default_section_240c31a6e66f941c",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.85,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "",
+          "properties": {
+            "title": "Default Section",
+            "level": 1,
+            "parser": "default",
+            "index": 0
+          },
+          "position": {},
+          "context": ""
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_9f1141549f7c054b_ac790ac0fbe5ad28_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "Docker",
+        "domain": "technical",
+        "source_structure": "default_section_240c31a6e66f941c",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.82,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "",
+          "properties": {
+            "title": "Default Section",
+            "level": 1,
+            "parser": "default",
+            "index": 0
+          },
+          "position": {},
+          "context": ""
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_9a6665bbfdc12263_ac790ac0fbe5ad28_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "RESTful",
+        "domain": "technical",
+        "source_structure": "default_section_240c31a6e66f941c",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.9,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "",
+          "properties": {
+            "title": "Default Section",
+            "level": 1,
+            "parser": "default",
+            "index": 0
+          },
+          "position": {},
+          "context": ""
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_8aff59b1c88dea25_ac790ac0fbe5ad28_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "JWT",
+        "domain": "technical",
+        "source_structure": "default_section_240c31a6e66f941c",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.87,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "",
+          "properties": {
+            "title": "Default Section",
+            "level": 1,
+            "parser": "default",
+            "index": 0
+          },
+          "position": {},
+          "context": ""
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "source": "240c31a6e66f941c",
+      "target": "default_section_240c31a6e66f941c",
+      "type": "CONTAINS_STRUCTURE",
+      "properties": {
+        "structure_type": "Section",
+        "relationship_name": "CONTAINS_SECTION",
+        "position_info": {},
+        "domain": "technical"
+      }
+    },
+    {
+      "source": "default_section_240c31a6e66f941c",
+      "target": "technology_0610b86adbefa85c_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.95,
+        "context_snippet": "",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "default_section_240c31a6e66f941c",
+      "target": "technology_24fd6c2d1150de6a_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.92,
+        "context_snippet": "",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "default_section_240c31a6e66f941c",
+      "target": "technology_3c93452bf7af2f15_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.88,
+        "context_snippet": "",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "default_section_240c31a6e66f941c",
+      "target": "technology_24071b57a13027c0_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.85,
+        "context_snippet": "",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "default_section_240c31a6e66f941c",
+      "target": "technology_9f1141549f7c054b_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.82,
+        "context_snippet": "",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "default_section_240c31a6e66f941c",
+      "target": "technology_9a6665bbfdc12263_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.9,
+        "context_snippet": "",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "default_section_240c31a6e66f941c",
+      "target": "technology_8aff59b1c88dea25_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.87,
+        "context_snippet": "",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "technology_0610b86adbefa85c_ac790ac0fbe5ad28_llm",
+      "target": "technology_24fd6c2d1150de6a_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.92,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_0610b86adbefa85c_ac790ac0fbe5ad28_llm",
+      "target": "technology_3c93452bf7af2f15_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.88,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_0610b86adbefa85c_ac790ac0fbe5ad28_llm",
+      "target": "technology_24071b57a13027c0_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.85,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_0610b86adbefa85c_ac790ac0fbe5ad28_llm",
+      "target": "technology_9f1141549f7c054b_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.82,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_0610b86adbefa85c_ac790ac0fbe5ad28_llm",
+      "target": "technology_9a6665bbfdc12263_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.9,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_0610b86adbefa85c_ac790ac0fbe5ad28_llm",
+      "target": "technology_8aff59b1c88dea25_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.87,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24fd6c2d1150de6a_ac790ac0fbe5ad28_llm",
+      "target": "technology_3c93452bf7af2f15_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.88,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24fd6c2d1150de6a_ac790ac0fbe5ad28_llm",
+      "target": "technology_24071b57a13027c0_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.85,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24fd6c2d1150de6a_ac790ac0fbe5ad28_llm",
+      "target": "technology_9f1141549f7c054b_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.82,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24fd6c2d1150de6a_ac790ac0fbe5ad28_llm",
+      "target": "technology_9a6665bbfdc12263_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.9,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24fd6c2d1150de6a_ac790ac0fbe5ad28_llm",
+      "target": "technology_8aff59b1c88dea25_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.87,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_3c93452bf7af2f15_ac790ac0fbe5ad28_llm",
+      "target": "technology_24071b57a13027c0_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.85,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_3c93452bf7af2f15_ac790ac0fbe5ad28_llm",
+      "target": "technology_9f1141549f7c054b_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.82,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_3c93452bf7af2f15_ac790ac0fbe5ad28_llm",
+      "target": "technology_9a6665bbfdc12263_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.88,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_3c93452bf7af2f15_ac790ac0fbe5ad28_llm",
+      "target": "technology_8aff59b1c88dea25_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.87,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24071b57a13027c0_ac790ac0fbe5ad28_llm",
+      "target": "technology_9f1141549f7c054b_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.82,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24071b57a13027c0_ac790ac0fbe5ad28_llm",
+      "target": "technology_9a6665bbfdc12263_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.85,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24071b57a13027c0_ac790ac0fbe5ad28_llm",
+      "target": "technology_8aff59b1c88dea25_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.85,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_9f1141549f7c054b_ac790ac0fbe5ad28_llm",
+      "target": "technology_9a6665bbfdc12263_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.82,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_9f1141549f7c054b_ac790ac0fbe5ad28_llm",
+      "target": "technology_8aff59b1c88dea25_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.82,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_9a6665bbfdc12263_ac790ac0fbe5ad28_llm",
+      "target": "technology_8aff59b1c88dea25_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "",
+        "extraction_method": "llm",
+        "confidence_score": 0.87,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_0610b86adbefa85c_ac790ac0fbe5ad28_llm",
+      "target": "technology_3c93452bf7af2f15_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "INTEGRATES_WITH",
+        "domain": "technical",
+        "pattern_based": true,
+        "confidence_score": 0.8,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24fd6c2d1150de6a_ac790ac0fbe5ad28_llm",
+      "target": "technology_24071b57a13027c0_ac790ac0fbe5ad28_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "COMPLEMENTS",
+        "domain": "technical",
+        "pattern_based": true,
+        "confidence_score": 0.8,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    }
+  ],
+  "structural_hierarchy": [
+    {
+      "id": "default_section_240c31a6e66f941c",
+      "type": "Section",
+      "parent_id": "240c31a6e66f941c",
+      "children": [],
+      "level": 1,
+      "properties": {
+        "title": "Default Section",
+        "level": 1,
+        "parser": "default",
+        "index": 0
+      }
+    }
+  ],
+  "metadata": {
+    "created_at": "2025-08-30T16:47:45.867960",
+    "file_path": "test/hierarchical_kg_test_document.md",
+    "hierarchical_structure": true,
+    "detected_domain": "technical",
+    "domain_confidence": 0.68,
+    "extractors_used": [
+      "llm"
+    ]
+  }
+}

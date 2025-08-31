@@ -253,9 +253,9 @@ class ConfigService:
             "description": "사용자 정의 프롬프트 템플릿"
         },
         
-        # 기본 추출기 설정 (LangExtract 제외)
+        # 기본 추출기 설정 (LLM만 사용)
         "DEFAULT_EXTRACTORS": {
-            "value": json.dumps(["keybert", "ner", "konlpy", "metadata"]),
+            "value": json.dumps(["llm"]),
             "description": "기본 추출기"
         },
         "MAX_KEYWORDS_PER_DOCUMENT": {

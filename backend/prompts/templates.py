@@ -225,6 +225,513 @@ JSON 형식으로만 응답하세요:"""
     )
 
 
+class DocumentStructurePrompts:
+    """문서 구조 분석용 프롬프트 템플릿들"""
+    
+    # LLM 기반 문서 구조 분석 프롬프트
+    STRUCTURE_ANALYSIS_LLM = PromptTemplate(
+        """당신은 문서 분석 전문가입니다. 제공된 문서를 체계적으로 분석하여 구조화된 정보를 JSON 형식으로 추출해주세요.
+
+문서 내용:
+{text}
+
+### 분석 지침:
+
+1. **문서 기본정보 추출**
+   - 제목, 부제목
+   - 저자/작성자 정보
+   - 발행일자, 발행기관
+   - 문서유형 (보고서/논문/정책자료 등)
+   - 문서번호나 식별자
+
+2. **구조 분석**
+   - 장(Chapter) 및 절(Section) 단위로 계층구조 파악
+   - 각 단위별 제목과 페이지 범위
+   - 주요 내용 요약 (2-3문장)
+   - 핵심 키워드 추출 (5-10개)
+
+3. **내용 분석**
+   - 문서의 주요 주제와 목적
+   - 핵심 논점이나 연구질문
+   - 주요 발견사항이나 결론
+   - 정책제언이나 시사점
+
+4. **데이터 추출**
+   - 주요 통계수치나 정량적 데이터
+   - 중요 날짜나 시점
+   - 인용된 법규나 제도
+   - 참조된 기관이나 조직명
+
+5. **메타정보 도출**
+   - 연구방법론 (해당시)
+   - 대상 독자층
+   - 활용 가능 분야
+   - 관련 주제 분류
+
+### 출력 형식:
+
+```json
+{{
+  "문서정보": {{
+    "제목": "",
+    "부제목": "",
+    "문서유형": "",
+    "발행정보": {{
+      "발행일자": "",
+      "발행기관": "",
+      "문서번호": ""
+    }},
+    "저자정보": [
+      {{
+        "이름": "",
+        "소속": "",
+        "역할": ""
+      }}
+    ]
+  }},
+  
+  "구조분석": [
+    {{
+      "단위": "장/절",
+      "제목": "",
+      "페이지": "",
+      "주요내용": "",
+      "키워드": [],
+      "하위구조": [
+        {{
+          "단위": "소절",
+          "제목": "",
+          "주요내용": "",
+          "키워드": []
+        }}
+      ]
+    }}
+  ],
+  
+  "핵심내용": {{
+    "주제": [],
+    "목적": "",
+    "주요발견": [],
+    "결론": [],
+    "제언": []
+  }},
+  
+  "주요데이터": {{
+    "통계": {{
+      "수치명": "값",
+      "단위": "설명"
+    }},
+    "일자": {{
+      "기준일": "",
+      "중요시점": []
+    }},
+    "제도": [],
+    "기관": []
+  }},
+  
+  "메타정보": {{
+    "방법론": "",
+    "대상독자": "",
+    "활용분야": [],
+    "분류태그": []
+  }}
+}}
+```
+
+JSON 형식으로만 응답해주세요:"""
+    )
+    
+    # 간단한 구조 분석 프롬프트
+    SIMPLE_STRUCTURE_ANALYSIS = PromptTemplate(
+        """문서의 기본 구조를 분석해주세요.
+
+문서 내용:
+{text}
+
+다음 JSON 형식으로 응답해주세요:
+{{
+  "제목": "문서 제목",
+  "문서유형": "보고서/논문/매뉴얼 등",
+  "주요섹션": [
+    {{
+      "번호": "1",
+      "제목": "섹션 제목",
+      "내용요약": "2-3문장 요약"
+    }}
+  ],
+  "핵심키워드": [],
+  "주요통계": [],
+  "결론": "문서의 핵심 결론"
+}}
+
+JSON 형식으로만 응답하세요:"""
+    )
+
+
+class KnowledgeGraphPrompts:
+    """도메인별 지식그래프 추출용 프롬프트 템플릿들"""
+    
+    # 기본 KG 추출 프롬프트
+    BASIC_KG_EXTRACTION = PromptTemplate(
+        """문서에서 지식 그래프를 구성할 엔티티와 관계를 추출해주세요.
+
+문서 내용:
+{text}
+
+문서 도메인: {domain}
+구조 정보: {structure_info}
+
+다음 JSON 형식으로 응답해주세요:
+{{
+  "entities": [
+    {{"id": "entity_1", "type": "Document", "properties": {{"title": "문서명", "domain": "{domain}"}}}},
+    {{"id": "entity_2", "type": "Concept", "properties": {{"name": "개념명", "category": "기술"}}}},
+    {{"id": "entity_3", "type": "Keyword", "properties": {{"text": "키워드", "score": 0.9}}}}
+  ],
+  "relationships": [
+    {{"source": "entity_1", "target": "entity_2", "type": "RELATED_TO", "properties": {{"relationship_name": "CONTAINS_CONCEPT", "context": "언급맥락"}}}},
+    {{"source": "entity_1", "target": "entity_3", "type": "RELATED_TO", "properties": {{"relationship_name": "HAS_KEYWORD", "relevance": 0.8}}}}
+  ]
+}}
+
+지침:
+- 엔티티 ID는 고유해야 합니다
+- 관계의 relationship_name에 구체적인 관계 유형을 명시하세요
+- 도메인에 적합한 엔티티 타입을 사용하세요
+
+JSON 형식으로만 응답하세요:"""
+    )
+    
+    # 기술 문서용 KG 추출 프롬프트
+    TECHNICAL_KG_EXTRACTION = PromptTemplate(
+        """기술 문서에서 지식 그래프를 구성할 엔티티와 관계를 추출해주세요.
+
+문서 내용:
+{text}
+
+구조 정보: {structure_info}
+
+다음 JSON 형식으로 응답해주세요:
+{{
+  "entities": [
+    {{"id": "doc_1", "type": "Document", "properties": {{"title": "기술문서명", "domain": "technical"}}}},
+    {{"id": "tech_1", "type": "Technology", "properties": {{"name": "기술명", "version": "v1.0", "category": "software"}}}},
+    {{"id": "api_1", "type": "API", "properties": {{"name": "API명", "endpoint": "/api/v1", "method": "GET"}}}},
+    {{"id": "func_1", "type": "Function", "properties": {{"name": "함수명", "parameters": ["param1", "param2"], "return_type": "string"}}}}
+  ],
+  "relationships": [
+    {{"source": "doc_1", "target": "tech_1", "type": "RELATED_TO", "properties": {{"relationship_name": "USES", "context": "기술 사용 맥락"}}}},
+    {{"source": "tech_1", "target": "api_1", "type": "RELATED_TO", "properties": {{"relationship_name": "PROVIDES", "version": "1.0"}}}},
+    {{"source": "api_1", "target": "func_1", "type": "RELATED_TO", "properties": {{"relationship_name": "IMPLEMENTS", "role": "handler"}}}}
+  ]
+}}
+
+엔티티 타입 사용: Technology, API, Function, Class, Database, Server, Framework, Tool, Algorithm, Protocol
+관계명 사용: DEPENDS_ON, IMPLEMENTS, EXTENDS, USES, CALLS, CONNECTS_TO, CONFIGURED_BY, STORES_IN, RUNS_ON
+
+JSON 형식으로만 응답하세요:"""
+    )
+    
+    # 학술 문서용 KG 추출 프롬프트
+    ACADEMIC_KG_EXTRACTION = PromptTemplate(
+        """학술 문서에서 지식 그래프를 구성할 엔티티와 관계를 추출해주세요.
+
+문서 내용:
+{text}
+
+구조 정보: {structure_info}
+
+다음 JSON 형식으로 응답해주세요:
+{{
+  "entities": [
+    {{"id": "doc_1", "type": "Document", "properties": {{"title": "논문제목", "domain": "academic"}}}},
+    {{"id": "author_1", "type": "Author", "properties": {{"name": "저자명", "affiliation": "소속기관"}}}},
+    {{"id": "method_1", "type": "Research_Method", "properties": {{"name": "연구방법", "type": "실험연구"}}}},
+    {{"id": "finding_1", "type": "Finding", "properties": {{"description": "주요발견", "significance": "중요도"}}}}
+  ],
+  "relationships": [
+    {{"source": "doc_1", "target": "author_1", "type": "RELATED_TO", "properties": {{"relationship_name": "AUTHORED_BY", "role": "first_author"}}}},
+    {{"source": "author_1", "target": "method_1", "type": "RELATED_TO", "properties": {{"relationship_name": "USES_METHOD", "purpose": "데이터수집"}}}},
+    {{"source": "method_1", "target": "finding_1", "type": "RELATED_TO", "properties": {{"relationship_name": "PRODUCES", "confidence": 0.95}}}}
+  ]
+}}
+
+엔티티 타입 사용: Author, Institution, Research_Method, Theory, Dataset, Experiment, Citation, Finding, Hypothesis, Variable
+관계명 사용: CONDUCTED_BY, CITES, BUILDS_ON, PROVES, SUPPORTS, USES_METHOD, BASED_ON, VALIDATED_BY
+
+JSON 형식으로만 응답하세요:"""
+    )
+    
+    # 비즈니스 문서용 KG 추출 프롬프트
+    BUSINESS_KG_EXTRACTION = PromptTemplate(
+        """비즈니스 문서에서 지식 그래프를 구성할 엔티티와 관계를 추출해주세요.
+
+문서 내용:
+{text}
+
+구조 정보: {structure_info}
+
+다음 JSON 형식으로 응답해주세요:
+{{
+  "entities": [
+    {{"id": "doc_1", "type": "Document", "properties": {{"title": "비즈니스문서명", "domain": "business"}}}},
+    {{"id": "company_1", "type": "Company", "properties": {{"name": "회사명", "industry": "산업분야", "size": "대기업"}}}},
+    {{"id": "product_1", "type": "Product", "properties": {{"name": "제품명", "category": "소프트웨어", "market_share": 25.3}}}},
+    {{"id": "strategy_1", "type": "Strategy", "properties": {{"name": "전략명", "timeline": "2024-2026", "objectives": ["목표1", "목표2"]}}}}
+  ],
+  "relationships": [
+    {{"source": "doc_1", "target": "company_1", "type": "RELATED_TO", "properties": {{"relationship_name": "DESCRIBES", "focus": "기업분석"}}}},
+    {{"source": "company_1", "target": "product_1", "type": "RELATED_TO", "properties": {{"relationship_name": "PRODUCES", "revenue_contribution": 45.2}}}},
+    {{"source": "company_1", "target": "strategy_1", "type": "RELATED_TO", "properties": {{"relationship_name": "IMPLEMENTS", "priority": "high"}}}}
+  ]
+}}
+
+엔티티 타입 사용: Company, Product, Market, Stakeholder, Process, KPI, Risk, Opportunity, Strategy, Department
+관계명 사용: COMPETES_WITH, SUPPLIES_TO, PARTNERS_WITH, MANAGES, MEASURES, IMPACTS, ALIGNS_WITH, SUPPORTS
+
+JSON 형식으로만 응답하세요:"""
+    )
+    
+    # 법률 문서용 KG 추출 프롬프트
+    LEGAL_KG_EXTRACTION = PromptTemplate(
+        """법률 문서에서 지식 그래프를 구성할 엔티티와 관계를 추출해주세요.
+
+문서 내용:
+{text}
+
+구조 정보: {structure_info}
+
+다음 JSON 형식으로 응답해주세요:
+{{
+  "entities": [
+    {{"id": "doc_1", "type": "Document", "properties": {{"title": "법률문서명", "domain": "legal"}}}},
+    {{"id": "law_1", "type": "Law", "properties": {{"name": "법률명", "jurisdiction": "대한민국", "effective_date": "2024-01-01"}}}},
+    {{"id": "party_1", "type": "Party", "properties": {{"name": "당사자명", "type": "법인", "role": "계약자"}}}},
+    {{"id": "obligation_1", "type": "Obligation", "properties": {{"description": "의무내용", "deadline": "2024-12-31", "penalty": "위약금"}}}}
+  ],
+  "relationships": [
+    {{"source": "doc_1", "target": "law_1", "type": "RELATED_TO", "properties": {{"relationship_name": "GOVERNED_BY", "scope": "전체문서"}}}},
+    {{"source": "party_1", "target": "obligation_1", "type": "RELATED_TO", "properties": {{"relationship_name": "OBLIGATED_TO", "enforcement": "강제"}}}},
+    {{"source": "law_1", "target": "obligation_1", "type": "RELATED_TO", "properties": {{"relationship_name": "DEFINES", "article": "제12조"}}}}
+  ]
+}}
+
+엔티티 타입 사용: Law, Regulation, Contract, Case, Party, Obligation, Right, Precedent
+관계명 사용: GOVERNED_BY, SUBJECT_TO, CONTRACTS_WITH, REPRESENTS, OBLIGATED_TO, ENTITLED_TO, CITES_PRECEDENT
+
+JSON 형식으로만 응답하세요:"""
+    )
+
+    GENERAL_KG_EXTRAION = PromptTemplate(
+        """# PDF to Knowledge Graph Extraction Prompt
+
+## System Instructions
+
+You are a knowledge extraction specialist. Your task is to convert text into a structured knowledge graph in JSON format. Follow these instructions precisely.
+
+## Input/Output Specification
+
+**Input**: Text containing information about policies, demographics, social phenomena, or organizational data.
+
+**Output**: Valid JSON following the exact structure below:
+
+```json
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "string",
+        "type": "string",
+        "properties": {}
+      }
+    ],
+    "edges": [
+      {
+        "id": "string",
+        "source": "string",
+        "target": "string",
+        "type": "string",
+        "properties": {}
+      }
+    ]
+  },
+  "metadata": {
+    "version": "1.0",
+    "node_count": 0,
+    "edge_count": 0,
+    "extraction_date": "YYYY-MM-DD"
+  }
+}
+```
+
+## Entity Types and Extraction Rules
+
+### 1. Core Entity Types
+
+| Entity Type | Required Properties | Optional Properties | ID Format |
+|------------|-------------------|-------------------|-----------|
+| Country | name, code | current_stats, year | country_{seq} |
+| Policy | name, year, type | description, law_number | policy_{seq} |
+| Demographic | name | age_range, birth_years, population | demo_{seq} |
+| Institution | name, type | role, sector | inst_{seq} |
+| Impact | name, type, severity | description, metrics | impact_{seq} |
+| Strategy | name, type | target, implementation_year | strategy_{seq} |
+| Phase | name, threshold | description, criteria | phase_{seq} |
+| Challenge | name, severity | country, description | challenge_{seq} |
+| FinancialProduct | name, type | provider, target_group | product_{seq} |
+
+### 2. Relationship Types
+
+| Edge Type | Usage | Required Properties |
+|----------|-------|-------------------|
+| ENTERED_PHASE | Country → Phase | year, rate |
+| EXPECTED_TO_ENTER | Country → Phase | year, projected_rate |
+| IMPLEMENTS | Country/Institution → Policy/Strategy | start_year |
+| CAUSES | Event/Phase → Impact | severity |
+| PROVIDES | Institution → Product/Service | since_year |
+| FACES | Country → Challenge | severity |
+| NEEDS | Country → Strategy/Policy | urgency |
+| BASED_ON | Policy → Policy | relationship_type |
+| HAS_DEMOGRAPHIC | Country → Demographic | percentage |
+
+## Extraction Guidelines
+
+### Step 1: Entity Identification
+```
+SCAN FOR:
+- Years (4-digit numbers between 1900-2100)
+- Percentages (N% or N.N%)
+- Proper nouns (capitalized terms)
+- Policy/Law names (in quotes or with 法/Act/Law)
+- Monetary values (with currency symbols/units)
+- Age ranges (N세, N-N세, N years)
+```
+
+### Step 2: Relationship Extraction
+```
+IDENTIFY PATTERNS:
+- Temporal: "In [YEAR], [ENTITY] became/reached/entered [STATE]"
+- Causal: "[A] leads to/causes/results in [B]"
+- Implementation: "[ACTOR] implements/adopts/introduces [POLICY]"
+- Provision: "[INSTITUTION] provides/offers [SERVICE]"
+```
+
+### Step 3: Property Assignment
+```
+FOR EACH ENTITY:
+- Assign all numeric values found within 50 characters
+- Include units for all measurements
+- Preserve original language terms
+- Add contextual description if available
+```
+
+## Special Processing Rules
+
+1. **Temporal Data**:
+   - Convert all years to integers
+   - For year ranges, create separate properties: start_year, end_year
+   - If only decade mentioned (e.g., "1990s"), use start year (1990)
+
+2. **Percentage Handling**:
+   - Always store as float (7% → 7.0)
+   - Include context as separate property (e.g., "rate_type": "aging")
+
+3. **Multi-language Content**:
+   - Preserve original terms in name field
+   - Add translation in description if needed
+   - Use original language for official document names
+
+4. **Hierarchical Relationships**:
+   - Create parent-child relationships for policy structures
+   - Link demographic groups to parent populations
+   - Connect phases in sequential order
+
+## Validation Rules
+
+✓ Every node must have: id, type, properties.name
+✓ Every edge must have: id, source, target, type
+✓ All edge source/target must reference existing node IDs
+✓ Years must be integers between 1900-2100
+✓ Percentages must be floats between 0-100
+✓ No duplicate node IDs
+✓ Metadata must include accurate counts
+
+## Error Handling
+
+| Situation | Action |
+|-----------|--------|
+| Ambiguous year | Use earliest mentioned year |
+| Missing percentage context | Add to most relevant nearby entity |
+| Unclear relationship | Skip edge creation |
+| Duplicate entity names | Append _2, _3 to ID |
+| Long descriptions | Truncate to 500 characters |
+
+## Output Example
+
+```json
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "country_1",
+        "type": "Country",
+        "properties": {
+          "name": "일본",
+          "code": "JP",
+          "aging_rate": 23.3,
+          "reference_year": 2011
+        }
+      },
+      {
+        "id": "phase_1",
+        "type": "Phase",
+        "properties": {
+          "name": "고령화사회",
+          "threshold": 7.0,
+          "description": "65세 이상 인구 7% 이상"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge_1",
+        "source": "country_1",
+        "target": "phase_1",
+        "type": "ENTERED_PHASE",
+        "properties": {
+          "year": 1970,
+          "rate": 7.0
+        }
+      }
+    ]
+  },
+  "metadata": {
+    "version": "1.0",
+    "node_count": 2,
+    "edge_count": 1,
+    "extraction_date": "2024-01-01"
+  }
+}
+```
+
+## Processing Instructions
+
+1. Read the entire text first
+2. Extract all entities matching the types above
+3. Identify relationships between entities
+4. Build the JSON structure
+5. Validate against rules
+6. Output only the JSON, no explanations
+
+---
+
+**INPUT TEXT:**
+{text}
+
+**OUTPUT JSON:**
+""")
+
+
 class PromptTemplateManager:
     """프롬프트 템플릿 관리자"""
     
@@ -244,6 +751,18 @@ class PromptTemplateManager:
             },
             'metadata_extraction': {
                 'basic': MetadataExtractionPrompts.BASIC_METADATA,
+            },
+            'knowledge_graph': {
+                'basic': KnowledgeGraphPrompts.GENERAL_KG_EXTRAION,
+                'technical': KnowledgeGraphPrompts.GENERAL_KG_EXTRAION,
+                'academic': KnowledgeGraphPrompts.GENERAL_KG_EXTRAION,
+                'business': KnowledgeGraphPrompts.GENERAL_KG_EXTRAION,
+                'legal': KnowledgeGraphPrompts.GENERAL_KG_EXTRAION,
+                # 'basic': KnowledgeGraphPrompts.BASIC_KG_EXTRACTION,
+                # 'technical': KnowledgeGraphPrompts.TECHNICAL_KG_EXTRACTION,
+                # 'academic': KnowledgeGraphPrompts.ACADEMIC_KG_EXTRACTION,
+                # 'business': KnowledgeGraphPrompts.BUSINESS_KG_EXTRACTION,
+                # 'legal': KnowledgeGraphPrompts.LEGAL_KG_EXTRACTION,
             }
         }
     

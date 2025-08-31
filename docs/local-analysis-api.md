@@ -2,22 +2,119 @@
 
 ## 개요
 
-Local Analysis API는 서버의 로컬 파일 시스템에 있는 문서를 직접 분석하는 기능을 제공합니다. 프로젝트 업로드 없이 파일을 직접 키워드 추출 및 메타데이터 분석할 수 있습니다.
+Local Analysis API는 서버의 로컬 파일 시스템에 있는 문서를 직접 분석하는 완전한 문서 처리 시스템입니다. 파싱부터 키워드 추출, 구조 분석, Knowledge Graph 생성까지 단계적 처리를 지원합니다.
 
 **Base URL**: `http://localhost:58000/local-analysis`
 
 ## 🎯 주요 기능
 
-- **파일 분석**: 로컬 파일에서 키워드 추출 및 메타데이터 추출
+- **완전 파싱**: 모든 적용 가능한 파서를 사용하여 최상의 파싱 결과 제공
+- **키워드 분석**: 파싱 결과 기반 다중 추출기 키워드 분석
+- **구조 분석**: 문서의 구조적 요소 분석 (헤더, 테이블, 이미지 등)
+- **Knowledge Graph**: 엔티티와 관계를 추출한 지식 그래프 생성
+- **메타데이터 추출**: Dublin Core 표준 메타데이터 완전 지원
 - **디렉토리 관리**: 작업 디렉토리 변경 및 파일 목록 조회
-- **분석 상태 관리**: 기존 분석 결과 조회 및 재분석
-- **파서 선택**: Docling/기본 파서 선택 지원
+- **결과 재사용**: 각 단계별 결과 캐싱으로 성능 최적화
 
 ## 📋 API 엔드포인트 목록
 
-### 1. 파일 분석
+### 1. 완전 파싱 (Comprehensive Parsing)
 
-#### 🔵 파일 분석 실행 (POST)
+#### 🔵 문서 완전 파싱 (POST)
+```http
+POST /local-analysis/parse
+Content-Type: application/json
+
+{
+    "file_path": "test_document.pdf",
+    "force_reparse": false
+}
+```
+
+**Request Body**:
+- `file_path` (string, required): 파싱할 문서 경로
+- `force_reparse` (boolean, optional): 기존 결과 무시하고 재파싱 여부 (기본값: false)
+
+**Response**:
+```json
+{
+    "file_info": {
+        "name": "test_document.pdf",
+        "path": "/path/to/test_document.pdf",
+        "size": 3369,
+        "extension": "pdf",
+        "modified": 1756425874.536066
+    },
+    "parsing_timestamp": "2025-08-30T13:09:16.585585",
+    "parsers_used": ["docling", "pdf_parser"],
+    "parsing_results": {
+        "docling": {
+            "success": true,
+            "parser_name": "pdf_parser_docling",
+            "text_length": 618,
+            "word_count": 145,
+            "quality_score": 0.615,
+            "md_file_path": "/path/to/output/docling.md",
+            "structured_info": {
+                "document_structure": {
+                    "tables": [],
+                    "images": [],
+                    "sections": [...]
+                }
+            }
+        }
+    },
+    "summary": {
+        "total_parsers": 2,
+        "successful_parsers": 2,
+        "best_parser": "docling",
+        "best_quality_score": 0.615
+    },
+    "output_directory": "/path/to/output"
+}
+```
+
+#### 🔵 문서 완전 파싱 (GET)
+```http
+GET /local-analysis/parse?file_path=test.pdf&force_reparse=false
+```
+
+#### 🟢 파싱 상태 확인
+```http
+GET /local-analysis/parse/status?file_path=test_document.pdf
+```
+
+**Response**:
+```json
+{
+    "file_path": "test_document.pdf",
+    "exists": true,
+    "supported": true,
+    "has_parsing_results": true,
+    "parsing_timestamp": "2025-08-30T13:09:16.585585",
+    "parsers_used": ["docling", "pdf_parser"],
+    "summary": {
+        "total_parsers": 2,
+        "successful_parsers": 2,
+        "best_parser": "docling"
+    },
+    "output_directory": "/path/to/output",
+    "supported_extensions": ["pdf", "docx", "txt", "html", "md", "zip"]
+}
+```
+
+#### 🟢 파싱 결과 조회
+```http
+GET /local-analysis/parse/results?file_path=test.pdf&parser_name=docling
+```
+
+**Query Parameters**:
+- `file_path` (string, required): 파일 경로
+- `parser_name` (string, optional): 특정 파서 결과만 조회
+
+### 2. 키워드 분석
+
+#### 🔵 키워드 분석 실행 (POST)
 ```http
 POST /local-analysis/analyze
 Content-Type: application/json
@@ -26,15 +123,20 @@ Content-Type: application/json
     "file_path": "test_document.pdf",
     "extractors": ["KeyBERT", "spaCy NER", "LLM"],
     "force_reanalyze": false,
-    "use_docling": true
+    "force_reparse": false
 }
 ```
 
 **Request Body**:
 - `file_path` (string, required): 분석할 파일 경로
 - `extractors` (array, optional): 사용할 추출기 목록
-- `force_reanalyze` (boolean, optional): 재분석 강제 여부 (기본값: false)
-- `use_docling` (boolean, optional): Docling 파서 사용 여부 (기본값: false)
+- `force_reanalyze` (boolean, optional): 키워드 재분석 여부 (기본값: false)
+- `force_reparse` (boolean, optional): 파싱부터 다시 수행할지 여부 (기본값: false)
+
+**동작 방식**:
+1. 파싱 결과가 없으면 먼저 완전 파싱을 자동 수행
+2. 파싱 결과를 기반으로 키워드 추출 분석 수행
+3. 모든 결과를 파일로 저장하여 재사용
 
 **Response**:
 ```json
@@ -121,13 +223,18 @@ GET /local-analysis/status?file_path=test_document.pdf
 
 #### 🟢 메타데이터 추출 (GET)
 ```http
-GET /local-analysis/metadata?file_path=test.pdf&use_docling=true
+GET /local-analysis/metadata?file_path=test.pdf&force_reparse=false&parser_name=docling
 ```
 
 **Query Parameters**:
 - `file_path` (string, required): 파일 경로
-- `use_docling` (boolean, optional): Docling 파서 사용 여부
-- `use_all_parsers` (boolean, optional): 모든 파서 시도 여부
+- `force_reparse` (boolean, optional): 재파싱 여부 (기본값: false)
+- `parser_name` (string, optional): 특정 파서의 메타데이터만 조회
+
+**동작 방식**:
+1. 파싱 결과가 없으면 먼저 완전 파싱을 자동 수행
+2. 모든 파서의 메타데이터를 통합하여 반환
+3. parser_name 지정시 해당 파서의 메타데이터만 반환
 
 #### 🔵 메타데이터 추출 (POST)
 ```http
@@ -136,8 +243,8 @@ Content-Type: application/json
 
 {
     "file_path": "test_document.pdf",
-    "use_docling": true,
-    "use_all_parsers": false
+    "force_reparse": false,
+    "parser_name": "docling"
 }
 ```
 
@@ -158,7 +265,149 @@ Content-Type: application/json
 }
 ```
 
-### 4. 디렉토리 관리
+### 4. 구조 분석
+
+#### 🔵 문서 구조 분석 (POST)
+```http
+POST /local-analysis/structure-analysis
+Content-Type: application/json
+
+{
+    "file_path": "test_document.pdf",
+    "force_reparse": false,
+    "force_reanalyze": false
+}
+```
+
+**Request Body**:
+- `file_path` (string, required): 분석할 파일 경로
+- `force_reparse` (boolean, optional): 재파싱 여부 (기본값: false)
+- `force_reanalyze` (boolean, optional): 구조 재분석 여부 (기본값: false)
+
+**동작 방식**:
+1. 파싱 결과가 없으면 먼저 완전 파싱을 자동 수행
+2. 각 파서별 구조 정보를 수집하여 통합 분석
+3. 복잡도 점수를 계산하여 최적 파서 선정
+
+**Response**:
+```json
+{
+    "file_info": {
+        "name": "test_document.pdf",
+        "size": 3369,
+        "extension": "pdf"
+    },
+    "analysis_timestamp": "2025-08-30T13:15:00.123456",
+    "structure_elements": {
+        "docling": {
+            "total_lines": 25,
+            "paragraphs": 8,
+            "headers": 3,
+            "table_count": 2,
+            "image_count": 1,
+            "section_count": 3,
+            "complexity_score": 0.85
+        }
+    },
+    "summary": {
+        "best_parser": "docling",
+        "total_elements": 6,
+        "element_types": {
+            "paragraphs": 8,
+            "headers": 3,
+            "table_count": 2
+        },
+        "complexity_score": 0.85,
+        "has_tables": true,
+        "has_images": true,
+        "has_sections": true
+    }
+}
+```
+
+#### 🟢 문서 구조 분석 (GET)
+```http
+GET /local-analysis/structure-analysis?file_path=test.pdf&force_reanalyze=false
+```
+
+### 5. Knowledge Graph 생성
+
+#### 🔵 Knowledge Graph 생성 (POST)
+```http
+POST /local-analysis/knowledge-graph
+Content-Type: application/json
+
+{
+    "file_path": "test_document.pdf",
+    "force_reparse": false,
+    "force_reanalyze": false,
+    "force_rebuild": false
+}
+```
+
+**Request Body**:
+- `file_path` (string, required): 분석할 파일 경로
+- `force_reparse` (boolean, optional): 재파싱 여부 (기본값: false)
+- `force_reanalyze` (boolean, optional): 키워드 재분석 여부 (기본값: false)
+- `force_rebuild` (boolean, optional): KG 재생성 여부 (기본값: false)
+
+**동작 방식**:
+1. 파싱 결과가 없으면 먼저 완전 파싱을 자동 수행
+2. 키워드 추출 결과가 없으면 키워드 분석을 자동 수행
+3. 최고 품질 파서의 텍스트와 키워드를 활용하여 KG 생성
+
+**Response**:
+```json
+{
+    "file_info": {
+        "name": "test_document.pdf",
+        "size": 3369
+    },
+    "generation_timestamp": "2025-08-30T13:20:00.123456",
+    "source_parser": "docling",
+    "keywords_used": 25,
+    "knowledge_graph": {
+        "entities": [
+            {
+                "id": "entity_1",
+                "name": "인공지능",
+                "type": "concept",
+                "properties": {
+                    "score": 0.85,
+                    "frequency": 5
+                }
+            }
+        ],
+        "relationships": [
+            {
+                "id": "rel_1",
+                "source": "entity_1",
+                "target": "entity_2",
+                "type": "relates_to",
+                "properties": {
+                    "strength": 0.7
+                }
+            }
+        ]
+    },
+    "statistics": {
+        "total_entities": 15,
+        "total_relationships": 8,
+        "entity_types": {
+            "concept": 10,
+            "person": 3,
+            "organization": 2
+        }
+    }
+}
+```
+
+#### 🟢 Knowledge Graph 조회 (GET)
+```http
+GET /local-analysis/knowledge-graph?file_path=test.pdf&force_rebuild=false
+```
+
+### 6. 디렉토리 관리
 
 #### 🟢 현재 디렉토리 조회
 ```http
@@ -254,7 +503,7 @@ GET /local-analysis/config/extractors
 
 ## 📋 사용 워크플로우
 
-### 기본 워크플로우
+### 완전 문서 처리 워크플로우
 ```bash
 # 1. 현재 디렉토리 확인
 curl "http://localhost:58000/local-analysis/config/current-directory"
@@ -264,21 +513,52 @@ curl -X POST "http://localhost:58000/local-analysis/config/change-directory" \
   -H "Content-Type: application/json" \
   -d '{"directory": "/Users/selmo/Documents"}'
 
-# 3. 사용 가능한 추출기 확인
-curl "http://localhost:58000/local-analysis/config/extractors"
+# 3. 문서 완전 파싱 (모든 파서 사용)
+curl -X POST "http://localhost:58000/local-analysis/parse" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_path": "document.pdf",
+    "force_reparse": false
+  }'
 
-# 4. 파일 분석 실행
+# 4. 키워드 분석 (파싱 결과 활용)
 curl -X POST "http://localhost:58000/local-analysis/analyze" \
   -H "Content-Type: application/json" \
   -d '{
     "file_path": "document.pdf",
     "extractors": ["KeyBERT", "spaCy NER", "LLM"],
-    "use_docling": true
+    "force_reanalyze": false
   }'
 
-# 5. 분석 결과 조회 (필요시)
-curl "http://localhost:58000/local-analysis/result?file_path=document.pdf"
+# 5. 문서 구조 분석
+curl -X POST "http://localhost:58000/local-analysis/structure-analysis" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_path": "document.pdf",
+    "force_reanalyze": false
+  }'
+
+# 6. Knowledge Graph 생성
+curl -X POST "http://localhost:58000/local-analysis/knowledge-graph" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_path": "document.pdf",
+    "force_rebuild": false
+  }'
+
+# 7. 통합 메타데이터 조회
+curl "http://localhost:58000/local-analysis/metadata?file_path=document.pdf"
 ```
+
+### 단계적 처리 시스템
+각 API는 이전 단계의 결과를 자동으로 활용합니다:
+
+1. **Parse** → 모든 파서로 완전 파싱
+2. **Analyze** → 파싱 결과 기반 키워드 추출
+3. **Structure-Analysis** → 파싱 결과 기반 구조 분석  
+4. **Knowledge-Graph** → 파싱 + 키워드 결과 기반 KG 생성
+
+필요한 이전 단계 결과가 없으면 자동으로 수행됩니다.
 
 ### 한글 파일명 처리
 ```bash
@@ -334,17 +614,41 @@ curl -G "http://localhost:58000/local-analysis/analyze" \
 5. **metadata**: 파일 메타데이터 추출
 6. **langextract**: 언어 감지 (선택적)
 
-## 📁 생성되는 파일
+## 📁 생성되는 파일 구조
 
-분석 완료 후 다음과 같은 구조로 파일이 생성됩니다:
+완전한 문서 처리 후 다음과 같은 구조화된 파일들이 생성됩니다:
 
 ```
-원본파일.pdf
-원본파일/
-├── docling.md          (Docling 파서 결과)
-├── pymupdf4llm.md      (PyMuPDF4LLM 파서 결과)
-└── 원본파일.pdf.analysis.json  (분석 결과)
+document.pdf
+document/
+├── parsing_results.json        # 종합 파싱 결과
+├── structure_analysis.json     # 구조 분석 결과
+├── knowledge_graph.json        # Knowledge Graph
+├── docling.md                  # Docling 파서 Markdown 결과
+├── docling/
+│   ├── docling_text.txt        # 추출된 텍스트
+│   ├── docling_metadata.json   # 메타데이터 (Dublin Core)
+│   └── docling_structure.json  # 구조 정보 (테이블, 이미지 등)
+├── pdf_parser/
+│   ├── pdf_parser_text.txt     # 추출된 텍스트
+│   ├── pdf_parser_metadata.json # 메타데이터
+│   └── pdf_parser_structure.json # 구조 정보
+└── document.pdf.analysis.json  # 키워드 분석 결과 (기존 위치)
 ```
+
+### 파일별 상세 설명
+
+#### 파싱 관련 파일
+- **parsing_results.json**: 모든 파서의 종합 결과, 품질 점수, 최적 파서 정보
+- **[parser]/[parser]_text.txt**: 각 파서별 추출된 순수 텍스트
+- **[parser]/[parser]_metadata.json**: 각 파서별 메타데이터 (Dublin Core 표준)
+- **[parser]/[parser]_structure.json**: 각 파서별 구조 정보
+- **docling.md, pymupdf4llm.md**: 구조화된 파서의 Markdown 결과
+
+#### 분석 관련 파일
+- **structure_analysis.json**: 문서 구조 분석 결과 (복잡도, 요소 통계)
+- **knowledge_graph.json**: 생성된 지식 그래프 (엔티티, 관계)
+- **document.pdf.analysis.json**: 키워드 추출 분석 결과
 
 ## 🔧 테스트 스크립트
 

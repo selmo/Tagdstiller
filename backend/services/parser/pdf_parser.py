@@ -47,11 +47,14 @@ class PdfParser(DocumentParser):
                         if quality_score > best_score:
                             best_score = quality_score
                             best_result = (text, metadata_dict, engine_name)
-                            
-                            # 품질이 충분히 좋으면 더 이상 시도하지 않음
-                            if quality_score > 0.8:
-                                self.logger.info(f"✅ {engine_name} 엔진으로 고품질 추출 성공")
-                                break
+                        
+                        # 모든 엔진을 시도하도록 조기 종료 제거
+                        self.logger.info(f"✅ {engine_name} 엔진 추출 성공 (품질: {quality_score:.2f})")
+                        
+                        # 품질 점수 0.95 이상일 때만 조기 종료 (거의 완벽한 경우)
+                        if quality_score > 0.95:
+                            self.logger.info(f"✅ {engine_name} 엔진으로 거의 완벽한 추출 성공")
+                            break
                     else:
                         self.logger.warning(f"⚠️ {engine_name} 엔진에서 텍스트 추출 실패")
                         

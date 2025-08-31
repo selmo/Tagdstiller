@@ -12,6 +12,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
+from .kg_schema_manager import KGSchemaManager, DocumentDomain
+from .memgraph_service import MemgraphService
 
 
 def _hash(s: str) -> str:
@@ -36,7 +38,395 @@ class GraphData:
 
 
 class KGBuilder:
-    """Builds a KG from saved metadata JSON."""
+    """Builds a KG from saved metadata JSON with domain-specific schema support."""
+    
+    def __init__(self, memgraph_config: Dict[str, Any] = None, auto_save_to_memgraph: bool = True):
+        self.schema_manager = KGSchemaManager()
+        self.auto_save_to_memgraph = auto_save_to_memgraph
+        
+        # Memgraph 서비스 초기화 (선택적)
+        self.memgraph_service = None
+        if auto_save_to_memgraph:
+            try:
+                self.memgraph_service = MemgraphService(
+                    uri=memgraph_config.get("uri", "bolt://localhost:7687") if memgraph_config else "bolt://localhost:7687",
+                    username=memgraph_config.get("username", "") if memgraph_config else "",
+                    password=memgraph_config.get("password", "") if memgraph_config else ""
+                )
+                
+                import logging
+                logger = logging.getLogger(__name__)
+                if self.memgraph_service.is_connected():
+                    logger.info("✅ KG Builder: Memgraph 자동 저장 활성화")
+                else:
+                    logger.warning("⚠️ KG Builder: Memgraph 연결 실패, 로컬 저장만 수행")
+                    self.memgraph_service = None
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"⚠️ KG Builder: Memgraph 초기화 실패 ({e}), 로컬 저장만 수행")
+                self.memgraph_service = None
+    
+    def build_knowledge_graph(self, file_path: str, document_text: str, keywords: Dict[str, Any], metadata: Dict[str, Any], structure_analysis: Dict[str, Any] = None, parsing_results: Dict[str, Any] = None, force_rebuild: bool = False) -> Dict[str, Any]:
+        """
+        Build a knowledge graph from document analysis results with domain-specific enhancements.
+        
+        Args:
+            file_path: Path to the document file
+            document_text: Extracted text content  
+            keywords: Keyword extraction results
+            metadata: File metadata
+            structure_analysis: Document structure analysis results
+            parsing_results: Full parsing results
+            force_rebuild: Whether to force rebuild (currently ignored)
+            
+        Returns:
+            Dictionary containing entities and relationships with domain-specific types
+        """
+        # Detect document domain
+        domain, domain_confidence = self.schema_manager.detect_document_domain(
+            document_text, metadata
+        )
+        
+        result = {
+            "entities": [],
+            "relationships": [],
+            "metadata": {
+                "created_at": self._get_timestamp(),
+                "file_path": file_path,
+                "structure_based": True,
+                "extractors_used": list(keywords.keys()) if keywords else [],
+                "detected_domain": domain.value,
+                "domain_confidence": domain_confidence
+            }
+        }
+        
+        # 1. Create document entity
+        doc_id = _hash(str(file_path))
+        doc_entity = {
+            "id": doc_id,
+            "type": "Document",
+            "properties": {
+                "title": metadata.get("name", Path(file_path).name),
+                "path": file_path,
+                "size": metadata.get("size"),
+                "extension": metadata.get("extension"),
+                "parser_count": len(parsing_results.get("parsing_results", {})) if parsing_results else 0,
+                "best_parser": parsing_results.get("summary", {}).get("best_parser") if parsing_results else None
+            }
+        }
+        result["entities"].append(doc_entity)
+        
+        # 2. Extract structure-based entities if structure analysis exists
+        if structure_analysis and structure_analysis.get("structure_elements"):
+            sections_created = self._create_structure_entities(
+                doc_id, structure_analysis, result, parsing_results
+            )
+            
+            # 3. Extract keyword entities with domain-specific enhancements
+            self._create_domain_enhanced_keyword_entities(
+                doc_id, keywords, result, sections_created, domain, document_text
+            )
+        else:
+            # Fallback: create domain-enhanced keyword entities without structure
+            self._create_domain_enhanced_keyword_entities(
+                doc_id, keywords, result, {}, domain, document_text
+            )
+        
+        # 4. Memgraph에 자동 저장 (선택적)
+        if self.memgraph_service and self.auto_save_to_memgraph:
+            try:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"💾 Memgraph에 KG 데이터 저장 중: {file_path}")
+                
+                success = self.memgraph_service.insert_kg_data(result, clear_existing=True)
+                if success:
+                    result["metadata"]["memgraph_saved"] = True
+                    result["metadata"]["memgraph_saved_at"] = self._get_timestamp()
+                    logger.info(f"✅ Memgraph 저장 완료: {file_path}")
+                else:
+                    result["metadata"]["memgraph_saved"] = False
+                    result["metadata"]["memgraph_error"] = "저장 실패"
+                    logger.warning(f"⚠️ Memgraph 저장 실패: {file_path}")
+                    
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"❌ Memgraph 저장 중 오류: {file_path}, 오류: {e}")
+                result["metadata"]["memgraph_saved"] = False
+                result["metadata"]["memgraph_error"] = str(e)
+        
+        return result
+        
+    def _get_timestamp(self) -> str:
+        """Get current timestamp in ISO format."""
+        from datetime import datetime
+        return datetime.now().isoformat()
+        
+    def _create_structure_entities(self, doc_id: str, structure_analysis: Dict[str, Any], result: Dict[str, Any], parsing_results: Dict[str, Any]) -> Dict[str, str]:
+        """Create structure-based entities (sections, paragraphs, etc.)."""
+        sections_created = {}
+        
+        # Get best parser structure information
+        best_parser = structure_analysis.get("summary", {}).get("best_parser")
+        if not best_parser or best_parser not in structure_analysis.get("structure_elements", {}):
+            return sections_created
+            
+        parser_structure = structure_analysis["structure_elements"][best_parser]
+        
+        # Create section entities from structured information
+        if "structured_info" in parsing_results.get("parsing_results", {}).get(best_parser, {}):
+            structured_info = parsing_results["parsing_results"][best_parser]["structured_info"]
+            doc_structure = structured_info.get("document_structure", {})
+            
+            # Create section entities
+            sections = doc_structure.get("sections", [])
+            for i, section in enumerate(sections):
+                section_id = f"section_{doc_id}_{i}"
+                section_entity = {
+                    "id": section_id,
+                    "type": "Section",
+                    "properties": {
+                        "title": section.get("title", f"Section {i+1}"),
+                        "level": section.get("level", 1),
+                        "line": section.get("line"),
+                        "parser": best_parser
+                    }
+                }
+                result["entities"].append(section_entity)
+                sections_created[section.get("title", f"Section {i+1}")] = section_id
+                
+                # Create relationship: Document -> Section
+                result["relationships"].append({
+                    "source": doc_id,
+                    "target": section_id,
+                    "type": "CONTAINS_SECTION",
+                    "properties": {"parser": best_parser}
+                })
+            
+            # Create table entities
+            tables = doc_structure.get("tables", [])
+            for i, table in enumerate(tables):
+                table_id = f"table_{doc_id}_{i}"
+                table_entity = {
+                    "id": table_id,
+                    "type": "Table", 
+                    "properties": {
+                        "content": table.get("content", "")[:200],  # Truncate for storage
+                        "page": table.get("page"),
+                        "parser": best_parser
+                    }
+                }
+                result["entities"].append(table_entity)
+                
+                # Create relationship: Document -> Table
+                result["relationships"].append({
+                    "source": doc_id,
+                    "target": table_id, 
+                    "type": "CONTAINS_TABLE",
+                    "properties": {"parser": best_parser}
+                })
+        
+        return sections_created
+    
+    def _create_domain_enhanced_keyword_entities(self, doc_id: str, keywords: Dict[str, Any],
+                                               result: Dict[str, Any], sections_created: Dict[str, str],
+                                               domain: DocumentDomain, document_text: str):
+        """Create domain-enhanced keyword entities with sophisticated relationship inference."""
+        keyword_entities = {}
+        domain_schema = self.schema_manager.get_domain_schema(domain)
+
+        for extractor_name, extractor_keywords in keywords.items():
+            for kw_data in extractor_keywords:
+                keyword = kw_data.get("keyword", "")
+                if not keyword or len(keyword) < 2:
+                    continue
+
+                # Classify keyword to domain-specific entity type
+                entity_type = self.schema_manager._classify_keyword_to_entity_type(
+                    keyword, domain_schema["entities"]
+                )
+
+                # Create unique ID for each word-extractor combination
+                kw_id = f"{entity_type.lower()}_{_hash(keyword)}_{extractor_name}"
+
+                if kw_id not in keyword_entities:
+                    # Get additional properties for this entity type and domain
+                    additional_props = self.schema_manager._get_additional_entity_properties(
+                        keyword, entity_type, domain
+                    )
+
+                    keyword_entity = {
+                        "id": kw_id,
+                        "type": entity_type,  # Domain-specific entity type
+                        "properties": {
+                            "text": keyword,
+                            "extractors": [],
+                            "max_score": 0,
+                            "categories": set(),
+                            "positions": [],
+                            "domain": domain.value,
+                            **additional_props
+                        }
+                    }
+                    keyword_entities[kw_id] = keyword_entity
+
+                # Check if this extractor already exists for this keyword
+                existing_extractor = None
+                for ext in keyword_entities[kw_id]["properties"]["extractors"]:
+                    if ext["name"] == extractor_name:
+                        existing_extractor = ext
+                        break
+
+                if existing_extractor is None:
+                    # Add new extractor information
+                    extractor_info = {
+                        "name": extractor_name,
+                        "score": kw_data.get("score", 0),
+                        "category": kw_data.get("category", "unknown"),
+                        "occurrence_count": 1
+                    }
+                    keyword_entities[kw_id]["properties"]["extractors"].append(extractor_info)
+                else:
+                    # Update existing extractor with higher score and increment count
+                    existing_extractor["score"] = max(existing_extractor["score"], kw_data.get("score", 0))
+                    existing_extractor["occurrence_count"] = existing_extractor.get("occurrence_count", 1) + 1
+
+                keyword_entities[kw_id]["properties"]["max_score"] = max(
+                    keyword_entities[kw_id]["properties"]["max_score"],
+                    kw_data.get("score", 0)
+                )
+                keyword_entities[kw_id]["properties"]["categories"].add(kw_data.get("category", "unknown"))
+
+                # Add position information if available
+                if kw_data.get("start_position") is not None:
+                    keyword_entities[kw_id]["properties"]["positions"].append({
+                        "start": kw_data.get("start_position"),
+                        "end": kw_data.get("end_position"),
+                        "page": kw_data.get("page_number"),
+                        "extractor": extractor_name
+                    })
+
+        # Convert sets to lists for JSON serialization and add entities with enhanced relationships
+        for kw_entity in keyword_entities.values():
+            kw_entity["properties"]["categories"] = list(kw_entity["properties"]["categories"])
+            result["entities"].append(kw_entity)
+
+            # Extract context around keyword for relationship inference
+            context = self._extract_keyword_context(document_text, kw_entity["properties"]["text"])
+
+            # Get enhanced relationship type based on context and domain
+            base_rel_type, specific_rel_type = self.schema_manager.get_enhanced_relationship_type(
+                "Document", kw_entity["type"], context, domain
+            )
+
+            # Create relationship: Document -> Entity with specific relationship name
+            result["relationships"].append({
+                "source": doc_id,
+                "target": kw_entity["id"],
+                "type": base_rel_type,
+                "properties": {
+                    "relationship_name": specific_rel_type,
+                    "max_score": kw_entity["properties"]["max_score"],
+                    "extractor_count": len(kw_entity["properties"]["extractors"]),
+                    "context_snippet": context[:100] if context else "",
+                    "domain": domain.value
+                }
+            })
+
+    def _extract_keyword_context(self, text: str, keyword: str, context_size: int = 100) -> str:
+        """Extract context around a keyword for relationship inference."""
+        text_lower = text.lower()
+        keyword_lower = keyword.lower()
+
+        pos = text_lower.find(keyword_lower)
+        if pos == -1:
+            return ""
+
+        start = max(0, pos - context_size)
+        end = min(len(text), pos + len(keyword) + context_size)
+
+        return text[start:end]
+
+    def _create_keyword_entities(self, doc_id: str, keywords: Dict[str, Any], result: Dict[str, Any], sections_created: Dict[str, str]):
+        """Create keyword entities with word-focus and extractor metadata."""
+        keyword_entities = {}
+
+        for extractor_name, extractor_keywords in keywords.items():
+            for kw_data in extractor_keywords:
+                keyword = kw_data.get("keyword", "")
+                if not keyword or len(keyword) < 2:
+                    continue
+
+                # Create unique ID for each word-extractor combination
+                kw_id = f"kw_{_hash(keyword)}_{extractor_name}"
+
+                if kw_id not in keyword_entities:
+                    keyword_entity = {
+                        "id": kw_id,
+                        "type": "Keyword",
+                        "properties": {
+                            "text": keyword,
+                            "extractors": [],
+                            "max_score": 0,
+                            "categories": set(),
+                            "positions": []
+                        }
+                    }
+                    keyword_entities[kw_id] = keyword_entity
+
+                # Check if this extractor already exists for this keyword
+                existing_extractor = None
+                for ext in keyword_entities[kw_id]["properties"]["extractors"]:
+                    if ext["name"] == extractor_name:
+                        existing_extractor = ext
+                        break
+
+                if existing_extractor is None:
+                    # Add new extractor information
+                    extractor_info = {
+                        "name": extractor_name,
+                        "score": kw_data.get("score", 0),
+                        "category": kw_data.get("category", "unknown"),
+                        "occurrence_count": 1
+                    }
+                    keyword_entities[kw_id]["properties"]["extractors"].append(extractor_info)
+                else:
+                    # Update existing extractor with higher score and increment count
+                    existing_extractor["score"] = max(existing_extractor["score"], kw_data.get("score", 0))
+                    existing_extractor["occurrence_count"] = existing_extractor.get("occurrence_count", 1) + 1
+
+                keyword_entities[kw_id]["properties"]["max_score"] = max(
+                    keyword_entities[kw_id]["properties"]["max_score"],
+                    kw_data.get("score", 0)
+                )
+                keyword_entities[kw_id]["properties"]["categories"].add(kw_data.get("category", "unknown"))
+
+                # Add position information if available
+                if kw_data.get("start_position") is not None:
+                    keyword_entities[kw_id]["properties"]["positions"].append({
+                        "start": kw_data.get("start_position"),
+                        "end": kw_data.get("end_position"),
+                        "page": kw_data.get("page_number"),
+                        "extractor": extractor_name
+                    })
+
+        # Convert sets to lists for JSON serialization and add entities
+        for kw_entity in keyword_entities.values():
+            kw_entity["properties"]["categories"] = list(kw_entity["properties"]["categories"])
+            result["entities"].append(kw_entity)
+
+            # Create relationship: Document -> Keyword
+            result["relationships"].append({
+                "source": doc_id,
+                "target": kw_entity["id"],
+                "type": "CONTAINS_KEYWORD",
+                "properties": {
+                    "max_score": kw_entity["properties"]["max_score"],
+                    "extractor_count": len(kw_entity["properties"]["extractors"])
+                }
+            })
 
     def load_metadata(self, path: str) -> Dict[str, Any]:
         p = Path(path)

@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
+from datetime import datetime
+from pathlib import Path
 
 from dependencies import get_db
 from services.local_file_analyzer import LocalFileAnalyzer
@@ -17,6 +19,7 @@ class AnalyzeFileRequest(BaseModel):
     extractors: Optional[List[str]] = None
     force_reanalyze: bool = False
     force_reparse: bool = False  # 파싱부터 다시 수행할지 여부
+    directory: Optional[str] = None
 
 
 class FileAnalysisResponse(BaseModel):
@@ -42,6 +45,7 @@ class FileStatusResponse(BaseModel):
 class ParseDocumentRequest(BaseModel):
     file_path: str
     force_reparse: bool = False
+    directory: Optional[str] = None
 
 
 class DocumentParsingResponse(BaseModel):
@@ -51,6 +55,194 @@ class DocumentParsingResponse(BaseModel):
     parsing_results: Dict[str, Any]
     summary: Dict[str, Any]
     output_directory: str
+    saved_files: Optional[List[Dict[str, Any]]] = None
+
+
+# 헬퍼 함수
+def _collect_saved_files(output_dir: Path, parsing_results: dict) -> list:
+    """저장된 파일들의 정보를 수집합니다."""
+    saved_files = []
+    
+    # 파싱 결과 종합 파일
+    parsing_result_path = output_dir / "parsing_results.json"
+    if parsing_result_path.exists():
+        saved_files.append({
+            "type": "parsing_summary",
+            "path": str(parsing_result_path),
+            "description": "파싱 결과 종합 파일"
+        })
+    
+    # Markdown 파일들
+    docling_md = output_dir / "docling.md"
+    if docling_md.exists():
+        saved_files.append({
+            "type": "markdown",
+            "parser": "docling",
+            "path": str(docling_md),
+            "description": "Docling 파서로 생성된 Markdown 파일"
+        })
+    
+    pymupdf_md = output_dir / "pymupdf4llm.md"
+    if pymupdf_md.exists():
+        saved_files.append({
+            "type": "markdown", 
+            "parser": "pdf_parser",
+            "path": str(pymupdf_md),
+            "description": "PyMuPDF4LLM으로 생성된 Markdown 파일"
+        })
+    
+    # 키워드 분석 파일
+    keyword_analysis = output_dir / "keyword_analysis.json"
+    if keyword_analysis.exists():
+        saved_files.append({
+            "type": "keyword_analysis",
+            "path": str(keyword_analysis),
+            "description": "키워드 분석 결과"
+        })
+    
+    # 각 파서별 저장된 파일들
+    for parser_name, parser_result in parsing_results.get("parsing_results", {}).items():
+        if parser_result.get("success"):
+            parser_dir = output_dir / parser_name
+            
+            # 텍스트 파일
+            text_file = parser_dir / f"{parser_name}_text.txt"
+            if text_file.exists():
+                saved_files.append({
+                    "type": "extracted_text",
+                    "parser": parser_name,
+                    "path": str(text_file),
+                    "description": f"{parser_name} 파서로 추출된 텍스트"
+                })
+            
+            # 메타데이터 파일
+            metadata_file = parser_dir / f"{parser_name}_metadata.json"
+            if metadata_file.exists():
+                saved_files.append({
+                    "type": "metadata",
+                    "parser": parser_name,
+                    "path": str(metadata_file),
+                    "description": f"{parser_name} 파서 메타데이터"
+                })
+            
+            # 구조 정보 파일
+            structure_file = parser_dir / f"{parser_name}_structure.json"
+            if structure_file.exists():
+                saved_files.append({
+                    "type": "parser_structure",
+                    "parser": parser_name,
+                    "path": str(structure_file),
+                    "description": f"{parser_name} 파서 구조 정보"
+                })
+    
+    return saved_files
+
+
+def _move_markdown_files_to_correct_location(parsing_results, file_path_obj, output_dir):
+    """Markdown 파일들을 올바른 위치로 이동하고 원본 위치의 파일들을 정리"""
+    import shutil
+    import logging
+    from pathlib import Path
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"🔍 Markdown 파일 이동 검사 시작: {output_dir}")
+    
+    # 원본 파일 디렉토리 (파서가 기본적으로 생성하는 위치)
+    original_dir = file_path_obj.parent / file_path_obj.stem
+    
+    # 먼저 원본 디렉토리의 모든 Markdown 파일을 찾아서 이동
+    if original_dir.exists() and original_dir != output_dir:
+        logger.info(f"📁 원본 디렉토리 검사: {original_dir}")
+        
+        # docling.md 파일 처리
+        docling_md = original_dir / "docling.md"
+        if docling_md.exists():
+            target_md = output_dir / "docling.md"
+            try:
+                target_md.parent.mkdir(parents=True, exist_ok=True)
+                if target_md.exists():
+                    target_md.unlink()
+                shutil.copy2(str(docling_md), str(target_md))
+                docling_md.unlink()
+                logger.info(f"✅ docling.md 이동 완료: {docling_md} → {target_md}")
+                
+                # 파싱 결과에서 경로 업데이트
+                if "docling" in parsing_results.get("parsing_results", {}):
+                    parsing_results["parsing_results"]["docling"]["md_file_path"] = str(target_md)
+            except Exception as e:
+                logger.warning(f"⚠️ docling.md 이동 실패: {e}")
+        
+        # pymupdf4llm.md 파일 처리
+        pymupdf_md = original_dir / "pymupdf4llm.md"
+        if pymupdf_md.exists():
+            target_md = output_dir / "pymupdf4llm.md"
+            try:
+                target_md.parent.mkdir(parents=True, exist_ok=True)
+                if target_md.exists():
+                    target_md.unlink()
+                shutil.copy2(str(pymupdf_md), str(target_md))
+                pymupdf_md.unlink()
+                logger.info(f"✅ pymupdf4llm.md 이동 완료: {pymupdf_md} → {target_md}")
+                
+                # 파싱 결과에서 경로 업데이트
+                if "pdf_parser" in parsing_results.get("parsing_results", {}):
+                    parsing_results["parsing_results"]["pdf_parser"]["md_file_path"] = str(target_md)
+            except Exception as e:
+                logger.warning(f"⚠️ pymupdf4llm.md 이동 실패: {e}")
+        
+        # 원본 디렉토리가 비어있으면 삭제
+        try:
+            if original_dir.exists() and not any(original_dir.iterdir()):
+                original_dir.rmdir()
+                logger.info(f"🗑️ 빈 원본 디렉토리 삭제: {original_dir}")
+        except Exception as e:
+            logger.warning(f"⚠️ 원본 디렉토리 삭제 실패: {e}")
+    
+    # 기존 로직도 유지 (파싱 결과에 있는 md_file_path 처리)
+    for parser_name, parser_result in parsing_results.get("parsing_results", {}).items():
+        if not parser_result.get("success"):
+            continue
+            
+        md_file_path = parser_result.get("md_file_path")
+        
+        if not md_file_path:
+            continue
+            
+        source_md_file = Path(md_file_path)
+        
+        if not source_md_file.exists():
+            continue
+            
+        # 올바른 위치로 이동
+        target_md_file = output_dir / source_md_file.name
+        
+        # 이미 올바른 위치에 있는지 확인
+        if source_md_file == target_md_file:
+            continue
+            
+        try:
+            # 타겟 디렉토리가 존재하는지 확인
+            target_md_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # 타겟 파일이 이미 존재하면 덮어쓰기
+            if target_md_file.exists():
+                target_md_file.unlink()
+            
+            # 파일 복사 후 원본 강제 삭제
+            shutil.copy2(str(source_md_file), str(target_md_file))
+            
+            # 원본 파일 강제 삭제
+            try:
+                source_md_file.unlink()
+                logger.info(f"📝 Markdown 파일 이동 완료: {source_md_file} → {target_md_file}")
+            except Exception as delete_error:
+                logger.warning(f"⚠️ 원본 Markdown 파일 삭제 실패: {delete_error}")
+            
+            # 파싱 결과 업데이트
+            parser_result["md_file_path"] = str(target_md_file)
+            
+        except Exception as move_error:
+            logger.warning(f"⚠️ Markdown 파일 이동 실패 ({parser_name}): {move_error}")
 
 
 router = APIRouter(prefix="/local-analysis", tags=["local-analysis"])
@@ -90,11 +282,79 @@ async def parse_document_comprehensive(
         if not parser_service.is_supported_file(file_path):
             raise ValueError(f"지원하지 않는 파일 형식입니다: {file_path.suffix}")
         
+        # 디렉토리 파라미터 처리
+        directory = None
+        if request.directory:
+            directory = Path(request.directory)
+            if not directory.is_absolute():
+                directory = Path.cwd() / directory
+            directory.mkdir(parents=True, exist_ok=True)
+        
         # 완전 파싱 수행
         results = parser_service.parse_document_comprehensive(
             file_path=file_path,
-            force_reparse=request.force_reparse
+            force_reparse=request.force_reparse,
+            directory=directory
         )
+        
+        # 저장된 파일 경로 수집
+        output_dir = parser_service.get_output_directory(file_path, directory)
+        saved_files = []
+        
+        # 파싱 결과 종합 파일
+        parsing_result_path = parser_service.get_parsing_result_path(file_path, directory)
+        if parsing_result_path.exists():
+            saved_files.append({
+                "type": "parsing_summary",
+                "path": str(parsing_result_path),
+                "description": "파싱 결과 종합 파일"
+            })
+        
+        # 각 파서별 저장된 파일들
+        for parser_name, parser_result in results["parsing_results"].items():
+            if parser_result.get("success"):
+                parser_dir = output_dir / parser_name
+                
+                # 텍스트 파일
+                text_file = parser_dir / f"{parser_name}_text.txt"
+                if text_file.exists():
+                    saved_files.append({
+                        "type": "extracted_text",
+                        "parser": parser_name,
+                        "path": str(text_file),
+                        "description": f"{parser_name} 파서로 추출된 텍스트"
+                    })
+                
+                # 메타데이터 파일
+                metadata_file = parser_dir / f"{parser_name}_metadata.json"
+                if metadata_file.exists():
+                    saved_files.append({
+                        "type": "metadata",
+                        "parser": parser_name,
+                        "path": str(metadata_file),
+                        "description": f"{parser_name} 파서 메타데이터"
+                    })
+                
+                # 구조 정보 파일
+                structure_file = parser_dir / f"{parser_name}_structure.json"
+                if structure_file.exists():
+                    saved_files.append({
+                        "type": "parser_structure",
+                        "parser": parser_name,
+                        "path": str(structure_file),
+                        "description": f"{parser_name} 파서 구조 정보"
+                    })
+                
+                # Docling markdown 파일
+                if parser_name == "docling" and parser_result.get("md_file_path"):
+                    md_file_path = Path(parser_result["md_file_path"])
+                    if md_file_path.exists():
+                        saved_files.append({
+                            "type": "markdown",
+                            "parser": parser_name,
+                            "path": str(md_file_path),
+                            "description": "Docling 파서로 생성된 Markdown 파일"
+                        })
         
         return DocumentParsingResponse(
             file_info=results["file_info"],
@@ -102,7 +362,8 @@ async def parse_document_comprehensive(
             parsers_used=results["parsers_used"],
             parsing_results=results["parsing_results"],
             summary=results["summary"],
-            output_directory=str(parser_service.get_output_directory(file_path))
+            output_directory=str(output_dir),
+            saved_files=saved_files
         )
         
     except FileNotFoundError as e:
@@ -117,6 +378,7 @@ async def parse_document_comprehensive(
 async def parse_document_comprehensive_get(
     file_path: str = Query(..., description="파싱할 문서 경로"),
     force_reparse: bool = Query(False, description="재파싱 여부"),
+    directory: Optional[str] = Query(None, description="결과 저장 디렉토리"),
     db: Session = Depends(get_db)
 ):
     """
@@ -124,7 +386,8 @@ async def parse_document_comprehensive_get(
     """
     request = ParseDocumentRequest(
         file_path=file_path,
-        force_reparse=force_reparse
+        force_reparse=force_reparse,
+        directory=directory
     )
     
     return await parse_document_comprehensive(request, db)
@@ -251,23 +514,31 @@ async def analyze_local_file(
         if not file_path.is_absolute():
             file_path = Path.cwd() / file_path
             
+        # 디렉토리 파라미터 처리
+        directory = None
+        if request.directory:
+            directory = Path(request.directory)
+            if not directory.is_absolute():
+                directory = Path.cwd() / directory
+            directory.mkdir(parents=True, exist_ok=True)
+        
         # 1. 파싱 결과 확인 및 필요시 파싱 수행
-        if not parser_service.has_parsing_results(file_path) or request.force_reparse:
+        if not parser_service.has_parsing_results(file_path, directory) or request.force_reparse:
             # 파싱 결과가 없거나 재파싱 요청시 완전 파싱 수행
             parsing_results = parser_service.parse_document_comprehensive(
                 file_path=file_path,
-                force_reparse=request.force_reparse
+                force_reparse=request.force_reparse,
+                directory=directory
             )
         else:
             # 기존 파싱 결과 로드
-            parsing_results = parser_service.load_existing_parsing_results(file_path)
+            parsing_results = parser_service.load_existing_parsing_results(file_path, directory)
         
         # 2. 파싱 결과를 기반으로 키워드 추출 분석 수행
         result = analyzer.analyze_file(
             file_path=str(file_path),
             extractors=request.extractors,
-            force_reanalyze=request.force_reanalyze,
-            parsing_results=parsing_results  # 파싱 결과 전달
+            force_reanalyze=request.force_reanalyze
         )
         
         # 3. 파싱 정보를 결과에 추가
@@ -294,6 +565,7 @@ async def analyze_local_file_get(
     extractors: Optional[str] = Query(None, description="사용할 추출기 (쉼표로 구분)"),
     force_reanalyze: bool = Query(False, description="재분석 여부"),
     force_reparse: bool = Query(False, description="재파싱 여부"),
+    directory: Optional[str] = Query(None, description="결과 저장 디렉토리"),
     db: Session = Depends(get_db)
 ):
     """
@@ -307,7 +579,8 @@ async def analyze_local_file_get(
         file_path=file_path,
         extractors=extractor_list,
         force_reanalyze=force_reanalyze,
-        force_reparse=force_reparse
+        force_reparse=force_reparse,
+        directory=directory
     )
     
     return await analyze_local_file(request, db)
@@ -372,6 +645,8 @@ async def get_file_metadata(
     file_path: str = Query(..., description="메타데이터를 추출할 파일 경로"),
     force_reparse: bool = Query(False, description="파싱부터 다시 수행할지 여부"),
     parser_name: Optional[str] = Query(None, description="특정 파서의 메타데이터만 조회 (예: docling, pdf_parser)"),
+    directory: Optional[str] = Query(None, description="결과를 저장할 디렉토리 경로"),
+    use_llm: bool = Query(False, description="LLM 기반 분석 사용 여부"),
     db: Session = Depends(get_db)
 ):
     """
@@ -400,14 +675,28 @@ async def get_file_metadata(
         if not parser_service.is_supported_file(file_path_obj):
             raise HTTPException(status_code=400, detail=f"지원하지 않는 파일 형식입니다: {file_path}")
         
+        # 디렉토리 파라미터 처리
+        directory_path = None
+        if directory:
+            directory_path = Path(directory)
+            if not directory_path.is_absolute():
+                directory_path = Path.cwd() / directory_path
+            directory_path.mkdir(parents=True, exist_ok=True)
+        
         # 1. 파싱 결과 확인 및 필요시 파싱 수행
-        if not parser_service.has_parsing_results(file_path_obj) or force_reparse:
+        if not parser_service.has_parsing_results(file_path_obj, directory_path) or force_reparse:
             parsing_results = parser_service.parse_document_comprehensive(
                 file_path=file_path_obj,
-                force_reparse=force_reparse
+                force_reparse=force_reparse,
+                directory=directory_path
             )
         else:
-            parsing_results = parser_service.load_existing_parsing_results(file_path_obj)
+            parsing_results = parser_service.load_existing_parsing_results(file_path_obj, directory_path)
+            
+        # Markdown 파일들을 올바른 위치로 이동
+        if directory_path:
+            _move_markdown_files_to_correct_location(parsing_results, file_path_obj, 
+                                                    parser_service.get_output_directory(file_path_obj, directory_path))
         
         # 2. 메타데이터 추출
         if parser_name:
@@ -423,11 +712,17 @@ async def get_file_metadata(
                     status_code=400,
                     detail=f"파서 '{parser_name}'의 파싱이 실패했습니다: {parser_result.get('error_message')}"
                 )
+            # 저장된 파일 경로 수집
+            output_dir = parser_service.get_output_directory(file_path_obj, directory_path)
+            saved_files = _collect_saved_files(output_dir, parsing_results)
+            
             return {
                 "file_info": parsing_results["file_info"],
                 "parser_name": parser_name,
                 "metadata": parser_result.get("metadata"),
-                "parsing_timestamp": parsing_results.get("parsing_timestamp")
+                "parsing_timestamp": parsing_results.get("parsing_timestamp"),
+                "output_directory": str(output_dir),
+                "saved_files": saved_files
             }
         else:
             # 모든 파서의 메타데이터 반환
@@ -436,12 +731,18 @@ async def get_file_metadata(
                 if result.get("success") and result.get("metadata"):
                     all_metadata[parser] = result["metadata"]
             
+            # 저장된 파일 경로 수집
+            output_dir = parser_service.get_output_directory(file_path_obj, directory_path)
+            saved_files = _collect_saved_files(output_dir, parsing_results)
+            
             return {
                 "file_info": parsing_results["file_info"],
                 "parsing_timestamp": parsing_results.get("parsing_timestamp"),
                 "parsers_used": parsing_results.get("parsers_used", []),
                 "metadata_by_parser": all_metadata,
-                "summary": parsing_results.get("summary", {})
+                "summary": parsing_results.get("summary", {}),
+                "output_directory": str(output_dir),
+                "saved_files": saved_files
             }
             
     except HTTPException:
@@ -464,8 +765,10 @@ async def extract_file_metadata_post(
     
     force_reparse = request.get("force_reparse", False)
     parser_name = request.get("parser_name", None)
+    directory = request.get("directory", None)
+    use_llm = request.get("use_llm", False)
     
-    return await get_file_metadata(file_path, force_reparse, parser_name, db)
+    return await get_file_metadata(file_path, force_reparse, parser_name, directory, use_llm, db)
 
 
 @router.post("/structure-analysis")
@@ -489,8 +792,11 @@ async def analyze_document_structure(
     
     force_reparse = request.get("force_reparse", False)
     force_reanalyze = request.get("force_reanalyze", False)
+    use_llm = request.get("use_llm", False)  # LLM 기반 구조 분석 옵션 추가
+    directory = request.get("directory")  # 디렉토리 옵션 추가
     
     parser_service = DocumentParserService()
+    analyzer = LocalFileAnalyzer(db)
     
     try:
         file_path_obj = Path(file_path)
@@ -501,9 +807,17 @@ async def analyze_document_structure(
         if not file_path_obj.exists():
             raise HTTPException(status_code=404, detail=f"파일을 찾을 수 없습니다: {file_path}")
         
+        # 디렉토리 파라미터 처리
+        directory_path = None
+        if directory:
+            directory_path = Path(directory)
+            if not directory_path.is_absolute():
+                directory_path = Path.cwd() / directory_path
+            directory_path.mkdir(parents=True, exist_ok=True)
+        
         # 구조 분석 결과 파일 경로
-        output_dir = parser_service.get_output_directory(file_path_obj)
-        structure_result_path = output_dir / "structure_analysis.json"
+        output_dir = parser_service.get_output_directory(file_path_obj, directory_path)
+        structure_result_path = output_dir / ("llm_structure_analysis.json" if use_llm else "structure_analysis.json")
         
         # 기존 구조 분석 결과 확인
         if not force_reanalyze and structure_result_path.exists():
@@ -511,99 +825,212 @@ async def analyze_document_structure(
                 return json.load(f)
         
         # 1. 파싱 결과 확인 및 필요시 파싱 수행
-        if not parser_service.has_parsing_results(file_path_obj) or force_reparse:
+        if not parser_service.has_parsing_results(file_path_obj, directory_path) or force_reparse:
             parsing_results = parser_service.parse_document_comprehensive(
                 file_path=file_path_obj,
-                force_reparse=force_reparse
+                force_reparse=force_reparse,
+                directory=directory_path
             )
         else:
-            parsing_results = parser_service.load_existing_parsing_results(file_path_obj)
+            parsing_results = parser_service.load_existing_parsing_results(file_path_obj, directory_path)
+            
+        # Markdown 파일들을 올바른 위치로 이동 (기존 파싱 결과 로드 시에도 필요)
+        if parsing_results.get("parsing_results"):
+            _move_markdown_files_to_correct_location(parsing_results, file_path_obj, output_dir)
         
         # 2. 구조 분석 수행
-        structure_analysis = {
-            "file_info": parsing_results["file_info"],
-            "analysis_timestamp": datetime.now().isoformat(),
-            "structure_elements": {},
-            "summary": {
-                "total_elements": 0,
-                "element_types": {},
-                "complexity_score": 0
+        if use_llm:
+            # LLM 기반 구조 분석 수행
+            # 최고 품질 파서의 텍스트 사용
+            best_parser = parsing_results.get("summary", {}).get("best_parser")
+            document_text = ""
+            if best_parser and best_parser in parsing_results.get("parsing_results", {}):
+                parser_dir = output_dir / best_parser
+                text_file = parser_dir / f"{best_parser}_text.txt"
+                if text_file.exists():
+                    with open(text_file, 'r', encoding='utf-8') as f:
+                        document_text = f.read()
+            
+            structure_analysis = analyzer.analyze_document_structure_with_llm(
+                text=document_text,
+                file_path=str(file_path_obj),
+                file_extension=file_path_obj.suffix.lower()
+            )
+            
+            # 파싱 정보 추가
+            structure_analysis["file_info"] = parsing_results["file_info"]
+            structure_analysis["analysis_timestamp"] = datetime.now().isoformat()
+            structure_analysis["source_parser"] = best_parser
+            
+        else:
+            # 기존 기본 구조 분석 수행
+            structure_analysis = {
+                "file_info": parsing_results["file_info"],
+                "analysis_timestamp": datetime.now().isoformat(),
+                "structure_elements": {},
+                "summary": {
+                    "total_elements": 0,
+                    "element_types": {},
+                    "complexity_score": 0
+                }
             }
-        }
         
-        # 각 파서별 구조 정보 수집
-        for parser_name, parser_result in parsing_results.get("parsing_results", {}).items():
-            if not parser_result.get("success"):
-                continue
-                
-            elements = {}
-            
-            # 구조화된 정보가 있는 경우 활용
-            if parser_result.get("structured_info"):
-                structured_info = parser_result["structured_info"]
-                
-                # 기본 구조 요소들
-                elements.update({
-                    "total_lines": structured_info.get("total_lines", 0),
-                    "paragraphs": structured_info.get("paragraphs", 0),
-                    "headers": structured_info.get("headers", 0),
-                    "non_empty_lines": structured_info.get("non_empty_lines", 0)
-                })
-                
-                # Docling 파서의 경우 추가 구조 정보
-                if parser_name == "docling" and "document_structure" in structured_info:
-                    doc_structure = structured_info["document_structure"]
-                    elements.update({
-                        "tables": doc_structure.get("tables", []),
-                        "images": doc_structure.get("images", []),
-                        "sections": doc_structure.get("sections", []),
-                        "table_count": len(doc_structure.get("tables", [])),
-                        "image_count": len(doc_structure.get("images", [])),
-                        "section_count": len(doc_structure.get("sections", []))
-                    })
-            
-            # 텍스트 기반 추가 분석 (모든 파서에 대해)
-            if "text_length" in parser_result:
-                text_length = parser_result["text_length"]
-                word_count = parser_result.get("word_count", 0)
-                
-                # 복잡도 점수 계산
-                complexity = 0
-                if word_count > 0:
-                    complexity += min(word_count / 1000, 1.0) * 0.4  # 단어 수 기반
-                if elements.get("headers", 0) > 0:
-                    complexity += min(elements["headers"] / 10, 1.0) * 0.3  # 헤더 수 기반
-                if elements.get("table_count", 0) > 0:
-                    complexity += min(elements["table_count"] / 5, 1.0) * 0.3  # 테이블 수 기반
+        # 기본 구조 분석의 경우에만 파서별 구조 정보 수집
+        if not use_llm:
+            # 각 파서별 구조 정보 수집
+            for parser_name, parser_result in parsing_results.get("parsing_results", {}).items():
+                if not parser_result.get("success"):
+                    continue
                     
-                elements["complexity_score"] = complexity
+                elements = {}
+                
+                # 구조화된 정보가 있는 경우 활용
+                if parser_result.get("structured_info"):
+                    structured_info = parser_result["structured_info"]
+                    
+                    # 기본 구조 요소들
+                    elements.update({
+                        "total_lines": structured_info.get("total_lines", 0),
+                        "paragraphs": structured_info.get("paragraphs", 0),
+                        "headers": structured_info.get("headers", 0),
+                        "non_empty_lines": structured_info.get("non_empty_lines", 0)
+                    })
+                    
+                    # Docling 파서의 경우 추가 구조 정보
+                    if parser_name == "docling" and "document_structure" in structured_info:
+                        doc_structure = structured_info["document_structure"]
+                        elements.update({
+                            "tables": doc_structure.get("tables", []),
+                            "images": doc_structure.get("images", []),
+                            "sections": doc_structure.get("sections", []),
+                            "table_count": len(doc_structure.get("tables", [])),
+                            "image_count": len(doc_structure.get("images", [])),
+                            "section_count": len(doc_structure.get("sections", []))
+                        })
+                
+                # 텍스트 기반 추가 분석 (모든 파서에 대해)
+                if "text_length" in parser_result:
+                    text_length = parser_result["text_length"]
+                    word_count = parser_result.get("word_count", 0)
+                    
+                    # 복잡도 점수 계산
+                    complexity = 0
+                    if word_count > 0:
+                        complexity += min(word_count / 1000, 1.0) * 0.4  # 단어 수 기반
+                    if elements.get("headers", 0) > 0:
+                        complexity += min(elements["headers"] / 10, 1.0) * 0.3  # 헤더 수 기반
+                    if elements.get("table_count", 0) > 0:
+                        complexity += min(elements["table_count"] / 5, 1.0) * 0.3  # 테이블 수 기반
+                        
+                    elements["complexity_score"] = complexity
+                
+                structure_analysis["structure_elements"][parser_name] = elements
             
-            structure_analysis["structure_elements"][parser_name] = elements
-        
-        # 전체 요약 계산
-        all_elements = structure_analysis["structure_elements"]
-        if all_elements:
-            # 가장 복잡도가 높은 파서의 결과를 기준으로 요약
-            best_parser = max(all_elements.keys(), 
-                            key=lambda p: all_elements[p].get("complexity_score", 0))
-            best_elements = all_elements[best_parser]
-            
-            structure_analysis["summary"] = {
-                "best_parser": best_parser,
-                "total_elements": sum(1 for k, v in best_elements.items() 
-                                    if isinstance(v, int) and v > 0),
-                "element_types": {k: v for k, v in best_elements.items() 
-                                if isinstance(v, int) and v > 0},
-                "complexity_score": best_elements.get("complexity_score", 0),
-                "has_tables": best_elements.get("table_count", 0) > 0,
-                "has_images": best_elements.get("image_count", 0) > 0,
-                "has_sections": best_elements.get("section_count", 0) > 0
-            }
+            # 전체 요약 계산 (기본 분석의 경우에만)
+            all_elements = structure_analysis["structure_elements"]
+            if all_elements:
+                # 가장 복잡도가 높은 파서의 결과를 기준으로 요약
+                best_parser = max(all_elements.keys(), 
+                                key=lambda p: all_elements[p].get("complexity_score", 0))
+                best_elements = all_elements[best_parser]
+                
+                structure_analysis["summary"] = {
+                    "best_parser": best_parser,
+                    "total_elements": sum(1 for k, v in best_elements.items() 
+                                        if isinstance(v, int) and v > 0),
+                    "element_types": {k: v for k, v in best_elements.items() 
+                                    if isinstance(v, int) and v > 0},
+                    "complexity_score": best_elements.get("complexity_score", 0),
+                    "has_tables": best_elements.get("table_count", 0) > 0,
+                    "has_images": best_elements.get("image_count", 0) > 0,
+                    "has_sections": best_elements.get("section_count", 0) > 0
+                }
         
         # 결과 저장
         output_dir.mkdir(exist_ok=True)
         with open(structure_result_path, 'w', encoding='utf-8') as f:
             json.dump(structure_analysis, f, ensure_ascii=False, indent=2)
+        
+        # 저장된 파일 경로 수집
+        saved_files = []
+        
+        # 구조 분석 결과 파일
+        saved_files.append({
+            "type": "structure_analysis",
+            "path": str(structure_result_path),
+            "description": "LLM 기반 구조 분석 결과" if use_llm else "기본 구조 분석 결과"
+        })
+        
+        # 파싱 관련 파일들
+        if parsing_results.get("parsing_results"):
+            for parser_name, parser_result in parsing_results["parsing_results"].items():
+                if parser_result.get("success"):
+                    parser_dir = output_dir / parser_name
+                    
+                    # 텍스트 파일
+                    text_file = parser_dir / f"{parser_name}_text.txt"
+                    if text_file.exists():
+                        saved_files.append({
+                            "type": "extracted_text",
+                            "parser": parser_name,
+                            "path": str(text_file),
+                            "description": f"{parser_name} 파서로 추출된 텍스트"
+                        })
+                    
+                    # 메타데이터 파일
+                    metadata_file = parser_dir / f"{parser_name}_metadata.json"
+                    if metadata_file.exists():
+                        saved_files.append({
+                            "type": "metadata",
+                            "parser": parser_name,
+                            "path": str(metadata_file),
+                            "description": f"{parser_name} 파서 메타데이터"
+                        })
+                    
+                    # 구조 정보 파일
+                    structure_file = parser_dir / f"{parser_name}_structure.json"
+                    if structure_file.exists():
+                        saved_files.append({
+                            "type": "parser_structure",
+                            "parser": parser_name,
+                            "path": str(structure_file),
+                            "description": f"{parser_name} 파서 구조 정보"
+                        })
+                    
+                    # Markdown 파일들 확인 (Docling, PyMuPDF4LLM)
+                    if parser_name == "docling":
+                        # Docling markdown 파일
+                        md_file = output_dir / "docling.md"
+                        if md_file.exists():
+                            saved_files.append({
+                                "type": "markdown",
+                                "parser": parser_name,
+                                "path": str(md_file),
+                                "description": "Docling 파서로 생성된 Markdown"
+                            })
+                    elif parser_name == "pdf_parser":
+                        # PyMuPDF4LLM markdown 파일 (pdf_parser 내에서 생성됨)
+                        pymupdf_md_file = output_dir / "pymupdf4llm.md"
+                        if pymupdf_md_file.exists():
+                            saved_files.append({
+                                "type": "markdown",
+                                "parser": "pymupdf4llm",
+                                "path": str(pymupdf_md_file),
+                                "description": "PyMuPDF4LLM 파서로 생성된 Markdown"
+                            })
+        
+        # 파싱 결과 종합 파일
+        parsing_result_path = parser_service.get_parsing_result_path(file_path_obj, directory_path)
+        if parsing_result_path.exists():
+            saved_files.append({
+                "type": "parsing_summary",
+                "path": str(parsing_result_path),
+                "description": "파싱 결과 종합"
+            })
+        
+        # 응답에 파일 경로 정보 추가
+        structure_analysis["saved_files"] = saved_files
+        structure_analysis["output_directory"] = str(output_dir)
         
         return structure_analysis
         
@@ -618,15 +1045,26 @@ async def get_structure_analysis(
     file_path: str = Query(..., description="구조 분석 결과를 조회할 파일 경로"),
     force_reparse: bool = Query(False, description="재파싱 여부"),
     force_reanalyze: bool = Query(False, description="재분석 여부"),
+    use_llm: bool = Query(False, description="LLM 기반 구조 분석 사용 여부"),
+    directory: Optional[str] = Query(None, description="출력 디렉토리 경로"),
     db: Session = Depends(get_db)
 ):
     """
     GET 방식으로 문서 구조 분석을 수행하거나 조회합니다.
+    
+    Parameters:
+    - file_path: 분석할 파일 경로
+    - force_reparse: 기존 파싱 결과 무시하고 재파싱 수행
+    - force_reanalyze: 기존 구조 분석 결과 무시하고 재분석 수행
+    - use_llm: LLM을 사용한 고급 구조 분석 수행 (기본값: False)
+    - directory: 결과 파일을 저장할 디렉토리 (기본값: 파일명 기반)
     """
     request = {
         "file_path": file_path,
         "force_reparse": force_reparse,
-        "force_reanalyze": force_reanalyze
+        "force_reanalyze": force_reanalyze,
+        "use_llm": use_llm,
+        "directory": directory
     }
     
     return await analyze_document_structure(request, db)
@@ -655,6 +1093,7 @@ async def generate_knowledge_graph(
     force_reparse = request.get("force_reparse", False)
     force_reanalyze = request.get("force_reanalyze", False)
     force_rebuild = request.get("force_rebuild", False)
+    directory = request.get("directory")
     
     parser_service = DocumentParserService()
     analyzer = LocalFileAnalyzer(db)
@@ -668,8 +1107,16 @@ async def generate_knowledge_graph(
         if not file_path_obj.exists():
             raise HTTPException(status_code=404, detail=f"파일을 찾을 수 없습니다: {file_path}")
         
+        # 디렉토리 파라미터 처리
+        directory_path = None
+        if directory:
+            directory_path = Path(directory)
+            if not directory_path.is_absolute():
+                directory_path = Path.cwd() / directory_path
+            directory_path.mkdir(parents=True, exist_ok=True)
+        
         # Knowledge Graph 결과 파일 경로
-        output_dir = parser_service.get_output_directory(file_path_obj)
+        output_dir = parser_service.get_output_directory(file_path_obj, directory_path)
         kg_result_path = output_dir / "knowledge_graph.json"
         
         # 기존 KG 결과 확인
@@ -678,16 +1125,48 @@ async def generate_knowledge_graph(
                 return json.load(f)
         
         # 1. 파싱 결과 확인 및 필요시 파싱 수행
-        if not parser_service.has_parsing_results(file_path_obj) or force_reparse:
+        if not parser_service.has_parsing_results(file_path_obj, directory_path) or force_reparse:
             parsing_results = parser_service.parse_document_comprehensive(
                 file_path=file_path_obj,
-                force_reparse=force_reparse
+                force_reparse=force_reparse,
+                directory=directory_path
             )
         else:
-            parsing_results = parser_service.load_existing_parsing_results(file_path_obj)
+            parsing_results = parser_service.load_existing_parsing_results(file_path_obj, directory_path)
+            
+        # Markdown 파일들을 올바른 위치로 이동 (기존 파싱 결과 로드 시에도 필요)
+        if parsing_results.get("parsing_results"):
+            _move_markdown_files_to_correct_location(parsing_results, file_path_obj, output_dir)
         
-        # 2. 키워드 추출 결과 확인 및 필요시 분석 수행
-        analysis_result_path = file_path_obj.parent / f"{file_path_obj.name}.analysis.json"
+        # 2. 구조 분석 수행 (KG 구축의 필수 전제조건)
+        structure_result_path = output_dir / "structure_analysis.json"
+        structure_results = {}
+        
+        # 구조 분석이 없거나 force_rebuild인 경우 구조 분석 수행
+        if not structure_result_path.exists() or force_rebuild or force_reanalyze:
+            # 텍스트 추출
+            best_parser = parsing_results.get("summary", {}).get("best_parser")
+            document_text = ""
+            if best_parser and best_parser in parsing_results.get("parsing_results", {}):
+                parser_dir = parser_service.get_output_directory(file_path_obj, directory_path) / best_parser
+                text_file = parser_dir / f"{best_parser}_text.txt"
+                if text_file.exists():
+                    with open(text_file, 'r', encoding='utf-8') as f:
+                        document_text = f.read()
+            
+            structure_results = analyzer.analyze_document_structure(
+                text=document_text,
+                file_extension=file_path_obj.suffix
+            )
+            # 구조 분석 결과 저장
+            with open(structure_result_path, 'w', encoding='utf-8') as f:
+                json.dump(structure_results, f, ensure_ascii=False, indent=2)
+        else:
+            with open(structure_result_path, 'r', encoding='utf-8') as f:
+                structure_results = json.load(f)
+        
+        # 3. 키워드 추출 결과 확인 및 필요시 분석 수행
+        analysis_result_path = output_dir / "keyword_analysis.json"
         if not force_reanalyze and analysis_result_path.exists():
             with open(analysis_result_path, 'r', encoding='utf-8') as f:
                 analysis_results = json.load(f)
@@ -696,15 +1175,15 @@ async def generate_knowledge_graph(
             result = analyzer.analyze_file(
                 file_path=str(file_path_obj),
                 extractors=None,  # 모든 추출기 사용
-                force_reanalyze=force_reanalyze,
-                parsing_results=parsing_results
+                force_reanalyze=force_reanalyze
             )
             analysis_results = result
         
-        # 3. Knowledge Graph 생성
-        kg_builder = KGBuilder(db)
+        # 4. 계층적 Knowledge Graph 생성
+        from services.hierarchical_kg_builder import HierarchicalKGBuilder
+        kg_builder = HierarchicalKGBuilder(db_session=db)
         
-        # 최고 품질 파서의 텍스트 사용
+        # 최고 품질 파서의 텍스트 사용  
         best_parser = parsing_results.get("summary", {}).get("best_parser")
         if best_parser and best_parser in parsing_results.get("parsing_results", {}):
             parser_result = parsing_results["parsing_results"][best_parser]
@@ -720,16 +1199,18 @@ async def generate_knowledge_graph(
         else:
             document_text = ""
         
-        # KG 생성
-        kg_result = kg_builder.build_knowledge_graph(
+        # 계층적 KG 생성 - 문서 구조 기반
+        kg_result = kg_builder.build_hierarchical_knowledge_graph(
             file_path=str(file_path_obj),
             document_text=document_text,
             keywords=analysis_results.get("keywords", {}),
             metadata=parsing_results.get("file_info", {}),
+            structure_analysis=structure_results,
+            parsing_results=parsing_results,
             force_rebuild=force_rebuild
         )
         
-        # 결과에 추가 정보 포함
+        # 계층적 KG 결과에 추가 정보 포함
         kg_with_context = {
             "file_info": parsing_results["file_info"],
             "generation_timestamp": datetime.now().isoformat(),
@@ -739,7 +1220,9 @@ async def generate_knowledge_graph(
             "statistics": {
                 "total_entities": len(kg_result.get("entities", [])),
                 "total_relationships": len(kg_result.get("relationships", [])),
-                "entity_types": {}
+                "structural_elements": len(kg_result.get("structural_hierarchy", [])),
+                "entity_types": {},
+                "relationship_types": {}
             }
         }
         
@@ -750,10 +1233,102 @@ async def generate_knowledge_graph(
             entity_types[entity_type] = entity_types.get(entity_type, 0) + 1
         kg_with_context["statistics"]["entity_types"] = entity_types
         
+        # 관계 타입별 통계
+        relationship_types = {}
+        for rel in kg_result.get("relationships", []):
+            rel_type = rel.get("type", "unknown")
+            relationship_types[rel_type] = relationship_types.get(rel_type, 0) + 1
+        kg_with_context["statistics"]["relationship_types"] = relationship_types
+        
         # 결과 저장
         output_dir.mkdir(exist_ok=True)
         with open(kg_result_path, 'w', encoding='utf-8') as f:
             json.dump(kg_with_context, f, ensure_ascii=False, indent=2)
+        
+        # 저장된 파일 경로 수집
+        saved_files = []
+        
+        # Knowledge Graph 결과 파일
+        saved_files.append({
+            "type": "knowledge_graph",
+            "path": str(kg_result_path),
+            "description": "계층적 Knowledge Graph 결과"
+        })
+        
+        # 구조 분석 결과 파일
+        structure_result_path = output_dir / "structure_analysis.json"
+        if structure_result_path.exists():
+            saved_files.append({
+                "type": "structure_analysis",
+                "path": str(structure_result_path),
+                "description": "문서 구조 분석 결과"
+            })
+        
+        # 키워드 분석 결과 파일
+        analysis_result_path = output_dir / "keyword_analysis.json"
+        if analysis_result_path.exists():
+            saved_files.append({
+                "type": "keyword_analysis",
+                "path": str(analysis_result_path),
+                "description": "키워드 분석 결과"
+            })
+        
+        # 파싱 관련 파일들
+        if parsing_results.get("parsing_results"):
+            for parser_name, parser_result in parsing_results["parsing_results"].items():
+                if parser_result.get("success"):
+                    parser_dir = output_dir / parser_name
+                    
+                    # 텍스트 파일
+                    text_file = parser_dir / f"{parser_name}_text.txt"
+                    if text_file.exists():
+                        saved_files.append({
+                            "type": "extracted_text",
+                            "parser": parser_name,
+                            "path": str(text_file),
+                            "description": f"{parser_name} 파서로 추출된 텍스트"
+                        })
+                    
+                    # 메타데이터 파일
+                    metadata_file = parser_dir / f"{parser_name}_metadata.json"
+                    if metadata_file.exists():
+                        saved_files.append({
+                            "type": "metadata",
+                            "parser": parser_name,
+                            "path": str(metadata_file),
+                            "description": f"{parser_name} 파서 메타데이터"
+                        })
+                    
+                    # 구조 정보 파일
+                    structure_file = parser_dir / f"{parser_name}_structure.json"
+                    if structure_file.exists():
+                        saved_files.append({
+                            "type": "parser_structure",
+                            "parser": parser_name,
+                            "path": str(structure_file),
+                            "description": f"{parser_name} 파서 구조 정보"
+                        })
+        
+        # 파싱 결과 종합 파일
+        parsing_result_path = parser_service.get_parsing_result_path(file_path_obj, directory_path)
+        if parsing_result_path.exists():
+            saved_files.append({
+                "type": "parsing_summary",
+                "path": str(parsing_result_path),
+                "description": "파싱 결과 종합"
+            })
+        
+        # Memgraph 저장 상태 정보
+        if kg_result.get("memgraph_saved"):
+            saved_files.append({
+                "type": "memgraph_database",
+                "path": "memgraph://localhost:7687",
+                "description": "Memgraph 그래프 데이터베이스에 저장된 KG 데이터"
+            })
+        
+        # 응답에 파일 경로 정보 추가
+        kg_with_context["saved_files"] = saved_files
+        kg_with_context["output_directory"] = str(output_dir)
         
         return kg_with_context
         
@@ -769,6 +1344,7 @@ async def get_knowledge_graph(
     force_reparse: bool = Query(False, description="재파싱 여부"),
     force_reanalyze: bool = Query(False, description="재분석 여부"),
     force_rebuild: bool = Query(False, description="KG 재생성 여부"),
+    directory: Optional[str] = Query(None, description="결과 저장 디렉토리"),
     db: Session = Depends(get_db)
 ):
     """
@@ -778,7 +1354,8 @@ async def get_knowledge_graph(
         "file_path": file_path,
         "force_reparse": force_reparse,
         "force_reanalyze": force_reanalyze,
-        "force_rebuild": force_rebuild
+        "force_rebuild": force_rebuild,
+        "directory": directory
     }
     
     return await generate_knowledge_graph(request, db)
@@ -932,7 +1509,7 @@ async def get_available_extractors(db: Session = Depends(get_db)):
     from services.config_service import ConfigService
     
     default_extractors = ConfigService.get_json_config(
-        db, "DEFAULT_EXTRACTORS", ["keybert", "ner", "konlpy", "metadata"]
+        db, "DEFAULT_EXTRACTORS", ["llm"]
     )
     
     # 추출기별 활성화 상태 확인

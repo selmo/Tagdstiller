@@ -64,27 +64,12 @@ class MetadataExtractor(KeywordExtractor):
         all_metadata_keywords = []
         
         try:
-            # 1. 문서 구조 메타데이터 추출
-            structure_keywords = self._extract_structure_metadata(text, position_mapper, position_map)
-            all_metadata_keywords.extend(structure_keywords)
-            
-            # 2. 통계적 메타데이터 추출
-            statistical_keywords = self._extract_statistical_metadata(text)
-            all_metadata_keywords.extend(statistical_keywords)
-            
-            # 3. 콘텐츠 메타데이터 추출
-            content_keywords = self._extract_content_metadata(text, position_mapper, position_map)
-            all_metadata_keywords.extend(content_keywords)
-            
-            # 4. 문서 요약 메타데이터 추출
+            # LLM 기반 문서 요약 메타데이터 추출만 사용
             if self.config.get("extract_summary", True):
                 summary_keywords = self._extract_summary_metadata(text)
                 all_metadata_keywords.extend(summary_keywords)
-            
-            # 5. 파일 메타데이터 추출 (파일 경로가 있는 경우)
-            if file_path:
-                file_keywords = self._extract_file_metadata(file_path, text)
-                all_metadata_keywords.extend(file_keywords)
+            else:
+                logger.info("📝 LLM 기반 요약이 비활성화되어 메타데이터 추출을 건너뜁니다.")
             
             # 디버그 로깅: 최종 결과
             extraction_time = time.time() - start_time
@@ -202,12 +187,12 @@ class MetadataExtractor(KeywordExtractor):
         
         # 통계를 메타데이터 키워드로 변환
         statistical_data = [
-            (f"문서길이_{self._categorize_length(char_count)}", "doc_length", 0.7),
-            (f"단어수_{self._categorize_word_count(word_count)}", "word_count", 0.6),
-            (f"문장수_{self._categorize_sentence_count(sentence_count)}", "sentence_count", 0.5),
-            (f"단락수_{self._categorize_paragraph_count(paragraph_count)}", "paragraph_count", 0.5),
-            (f"문장길이_{self._categorize_sentence_length(avg_words_per_sentence)}", "sentence_length", 0.4),
-            (f"복잡도_{self._categorize_complexity(avg_chars_per_word)}", "complexity", 0.6),
+            (self._categorize_length(char_count), "doc_length", 0.7),
+            (self._categorize_word_count(word_count), "word_count", 0.6),
+            (self._categorize_sentence_count(sentence_count), "sentence_count", 0.5),
+            (self._categorize_paragraph_count(paragraph_count), "paragraph_count", 0.5),
+            (self._categorize_sentence_length(avg_words_per_sentence), "sentence_length", 0.4),
+            (self._categorize_complexity(avg_chars_per_word), "complexity", 0.6),
         ]
         
         for text_label, category, score in statistical_data:
@@ -244,7 +229,7 @@ class MetadataExtractor(KeywordExtractor):
             if domain_match:
                 domain = domain_match.group(1)
                 keywords.append(Keyword(
-                    text=f"링크_{domain}",
+                    text=domain,
                     score=0.5,
                     extractor=self.name,
                     category="url_reference",
@@ -264,7 +249,7 @@ class MetadataExtractor(KeywordExtractor):
             email_text = match.group()
             domain = email_text.split('@')[1]
             keywords.append(Keyword(
-                text=f"이메일_{domain}",
+                text=domain,
                 score=0.6,
                 extractor=self.name,
                 category="email_reference",
@@ -289,7 +274,7 @@ class MetadataExtractor(KeywordExtractor):
             for match in dates:
                 date_text = match.group()
                 keywords.append(Keyword(
-                    text=f"날짜_{date_text}",
+                    text=date_text,
                     score=0.7,
                     extractor=self.name,
                     category=category,
@@ -317,7 +302,7 @@ class MetadataExtractor(KeywordExtractor):
             if numeric_values:
                 avg_number = sum(numeric_values) / len(numeric_values)
                 keywords.append(Keyword(
-                    text=f"숫자분포_{self._categorize_numbers(avg_number)}",
+                    text=self._categorize_numbers(avg_number),
                     score=0.4,
                     extractor=self.name,
                     category="numeric_content",
@@ -608,7 +593,7 @@ JSON 형식으로만 응답해주세요:"""
             if summary_data.get('intro'):
                 intro_text = summary_data['intro'][:150]
                 keywords.append(Keyword(
-                    text=f"도입부_{intro_text}",
+                    text=intro_text,
                     score=0.9,
                     extractor=self.name,
                     category="summary_intro",
@@ -624,7 +609,7 @@ JSON 형식으로만 응답해주세요:"""
             if summary_data.get('conclusion'):
                 conclusion_text = summary_data['conclusion'][:150]
                 keywords.append(Keyword(
-                    text=f"결론부_{conclusion_text}",
+                    text=conclusion_text,
                     score=0.9,
                     extractor=self.name,
                     category="summary_conclusion",
@@ -640,7 +625,7 @@ JSON 형식으로만 응답해주세요:"""
             if summary_data.get('core'):
                 core_text = summary_data['core'][:150]
                 keywords.append(Keyword(
-                    text=f"핵심내용_{core_text}",
+                    text=core_text,
                     score=1.0,
                     extractor=self.name,
                     category="summary_core",
@@ -656,7 +641,7 @@ JSON 형식으로만 응답해주세요:"""
             if summary_data.get('topics') and isinstance(summary_data['topics'], list):
                 for i, topic in enumerate(summary_data['topics'][:5], 1):
                     keywords.append(Keyword(
-                        text=f"주제키워드_{topic}",
+                        text=topic,
                         score=0.8,
                         extractor=self.name,
                         category="summary_topic",
@@ -672,7 +657,7 @@ JSON 형식으로만 응답해주세요:"""
             if summary_data.get('tone'):
                 tone_text = summary_data['tone'][:50]
                 keywords.append(Keyword(
-                    text=f"문서톤_{tone_text}",
+                    text=tone_text,
                     score=0.7,
                     extractor=self.name,
                     category="summary_tone",
@@ -749,7 +734,7 @@ JSON 형식으로만 응답해주세요:"""
             # 1. 첫 번째 문장 (도입부)
             first_sentence = sentences[0][:100] + "..." if len(sentences[0]) > 100 else sentences[0]
             keywords.append(Keyword(
-                text=f"도입부_{first_sentence}",
+                text=first_sentence,
                 score=0.8,
                 extractor=self.name,
                 category="summary_intro",
@@ -765,7 +750,7 @@ JSON 형식으로만 응답해주세요:"""
             if len(sentences) > 1:
                 last_sentence = sentences[-1][:100] + "..." if len(sentences[-1]) > 100 else sentences[-1]
                 keywords.append(Keyword(
-                    text=f"결론부_{last_sentence}",
+                    text=last_sentence,
                     score=0.8,
                     extractor=self.name,
                     category="summary_conclusion",
@@ -782,7 +767,7 @@ JSON 형식으로만 응답해주세요:"""
             if len(longest_sentence) > 50:
                 core_content = longest_sentence[:120] + "..." if len(longest_sentence) > 120 else longest_sentence
                 keywords.append(Keyword(
-                    text=f"핵심내용_{core_content}",
+                    text=core_content,
                     score=0.9,
                     extractor=self.name,
                     category="summary_core",
@@ -807,7 +792,7 @@ JSON 형식으로만 응답해주세요:"""
             for word, freq in top_words:
                 if freq >= 2:  # 최소 2번 이상 등장
                     keywords.append(Keyword(
-                        text=f"주제키워드_{word}",
+                        text=word,
                         score=min(0.7, 0.4 + freq * 0.1),  # 빈도에 따른 점수
                         extractor=self.name,
                         category="summary_topic",
@@ -823,7 +808,7 @@ JSON 형식으로만 응답해주세요:"""
             tone = self._analyze_document_tone(clean_text)
             if tone:
                 keywords.append(Keyword(
-                    text=f"문서분위기_{tone}",
+                    text=tone,
                     score=0.6,
                     extractor=self.name,
                     category="summary_tone",
@@ -882,7 +867,7 @@ JSON 형식으로만 응답해주세요:"""
         file_extension = file_path.suffix.lower().lstrip('.')
         if file_extension:
             keywords.append(Keyword(
-                text=f"파일형식_{file_extension}",
+                text=file_extension,
                 score=0.8,
                 extractor=self.name,
                 category="file_format",
@@ -902,7 +887,7 @@ JSON 형식으로만 응답해주세요:"""
         # 파일 크기 카테고리 (텍스트 길이 기반 추정)
         size_category = self._categorize_file_size(len(text))
         keywords.append(Keyword(
-            text=f"파일크기_{size_category}",
+            text=size_category,
             score=0.5,
             extractor=self.name,
             category="file_size",
@@ -928,7 +913,7 @@ JSON 형식으로만 응답해주세요:"""
             word = word.strip()
             if len(word) >= 2 and TextCleaner.is_meaningful_keyword(word):
                 keywords.append(Keyword(
-                    text=f"파일명_{word}",
+                    text=word,
                     score=0.6,
                     extractor=self.name,
                     category="filename_keyword",

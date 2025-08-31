@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from db.db import Base, engine, SessionLocal
-from routers import projects, files, configs, extraction, admin, spacy_models, prompts, local_analysis, kg
+from routers import projects, files, configs, extraction, admin, spacy_models, prompts, local_analysis, kg, memgraph
 from response_models import StatusResponse
 from services.config_service import ConfigService
 
@@ -61,6 +61,7 @@ app.include_router(spacy_models.router)
 app.include_router(prompts.router)
 app.include_router(local_analysis.router)
 app.include_router(kg.router)
+app.include_router(memgraph.router)
 logger.info("모든 라우터 등록 완료")
 
 @app.get("/", response_model=StatusResponse)

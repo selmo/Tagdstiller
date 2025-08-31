@@ -57,9 +57,13 @@ class LocalFileAnalyzer:
             return (current_dir / target_path).resolve()
     
     def get_result_file_path(self, file_path: str) -> Path:
-        """분석 결과 JSON 파일 경로를 생성"""
+        """분석 결과 JSON 파일 경로를 생성 - parsing 결과와 같은 디렉토리에 저장"""
+        from services.document_parser_service import DocumentParserService
+        
         absolute_path = self.get_absolute_path(file_path)
-        result_path = absolute_path.with_suffix(absolute_path.suffix + '.analysis.json')
+        parser_service = DocumentParserService()
+        output_dir = parser_service.get_output_directory(absolute_path)
+        result_path = output_dir / "keyword_analysis.json"
         return result_path
     
     def file_exists(self, file_path: str) -> bool:
@@ -1393,11 +1397,209 @@ JSON only, no explanations:"""
         # 빈 문장 제외
         return len([s for s in sentences if s.strip()])
     
+    def analyze_document_structure_with_llm(self, text: str, file_path: str, file_extension: str) -> Dict[str, Any]:
+        """LLM을 사용한 문서 구조 분석"""
+        import logging
+        import json
+        from services.config_service import ConfigService
+        from prompts.templates import DocumentStructurePrompts
+        from utils.llm_logger import log_prompt_and_response
+        from langchain_ollama import OllamaLLM
+        
+        logger = logging.getLogger(__name__)
+        
+        # LLM 설정 확인
+        llm_enabled = ConfigService.get_bool_config(self.db, "ENABLE_LLM_EXTRACTION", False)
+        if not llm_enabled:
+            logger.warning("⚠️ LLM extraction is disabled in configuration")
+            return self._fallback_structure_analysis(text, file_extension)
+        
+        ollama_url = ConfigService.get_config_value(self.db, "OLLAMA_BASE_URL", "http://localhost:11434")
+        model_name = ConfigService.get_config_value(self.db, "OLLAMA_MODEL", "llama3.2")
+        
+        logger.info(f"🔍 LLM 기반 문서 구조 분석 시작 - 모델: {model_name}")
+        
+        try:
+            # LangChain Ollama 클라이언트 생성
+            ollama_client = OllamaLLM(
+                base_url=ollama_url,
+                model=model_name,
+                timeout=120,  # 2분 타임아웃
+                temperature=0.2,  # 구조 분석은 일관성이 중요함
+            )
+            
+            # 텍스트 길이 제한 (토큰 제한 고려)
+            max_text_length = 3000
+            truncated_text = text[:max_text_length] if len(text) > max_text_length else text
+            
+            # 프롬프트 템플릿 사용
+            prompt_template = DocumentStructurePrompts.STRUCTURE_ANALYSIS_LLM
+            
+            # 파일 정보 준비
+            from pathlib import Path
+            file_path_obj = Path(file_path) if isinstance(file_path, str) else file_path
+            file_info = {
+                "filename": file_path_obj.name,
+                "extension": file_extension,
+                "size": len(text),
+                "truncated_size": len(truncated_text)
+            }
+            
+            # 프롬프트 생성
+            prompt = prompt_template.format(
+                file_info=json.dumps(file_info, ensure_ascii=False, indent=2),
+                text=truncated_text
+            )
+            
+            logger.info(f"📤 LLM 구조 분석 요청 중... (텍스트 길이: {len(truncated_text)} 문자)")
+            
+            # LLM 호출
+            response = ollama_client.invoke(prompt)
+            
+            logger.info(f"📥 LLM 응답 수신 완료 (길이: {len(response)} 문자)")
+            
+            # 프롬프트/응답 로깅
+            log_prompt_and_response(
+                label="document_structure_analysis",
+                provider="ollama",
+                model=model_name,
+                prompt=prompt,
+                response=response,
+                logger=logger,
+                meta={
+                    "base_url": ollama_url,
+                    "temperature": 0.2,
+                    "file_extension": file_extension,
+                    "text_length": len(text),
+                    "truncated_length": len(truncated_text)
+                }
+            )
+            
+            # JSON 파싱 시도
+            try:
+                # JSON 응답 추출
+                json_response = self._extract_json_from_response(response)
+                if json_response:
+                    # 기본 구조 분석과 병합
+                    basic_structure = self.analyze_document_structure(text, file_extension)
+                    
+                    # LLM 분석 결과 추가
+                    enhanced_structure = {
+                        **basic_structure,
+                        "llm_analysis": json_response,
+                        "analysis_method": "llm_enhanced",
+                        "llm_model": model_name,
+                        "llm_success": True
+                    }
+                    
+                    # LLM에서 추출한 구조 정보로 기본 분석 보완
+                    if "sections" in json_response:
+                        enhanced_structure["llm_detected_sections"] = json_response["sections"]
+                    
+                    if "document_type" in json_response:
+                        enhanced_structure["document_type"] = json_response["document_type"]
+                    
+                    if "main_topics" in json_response:
+                        enhanced_structure["main_topics"] = json_response["main_topics"]
+                    
+                    logger.info("✅ LLM 기반 문서 구조 분석 성공")
+                    return enhanced_structure
+                else:
+                    raise ValueError("JSON 응답을 추출할 수 없음")
+                    
+            except Exception as parse_error:
+                logger.error(f"❌ LLM 응답 파싱 실패: {parse_error}")
+                logger.debug(f"📄 문제가 된 응답: {response[:500]}")
+                return self._fallback_structure_analysis_with_llm_attempt(text, file_extension, str(parse_error))
+                
+        except Exception as e:
+            logger.error(f"❌ LLM 구조 분석 실패: {e}")
+            return self._fallback_structure_analysis_with_llm_attempt(text, file_extension, str(e))
+    
+    def _extract_json_from_response(self, response: str) -> Optional[Dict[str, Any]]:
+        """LLM 응답에서 JSON 부분을 추출"""
+        import json
+        import re
+        
+        # JSON 코드 블록 추출
+        if "```json" in response:
+            json_start = response.find("```json") + 7
+            json_end = response.find("```", json_start)
+            if json_end != -1:
+                json_text = response[json_start:json_end].strip()
+            else:
+                json_text = response[json_start:].strip()
+        elif "```" in response:
+            json_start = response.find("```") + 3
+            json_end = response.find("```", json_start)
+            if json_end != -1:
+                json_text = response[json_start:json_end].strip()
+            else:
+                json_text = response[json_start:].strip()
+        else:
+            # 첫 번째 { 부터 마지막 } 까지 추출
+            start = response.find('{')
+            end = response.rfind('}')
+            if start != -1 and end != -1 and end > start:
+                json_text = response[start:end+1]
+            else:
+                json_text = response
+        
+        try:
+            # 기본 JSON 파싱 시도
+            return json.loads(json_text)
+        except json.JSONDecodeError:
+            try:
+                # 간단한 JSON 수정 시도
+                cleaned_json = self._repair_json(json_text)
+                return json.loads(cleaned_json)
+            except:
+                return None
+    
+    def _repair_json(self, json_text: str) -> str:
+        """간단한 JSON 수정"""
+        import re
+        
+        # 스마트 인용부호를 ASCII로 변환
+        json_text = json_text.replace(""", '"').replace(""", '"').replace("'", "'")
+        
+        # 단일 인용부호를 이중 인용부호로 변환
+        json_text = re.sub(r"'([^']*)':", r'"\1":', json_text)  # 키
+        json_text = re.sub(r":\s*'([^']*)'", r': "\1"', json_text)  # 값
+        
+        # 끝에 붙은 쉼표 제거
+        json_text = re.sub(r",\s*([}\]])", r"\1", json_text)
+        
+        # 제어 문자 제거
+        json_text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', json_text)
+        
+        return json_text.strip()
+    
+    def _fallback_structure_analysis(self, text: str, file_extension: str) -> Dict[str, Any]:
+        """LLM이 비활성화된 경우 기본 구조 분석으로 폴백"""
+        basic_structure = self.analyze_document_structure(text, file_extension)
+        basic_structure.update({
+            "analysis_method": "basic_only",
+            "llm_success": False,
+            "llm_error": "LLM extraction disabled"
+        })
+        return basic_structure
+    
+    def _fallback_structure_analysis_with_llm_attempt(self, text: str, file_extension: str, error_msg: str) -> Dict[str, Any]:
+        """LLM 실패 시 기본 구조 분석으로 폴백"""
+        basic_structure = self.analyze_document_structure(text, file_extension)
+        basic_structure.update({
+            "analysis_method": "basic_fallback",
+            "llm_success": False,
+            "llm_error": error_msg
+        })
+        return basic_structure
+    
     def extract_keywords(self, content: str, extractors: Optional[List[str]] = None, filename: str = "local_analysis.txt") -> List[Dict[str, Any]]:
         """키워드 추출 수행"""
         if extractors is None:
             extractors = ConfigService.get_json_config(
-                self.db, "DEFAULT_EXTRACTORS", ["keybert", "ner", "konlpy", "metadata"]
+                self.db, "DEFAULT_EXTRACTORS", ["llm"]
             )
         
         # ExtractorManager를 사용하여 키워드 추출
@@ -1486,7 +1688,7 @@ JSON only, no explanations:"""
                 },
                 "extraction_info": {
                     "extractors_used": extractors if extractors is not None else ConfigService.get_json_config(
-                        self.db, "DEFAULT_EXTRACTORS", ["keybert", "ner", "konlpy", "metadata"]
+                        self.db, "DEFAULT_EXTRACTORS", ["llm"]
                     ),
                     "total_keywords": len(keywords)
                 },

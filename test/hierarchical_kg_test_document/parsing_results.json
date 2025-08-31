@@ -1,0 +1,46 @@
+{
+  "file_info": {
+    "name": "hierarchical_kg_test_document.md",
+    "path": "/Users/selmo/Workspaces/DocExtract/test/hierarchical_kg_test_document.md",
+    "size": 4019,
+    "extension": "md",
+    "modified": 1756539410.5585716
+  },
+  "parsing_timestamp": "2025-08-30T17:16:16.698794",
+  "parsers_used": [
+    "md_parser"
+  ],
+  "parsing_results": {
+    "md_parser": {
+      "success": true,
+      "parser_name": "markdown_parser",
+      "text_length": 1424,
+      "word_count": 329,
+      "metadata": {
+        "title": "API 개발 가이드",
+        "created_date": "1756539410.5671673",
+        "modified_date": "1756539410.5585716",
+        "word_count": 329,
+        "file_size": 4019,
+        "mime_type": "text/markdown",
+        "encoding": "utf-8"
+      },
+      "md_file_path": null,
+      "parsing_time": null,
+      "quality_score": 0.899959871589085,
+      "structured_info": {
+        "total_lines": 75,
+        "non_empty_lines": 57,
+        "paragraphs": 57,
+        "headers": 0
+      }
+    }
+  },
+  "summary": {
+    "total_parsers": 1,
+    "successful_parsers": 1,
+    "failed_parsers": 0,
+    "best_parser": "md_parser",
+    "best_quality_score": 0.899959871589085
+  }
+}

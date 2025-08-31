@@ -1,0 +1,1064 @@
+{
+  "entities": [
+    {
+      "id": "240c31a6e66f941c",
+      "type": "Document",
+      "properties": {
+        "title": "hierarchical_kg_test_document.md",
+        "path": "test/hierarchical_kg_test_document.md",
+        "domain": "technical",
+        "size": 2639,
+        "extension": ".md",
+        "parser_count": 1,
+        "best_parser": "base_parser",
+        "hierarchical_root": true
+      }
+    },
+    {
+      "id": "section_240c31a6e66f941c_0",
+      "type": "Section",
+      "properties": {
+        "title": "기술 스택",
+        "level": 2,
+        "line": 7,
+        "parser": "base_parser",
+        "index": 0,
+        "domain": "technical",
+        "structural_element": true,
+        "content_preview": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "has_content": true
+      }
+    },
+    {
+      "id": "section_240c31a6e66f941c_1",
+      "type": "Section",
+      "properties": {
+        "title": "데이터베이스",
+        "level": 2,
+        "line": 15,
+        "parser": "base_parser",
+        "index": 1,
+        "domain": "technical",
+        "structural_element": true,
+        "content_preview": "PostgreSQL: 메인 DB, ACID 준수, 확장성\nRedis: 캐싱, 고속 인메모리 저장\nElasticsearch: 검색, 전문 검색 엔진",
+        "has_content": true
+      }
+    },
+    {
+      "id": "table_240c31a6e66f941c_0",
+      "type": "Table",
+      "properties": {
+        "content": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis       | 캐싱 | 고속 인메모리 저장 |\n| Elasticsearch | 검색 | 전문 검색 엔진 |",
+        "page": 1,
+        "parser": "base_parser",
+        "index": 0,
+        "row_count": 4,
+        "column_count": 3,
+        "domain": "technical",
+        "structural_element": true,
+        "content_preview": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis   ",
+        "has_content": true
+      }
+    },
+    {
+      "id": "technology_0610b86adbefa85c_c661c107ac02ccab_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "FastAPI",
+        "domain": "technical",
+        "source_structure": "section_240c31a6e66f941c_0",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.95,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+          "properties": {
+            "title": "기술 스택",
+            "level": 2,
+            "line": 7,
+            "parser": "base_parser",
+            "index": 0
+          },
+          "position": {
+            "line": 7
+          },
+          "context": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리"
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_3c93452bf7af2f15_c661c107ac02ccab_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "SQLAlchemy",
+        "domain": "technical",
+        "source_structure": "section_240c31a6e66f941c_0",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.88,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+          "properties": {
+            "title": "기술 스택",
+            "level": 2,
+            "line": 7,
+            "parser": "base_parser",
+            "index": 0
+          },
+          "position": {
+            "line": 7
+          },
+          "context": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리"
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_f1b5e195dd16a7e4_c661c107ac02ccab_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "Pydantic",
+        "domain": "technical",
+        "source_structure": "section_240c31a6e66f941c_0",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.85,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+          "properties": {
+            "title": "기술 스택",
+            "level": 2,
+            "line": 7,
+            "parser": "base_parser",
+            "index": 0
+          },
+          "position": {
+            "line": 7
+          },
+          "context": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리"
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_24fd6c2d1150de6a_02eb181d7d869507_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "PostgreSQL",
+        "domain": "technical",
+        "source_structure": "section_240c31a6e66f941c_1",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.92,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "PostgreSQL: 메인 DB, ACID 준수, 확장성\nRedis: 캐싱, 고속 인메모리 저장\nElasticsearch: 검색, 전문 검색 엔진",
+          "properties": {
+            "title": "데이터베이스",
+            "level": 2,
+            "line": 15,
+            "parser": "base_parser",
+            "index": 1
+          },
+          "position": {
+            "line": 15
+          },
+          "context": "PostgreSQL: 메인 DB, ACID 준수, 확장성\nRedis: 캐싱, 고속 인메모리 저장\nElasticsearch: 검색, 전문 검색 엔진"
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_24fd6c2d1150de6a_84826eaee52dab6c_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "PostgreSQL",
+        "domain": "technical",
+        "source_structure": "table_240c31a6e66f941c_0",
+        "source_structure_type": "Table",
+        "extractor": "llm",
+        "score": 0.92,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Table",
+          "content": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis       | 캐싱 | 고속 인메모리 저장 |\n| Elasticsearch | 검색 | 전문 검색 엔진 |",
+          "properties": {
+            "content": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis       | 캐싱 | 고속 인메모리 저장 |\n| Elasticsearch | 검색 | 전문 검색 엔진 |",
+            "page": 1,
+            "parser": "base_parser",
+            "index": 0,
+            "row_count": 4,
+            "column_count": 3
+          },
+          "position": {
+            "page": 1
+          },
+          "context": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis       | 캐싱 | 고속 인메모리 저장 |\n| Elasticsearch | 검색 | 전문 검색 엔진 |"
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_24071b57a13027c0_02eb181d7d869507_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "Redis",
+        "domain": "technical",
+        "source_structure": "section_240c31a6e66f941c_1",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.87,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "PostgreSQL: 메인 DB, ACID 준수, 확장성\nRedis: 캐싱, 고속 인메모리 저장\nElasticsearch: 검색, 전문 검색 엔진",
+          "properties": {
+            "title": "데이터베이스",
+            "level": 2,
+            "line": 15,
+            "parser": "base_parser",
+            "index": 1
+          },
+          "position": {
+            "line": 15
+          },
+          "context": "PostgreSQL: 메인 DB, ACID 준수, 확장성\nRedis: 캐싱, 고속 인메모리 저장\nElasticsearch: 검색, 전문 검색 엔진"
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_24071b57a13027c0_84826eaee52dab6c_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "Redis",
+        "domain": "technical",
+        "source_structure": "table_240c31a6e66f941c_0",
+        "source_structure_type": "Table",
+        "extractor": "llm",
+        "score": 0.87,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Table",
+          "content": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis       | 캐싱 | 고속 인메모리 저장 |\n| Elasticsearch | 검색 | 전문 검색 엔진 |",
+          "properties": {
+            "content": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis       | 캐싱 | 고속 인메모리 저장 |\n| Elasticsearch | 검색 | 전문 검색 엔진 |",
+            "page": 1,
+            "parser": "base_parser",
+            "index": 0,
+            "row_count": 4,
+            "column_count": 3
+          },
+          "position": {
+            "page": 1
+          },
+          "context": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis       | 캐싱 | 고속 인메모리 저장 |\n| Elasticsearch | 검색 | 전문 검색 엔진 |"
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_85bb5d88d7f7c89b_02eb181d7d869507_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "Elasticsearch",
+        "domain": "technical",
+        "source_structure": "section_240c31a6e66f941c_1",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.82,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "PostgreSQL: 메인 DB, ACID 준수, 확장성\nRedis: 캐싱, 고속 인메모리 저장\nElasticsearch: 검색, 전문 검색 엔진",
+          "properties": {
+            "title": "데이터베이스",
+            "level": 2,
+            "line": 15,
+            "parser": "base_parser",
+            "index": 1
+          },
+          "position": {
+            "line": 15
+          },
+          "context": "PostgreSQL: 메인 DB, ACID 준수, 확장성\nRedis: 캐싱, 고속 인메모리 저장\nElasticsearch: 검색, 전문 검색 엔진"
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_85bb5d88d7f7c89b_84826eaee52dab6c_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "Elasticsearch",
+        "domain": "technical",
+        "source_structure": "table_240c31a6e66f941c_0",
+        "source_structure_type": "Table",
+        "extractor": "llm",
+        "score": 0.82,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Table",
+          "content": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis       | 캐싱 | 고속 인메모리 저장 |\n| Elasticsearch | 검색 | 전문 검색 엔진 |",
+          "properties": {
+            "content": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis       | 캐싱 | 고속 인메모리 저장 |\n| Elasticsearch | 검색 | 전문 검색 엔진 |",
+            "page": 1,
+            "parser": "base_parser",
+            "index": 0,
+            "row_count": 4,
+            "column_count": 3
+          },
+          "position": {
+            "page": 1
+          },
+          "context": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis       | 캐싱 | 고속 인메모리 저장 |\n| Elasticsearch | 검색 | 전문 검색 엔진 |"
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_9a6665bbfdc12263_c661c107ac02ccab_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "RESTful",
+        "domain": "technical",
+        "source_structure": "section_240c31a6e66f941c_0",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.9,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+          "properties": {
+            "title": "기술 스택",
+            "level": 2,
+            "line": 7,
+            "parser": "base_parser",
+            "index": 0
+          },
+          "position": {
+            "line": 7
+          },
+          "context": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리"
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_d93d10ff0fbef1b4_c661c107ac02ccab_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "API",
+        "domain": "technical",
+        "source_structure": "section_240c31a6e66f941c_0",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.93,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+          "properties": {
+            "title": "기술 스택",
+            "level": 2,
+            "line": 7,
+            "parser": "base_parser",
+            "index": 0
+          },
+          "position": {
+            "line": 7
+          },
+          "context": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리"
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    },
+    {
+      "id": "technology_d5f8c6ca207bc020_c661c107ac02ccab_llm",
+      "type": "Technology",
+      "properties": {
+        "text": "ORM",
+        "domain": "technical",
+        "source_structure": "section_240c31a6e66f941c_0",
+        "source_structure_type": "Section",
+        "extractor": "llm",
+        "score": 0.89,
+        "category": "software",
+        "extraction_context": {
+          "structure_type": "Section",
+          "content": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+          "properties": {
+            "title": "기술 스택",
+            "level": 2,
+            "line": 7,
+            "parser": "base_parser",
+            "index": 0
+          },
+          "position": {
+            "line": 7
+          },
+          "context": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리"
+        },
+        "hierarchical_entity": true,
+        "maturity": "stable"
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "source": "240c31a6e66f941c",
+      "target": "section_240c31a6e66f941c_0",
+      "type": "CONTAINS_STRUCTURE",
+      "properties": {
+        "structure_type": "Section",
+        "relationship_name": "CONTAINS_SECTION",
+        "position_info": {
+          "line": 7
+        },
+        "domain": "technical"
+      }
+    },
+    {
+      "source": "240c31a6e66f941c",
+      "target": "section_240c31a6e66f941c_1",
+      "type": "CONTAINS_STRUCTURE",
+      "properties": {
+        "structure_type": "Section",
+        "relationship_name": "CONTAINS_SECTION",
+        "position_info": {
+          "line": 15
+        },
+        "domain": "technical"
+      }
+    },
+    {
+      "source": "240c31a6e66f941c",
+      "target": "table_240c31a6e66f941c_0",
+      "type": "CONTAINS_STRUCTURE",
+      "properties": {
+        "structure_type": "Table",
+        "relationship_name": "CONTAINS_TABLE",
+        "position_info": {
+          "page": 1
+        },
+        "domain": "technical"
+      }
+    },
+    {
+      "source": "section_240c31a6e66f941c_0",
+      "target": "technology_0610b86adbefa85c_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.95,
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "section_240c31a6e66f941c_0",
+      "target": "technology_3c93452bf7af2f15_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.88,
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "section_240c31a6e66f941c_0",
+      "target": "technology_f1b5e195dd16a7e4_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.85,
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "section_240c31a6e66f941c_1",
+      "target": "technology_24fd6c2d1150de6a_02eb181d7d869507_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.92,
+        "context_snippet": "PostgreSQL: 메인 DB, ACID 준수, 확장성\nRedis: 캐싱, 고속 인메모리 저장\nElasticsearch: 검색, 전문 검색 엔진",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "table_240c31a6e66f941c_0",
+      "target": "technology_24fd6c2d1150de6a_84826eaee52dab6c_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.92,
+        "context_snippet": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis   ",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "section_240c31a6e66f941c_1",
+      "target": "technology_24071b57a13027c0_02eb181d7d869507_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.87,
+        "context_snippet": "PostgreSQL: 메인 DB, ACID 준수, 확장성\nRedis: 캐싱, 고속 인메모리 저장\nElasticsearch: 검색, 전문 검색 엔진",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "table_240c31a6e66f941c_0",
+      "target": "technology_24071b57a13027c0_84826eaee52dab6c_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.87,
+        "context_snippet": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis   ",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "section_240c31a6e66f941c_1",
+      "target": "technology_85bb5d88d7f7c89b_02eb181d7d869507_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.82,
+        "context_snippet": "PostgreSQL: 메인 DB, ACID 준수, 확장성\nRedis: 캐싱, 고속 인메모리 저장\nElasticsearch: 검색, 전문 검색 엔진",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "table_240c31a6e66f941c_0",
+      "target": "technology_85bb5d88d7f7c89b_84826eaee52dab6c_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.82,
+        "context_snippet": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis   ",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "section_240c31a6e66f941c_0",
+      "target": "technology_9a6665bbfdc12263_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.9,
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "section_240c31a6e66f941c_0",
+      "target": "technology_d93d10ff0fbef1b4_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.93,
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "section_240c31a6e66f941c_0",
+      "target": "technology_d5f8c6ca207bc020_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "extraction_method": "llm",
+        "confidence_score": 0.89,
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "domain": "technical",
+        "hierarchical_relationship": true
+      }
+    },
+    {
+      "source": "technology_0610b86adbefa85c_c661c107ac02ccab_llm",
+      "target": "technology_3c93452bf7af2f15_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "extraction_method": "llm",
+        "confidence_score": 0.88,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_0610b86adbefa85c_c661c107ac02ccab_llm",
+      "target": "technology_f1b5e195dd16a7e4_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "extraction_method": "llm",
+        "confidence_score": 0.85,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_0610b86adbefa85c_c661c107ac02ccab_llm",
+      "target": "technology_9a6665bbfdc12263_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "extraction_method": "llm",
+        "confidence_score": 0.9,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_0610b86adbefa85c_c661c107ac02ccab_llm",
+      "target": "technology_d93d10ff0fbef1b4_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "extraction_method": "llm",
+        "confidence_score": 0.93,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_0610b86adbefa85c_c661c107ac02ccab_llm",
+      "target": "technology_d5f8c6ca207bc020_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "extraction_method": "llm",
+        "confidence_score": 0.89,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_3c93452bf7af2f15_c661c107ac02ccab_llm",
+      "target": "technology_f1b5e195dd16a7e4_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "extraction_method": "llm",
+        "confidence_score": 0.85,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_3c93452bf7af2f15_c661c107ac02ccab_llm",
+      "target": "technology_9a6665bbfdc12263_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "extraction_method": "llm",
+        "confidence_score": 0.88,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_3c93452bf7af2f15_c661c107ac02ccab_llm",
+      "target": "technology_d93d10ff0fbef1b4_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "extraction_method": "llm",
+        "confidence_score": 0.88,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_3c93452bf7af2f15_c661c107ac02ccab_llm",
+      "target": "technology_d5f8c6ca207bc020_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "extraction_method": "llm",
+        "confidence_score": 0.88,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_f1b5e195dd16a7e4_c661c107ac02ccab_llm",
+      "target": "technology_9a6665bbfdc12263_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "extraction_method": "llm",
+        "confidence_score": 0.85,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_f1b5e195dd16a7e4_c661c107ac02ccab_llm",
+      "target": "technology_d93d10ff0fbef1b4_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "extraction_method": "llm",
+        "confidence_score": 0.85,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_f1b5e195dd16a7e4_c661c107ac02ccab_llm",
+      "target": "technology_d5f8c6ca207bc020_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "extraction_method": "llm",
+        "confidence_score": 0.85,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_9a6665bbfdc12263_c661c107ac02ccab_llm",
+      "target": "technology_d93d10ff0fbef1b4_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "extraction_method": "llm",
+        "confidence_score": 0.9,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_9a6665bbfdc12263_c661c107ac02ccab_llm",
+      "target": "technology_d5f8c6ca207bc020_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "extraction_method": "llm",
+        "confidence_score": 0.89,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_d93d10ff0fbef1b4_c661c107ac02ccab_llm",
+      "target": "technology_d5f8c6ca207bc020_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "FastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리",
+        "extraction_method": "llm",
+        "confidence_score": 0.89,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24fd6c2d1150de6a_02eb181d7d869507_llm",
+      "target": "technology_24071b57a13027c0_02eb181d7d869507_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "PostgreSQL: 메인 DB, ACID 준수, 확장성\nRedis: 캐싱, 고속 인메모리 저장\nElasticsearch: 검색, 전문 검색 엔진",
+        "extraction_method": "llm",
+        "confidence_score": 0.87,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24fd6c2d1150de6a_02eb181d7d869507_llm",
+      "target": "technology_85bb5d88d7f7c89b_02eb181d7d869507_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "PostgreSQL: 메인 DB, ACID 준수, 확장성\nRedis: 캐싱, 고속 인메모리 저장\nElasticsearch: 검색, 전문 검색 엔진",
+        "extraction_method": "llm",
+        "confidence_score": 0.82,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24071b57a13027c0_02eb181d7d869507_llm",
+      "target": "technology_85bb5d88d7f7c89b_02eb181d7d869507_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "PostgreSQL: 메인 DB, ACID 준수, 확장성\nRedis: 캐싱, 고속 인메모리 저장\nElasticsearch: 검색, 전문 검색 엔진",
+        "extraction_method": "llm",
+        "confidence_score": 0.82,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24fd6c2d1150de6a_84826eaee52dab6c_llm",
+      "target": "technology_24071b57a13027c0_84826eaee52dab6c_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis   ",
+        "extraction_method": "llm",
+        "confidence_score": 0.87,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24fd6c2d1150de6a_84826eaee52dab6c_llm",
+      "target": "technology_85bb5d88d7f7c89b_84826eaee52dab6c_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis   ",
+        "extraction_method": "llm",
+        "confidence_score": 0.82,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24071b57a13027c0_84826eaee52dab6c_llm",
+      "target": "technology_85bb5d88d7f7c89b_84826eaee52dab6c_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "ASSOCIATED_WITH",
+        "domain": "technical",
+        "context_snippet": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis   ",
+        "extraction_method": "llm",
+        "confidence_score": 0.82,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_0610b86adbefa85c_c661c107ac02ccab_llm",
+      "target": "technology_3c93452bf7af2f15_c661c107ac02ccab_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "INTEGRATES_WITH",
+        "domain": "technical",
+        "pattern_based": true,
+        "confidence_score": 0.8,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24fd6c2d1150de6a_02eb181d7d869507_llm",
+      "target": "technology_24fd6c2d1150de6a_84826eaee52dab6c_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "COMPLEMENTS",
+        "domain": "technical",
+        "pattern_based": true,
+        "confidence_score": 0.8,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24fd6c2d1150de6a_02eb181d7d869507_llm",
+      "target": "technology_24071b57a13027c0_02eb181d7d869507_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "COMPLEMENTS",
+        "domain": "technical",
+        "pattern_based": true,
+        "confidence_score": 0.8,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24fd6c2d1150de6a_02eb181d7d869507_llm",
+      "target": "technology_24071b57a13027c0_84826eaee52dab6c_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "COMPLEMENTS",
+        "domain": "technical",
+        "pattern_based": true,
+        "confidence_score": 0.8,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24fd6c2d1150de6a_84826eaee52dab6c_llm",
+      "target": "technology_24071b57a13027c0_02eb181d7d869507_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "COMPLEMENTS",
+        "domain": "technical",
+        "pattern_based": true,
+        "confidence_score": 0.8,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24fd6c2d1150de6a_84826eaee52dab6c_llm",
+      "target": "technology_24071b57a13027c0_84826eaee52dab6c_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "COMPLEMENTS",
+        "domain": "technical",
+        "pattern_based": true,
+        "confidence_score": 0.8,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    },
+    {
+      "source": "technology_24071b57a13027c0_02eb181d7d869507_llm",
+      "target": "technology_24071b57a13027c0_84826eaee52dab6c_llm",
+      "type": "RELATED_TO",
+      "properties": {
+        "relationship_name": "COMPLEMENTS",
+        "domain": "technical",
+        "pattern_based": true,
+        "confidence_score": 0.8,
+        "entity_to_entity": true,
+        "inferred": true
+      }
+    }
+  ],
+  "structural_hierarchy": [
+    {
+      "id": "section_240c31a6e66f941c_0",
+      "type": "Section",
+      "parent_id": "240c31a6e66f941c",
+      "children": [],
+      "level": 1,
+      "properties": {
+        "title": "기술 스택",
+        "level": 2,
+        "line": 7,
+        "parser": "base_parser",
+        "index": 0
+      }
+    },
+    {
+      "id": "section_240c31a6e66f941c_1",
+      "type": "Section",
+      "parent_id": "240c31a6e66f941c",
+      "children": [],
+      "level": 1,
+      "properties": {
+        "title": "데이터베이스",
+        "level": 2,
+        "line": 15,
+        "parser": "base_parser",
+        "index": 1
+      }
+    },
+    {
+      "id": "table_240c31a6e66f941c_0",
+      "type": "Table",
+      "parent_id": "240c31a6e66f941c",
+      "children": [],
+      "level": 1,
+      "properties": {
+        "content": "| 데이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL  | 메인 DB | ACID 준수, 확장성 |\n| Redis       | 캐싱 | 고속 인메모리 저장 |\n| Elasticsearch | 검색 | 전문 검색 엔진 |",
+        "page": 1,
+        "parser": "base_parser",
+        "index": 0,
+        "row_count": 4,
+        "column_count": 3
+      }
+    }
+  ],
+  "metadata": {
+    "created_at": "2025-08-30T16:50:31.830714",
+    "file_path": "test/hierarchical_kg_test_document.md",
+    "hierarchical_structure": true,
+    "detected_domain": "technical",
+    "domain_confidence": 0.68,
+    "extractors_used": [
+      "llm"
+    ]
+  }
+}

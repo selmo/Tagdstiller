@@ -6,6 +6,9 @@ python-multipart>=0.0.9
 # Database
 sqlalchemy>=2.0.30
 
+# Knowledge Graph Database - Memgraph
+neo4j>=5.24.0,<6.0.0     # Neo4j driver for Memgraph connection
+
 # Pydantic for data validation (최신 안정 버전으로 통일)
 pydantic>=2.9.0,<3.0.0
 pydantic-settings>=2.6.0,<3.0.0
@@ -30,6 +33,16 @@ scikit-learn>=1.5.0     # 최신 scikit-learn
 sentence-transformers>=3.0.0  # 최신 sentence-transformers
 numpy>=1.24.0,<2.0.0    # numpy 1.x 유지
 
+# Korean language processing
+konlpy>=0.6.0           # Korean morphological analysis
+JPype1>=1.5.0          # Java bridge for KoNLPy
+
+# Advanced NLP and LLM integration
+langchain>=0.3.0        # LangChain for LLM integration
+langchain-ollama>=0.2.0 # Ollama integration
+langchain-community>=0.3.0  # Community integrations
+huggingface-hub>=0.26.0 # Hugging Face model hub
+
 # Testing (최신 버전)
 pytest>=8.0.0
 pytest-asyncio>=0.24.0
@@ -40,5 +53,25 @@ python-dateutil>=2.9.0
 requests>=2.32.0
 typer>=0.12.0           # Docling과 호환되는 최신 typer
 
+# Machine Learning and AI utilities
+torch>=2.0.0            # PyTorch for deep learning models
+transformers>=4.45.0    # Hugging Face transformers
+tokenizers>=0.20.0      # Fast tokenizers
+
+# Data processing and analysis
+pandas>=2.2.0           # Data manipulation
+nltk>=3.9.1             # Natural language toolkit
+
+# File handling and compression
+Pillow>=10.4.0          # Image processing
+openpyxl>=3.1.5         # Excel file handling
+psutil>=6.0.0           # System and process utilities
+
+# Configuration and environment
+python-dotenv>=1.0.1    # Environment variable management
+toml>=0.10.2            # TOML configuration parsing
+pyyaml>=6.0.2           # YAML configuration parsing
+
 # Essential packages
 setuptools>=70.0.0
+wheel>=0.44.0           # Package building

@@ -1,0 +1,124 @@
+{
+  "file_path": "/Users/selmo/Workspaces/DocExtract/test/hierarchical_kg_test_document.md",
+  "analysis_timestamp": "2025-08-30T20:57:28.983322",
+  "analyzer_version": "1.0.0",
+  "file_info": {
+    "path": "/Users/selmo/Workspaces/DocExtract/test/hierarchical_kg_test_document.md",
+    "absolute_path": "/Users/selmo/Workspaces/DocExtract/test/hierarchical_kg_test_document.md",
+    "size": 4019,
+    "modified": "2025-08-30T16:36:50.558572",
+    "extension": ".md"
+  },
+  "content_info": {
+    "length": 1424,
+    "word_count": 329,
+    "line_count": 75
+  },
+  "extraction_info": {
+    "extractors_used": [
+      "llm"
+    ],
+    "total_keywords": 8
+  },
+  "keywords": {
+    "llm": [
+      {
+        "keyword": "FastAPI",
+        "extractor_name": "llm",
+        "score": 0.95,
+        "category": "기술",
+        "start_position": 50,
+        "end_position": 57,
+        "context_snippet": "API 개발 가이드\n서론\n\n이 문서는 REST API 개발을 위한 종합적인 가이드입니다. FastAPI를 사용하여 현대적인 웹 API를 구축하는 방법을 설명합니다.\n기술 스택\n\n2.1 백엔드 ...",
+        "page_number": 1,
+        "line_number": 4,
+        "column_number": 36
+      },
+      {
+        "keyword": "REST API",
+        "extractor_name": "llm",
+        "score": 0.9,
+        "category": "기술",
+        "start_position": 21,
+        "end_position": 29,
+        "context_snippet": "API 개발 가이드\n서론\n\n이 문서는 REST API 개발을 위한 종합적인 가이드입니다. FastAPI를 사용하여 현대적인 웹 API를 구축하...",
+        "page_number": 1,
+        "line_number": 4,
+        "column_number": 7
+      },
+      {
+        "keyword": "PostgreSQL",
+        "extractor_name": "llm",
+        "score": 0.9,
+        "category": "기술",
+        "start_position": 253,
+        "end_position": 263,
+        "context_snippet": "...이터베이스 | 용도 | 장점 |\n|-------------|------|------|\n| PostgreSQL | 메인 DB | ACID 준수, 확장성 |\n| Redis | 캐싱 | 고속 인메모리 저...",
+        "page_number": 1,
+        "line_number": 16,
+        "column_number": 3
+      },
+      {
+        "keyword": "인증 시스템",
+        "extractor_name": "llm",
+        "score": 0.9,
+        "category": "기술",
+        "start_position": 483,
+        "end_position": 489,
+        "context_snippet": "...히 사용\n상태 없음: 각 요청은 독립적\n캐싱 가능: 응답은 캐싱 가능하도록 설계\n\n3.2 인증 시스템\n성능 최적화\n\n4.1 데이터베이스 최적화\n인덱스 활용: 쿼리 성능 향상을 위한 적절한 인...",
+        "page_number": 1,
+        "line_number": 27,
+        "column_number": 5
+      },
+      {
+        "keyword": "SQLAlchemy",
+        "extractor_name": "llm",
+        "score": 0.88,
+        "category": "기술",
+        "start_position": 141,
+        "end_position": 151,
+        "context_snippet": "...\n기술 스택\n\n2.1 백엔드 프레임워크\nFastAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리\n\n2.2 데이터베이스\n\n|...",
+        "page_number": 1,
+        "line_number": 9,
+        "column_number": 1
+      },
+      {
+        "keyword": "Pydantic",
+        "extractor_name": "llm",
+        "score": 0.85,
+        "category": "기술",
+        "start_position": 164,
+        "end_position": 172,
+        "context_snippet": "...astAPI: 고성능 Python 웹 프레임워크\nSQLAlchemy: 데이터베이스 ORM\nPydantic: 데이터 검증 라이브러리\n\n2.2 데이터베이스\n\n| 데이터베이스 | 용도 | 장점 |\n|...",
+        "page_number": 1,
+        "line_number": 10,
+        "column_number": 1
+      },
+      {
+        "keyword": "Redis",
+        "extractor_name": "llm",
+        "score": 0.85,
+        "category": "기술",
+        "start_position": 291,
+        "end_position": 296,
+        "context_snippet": "...-|------|\n| PostgreSQL | 메인 DB | ACID 준수, 확장성 |\n| Redis | 캐싱 | 고속 인메모리 저장 |\n| Elasticsearch | 검색 | 전문 검색 ...",
+        "page_number": 1,
+        "line_number": 17,
+        "column_number": 3
+      },
+      {
+        "keyword": "Elasticsearch",
+        "extractor_name": "llm",
+        "score": 0.8,
+        "category": "기술",
+        "start_position": 319,
+        "end_position": 332,
+        "context_snippet": "...DB | ACID 준수, 확장성 |\n| Redis | 캐싱 | 고속 인메모리 저장 |\n| Elasticsearch | 검색 | 전문 검색 엔진 |\nAPI 설계\n\n3.1 RESTful 원칙\n리소스 식별: ...",
+        "page_number": 1,
+        "line_number": 18,
+        "column_number": 3
+      }
+    ]
+  },
+  "analysis_status": "completed"
+}

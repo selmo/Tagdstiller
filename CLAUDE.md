@@ -3,13 +3,19 @@
 ## 프로젝트 개요 ✅ 완성됨 (2025.08.29)
 이 프로젝트는 문서를 프로젝트 단위로 업로드하고 키워드를 추출하여 관리하는 **완전한 풀스택 시스템**입니다. 
 
-### 핵심 기능 (최종 업데이트 2025.08.29)
+### 핵심 기능 (최종 업데이트 2025.08.30)
+- **🚀 완전 파싱 시스템**: 모든 파서를 동시 사용하여 최상의 결과 보장
+- **📊 단계적 문서 처리**: 파싱→키워드추출→구조분석→KG생성 자동 연계
+- **🔥 Memgraph Knowledge Graph**: 도메인별 지식 그래프 자동 생성 및 그래프 DB 저장 **NEW!**
+- **🎯 도메인 특화 KG**: 기술/학술/비즈니스/법률 문서별 최적화된 엔티티/관계 **NEW!**
+- **🔗 구체적 관계 추론**: RELATED_TO → IMPLEMENTS/CITES/COMPETES_WITH 등 **NEW!**
+- **🏗️ 문서 구조 분석**: 헤더, 테이블, 이미지 등 구조 요소 완전 분석
+- **💾 완전한 파일 저장 시스템**: 파서별 개별 결과 + 종합 결과 모두 저장
 - **다중 파일 형식 지원**: PDF, DOCX, HTML, Markdown, TXT, ZIP 자동 추출
 - **다중 키워드 추출기**: KeyBERT, spaCy NER, LLM(Ollama), KoNLPy
 - **🎯 Dublin Core 메타데이터 시스템**: 국제 표준 메타데이터 스키마 완전 준수
-- **🔍 Docling 파서**: 고급 PDF 구조 추출 (테이블, 섹션, 이미지) **NEW!**
-- **🧠 지식 그래프 구축**: 키워드 관계 분석 및 네트워크 시각화 **NEW!**
-- **📊 로컬 분석 API**: 프로젝트 없이 직접 파일 분석 가능 **NEW!**
+- **🔍 Docling 파서**: 고급 PDF 구조 추출 (테이블, 섹션, 이미지)
+- **📊 로컬 분석 API**: 프로젝트 없이 직접 파일 분석 가능
 - **🐛 고급 디버그 로깅 시스템**: 모든 추출 과정의 중간 결과물을 상세 기록 및 분석
 - **실시간 LLM 연동**: Ollama 서버와 완전 통합, 동적 모델 로딩
 - **spaCy 모델 자동 관리**: 모델 자동 다운로드, 설치 상태 확인, 테스트 기능
@@ -31,9 +37,12 @@
 ### 백엔드
 - Python 3.11+ with Conda Environment
 - FastAPI (완전한 RESTful API)
-- SQLite with SQLAlchemy ORM
-- PyMuPDF, python-docx, BeautifulSoup4 (문서 파싱)
+- SQLite with SQLAlchemy ORM (관계형 데이터)
+- **Memgraph (그래프 데이터베이스)** - Knowledge Graph 저장 **NEW!**
+- PyMuPDF, python-docx, BeautifulSoup4, Docling (문서 파싱)
 - KeyBERT, spaCy, sentence-transformers (AI 키워드 추출)
+- LangChain, Ollama (LLM 통합)
+- KoNLPy (한국어 자연언어처리)
 
 ### 프론트엔드  
 - React 18 with TypeScript
@@ -43,6 +52,9 @@
 ### 배포 및 실행
 - Conda 환경 기반 백엔드 (포트 8000)
 - React 개발 서버 (포트 3001)
+- **Memgraph 그래프 DB (포트 7687)** - Docker 권장 **NEW!**
+- **Memgraph Studio (포트 3000)** - 그래프 시각화 **NEW!**
+- Ollama LLM 서버 (포트 11434)
 - 자동화된 스크립트 (scripts/ 디렉토리)
 
 ## 시스템 아키텍처 (완성됨)
@@ -57,6 +69,18 @@
 - `POST /projects/{id}/upload` - 단일 파일 업로드
 - `POST /projects/{id}/upload_bulk` - 다중 파일 업로드
 - `POST /projects/{id}/extract_keywords/` - 키워드 추출
+
+#### 로컬 파일 완전 파싱 (신규)
+- `POST /local-analysis/parse` - 모든 파서를 사용한 완전 파싱
+- `GET /local-analysis/parse` - 완전 파싱 (GET 방식)
+- `GET /local-analysis/parse/status` - 파싱 상태 확인
+- `GET /local-analysis/parse/results` - 파싱 결과 조회
+
+#### 고급 문서 분석 (신규)
+- `POST /local-analysis/structure-analysis` - 문서 구조 분석
+- `GET /local-analysis/structure-analysis` - 구조 분석 (GET 방식)
+- `POST /local-analysis/knowledge-graph` - Knowledge Graph 생성
+- `GET /local-analysis/knowledge-graph` - KG 조회 (GET 방식)
 
 #### 키워드 관리
 - `GET /projects/{id}/keywords/` - 프로젝트 키워드 조회
@@ -76,6 +100,19 @@
 - `GET /configs/keybert/models/download/progress/{progress_key}` - 다운로드 진행률 스트리밍
 - `DELETE /configs/keybert/models/{model_name}/cache` - 모델 캐시 삭제
 - `GET /configs/keybert/models/{model_name}/status` - 모델 캐시 상태 확인
+
+#### Memgraph Knowledge Graph API (신규)
+- `GET /memgraph/health` - Memgraph 연결 상태 확인
+- `GET /memgraph/stats` - 데이터베이스 통계 정보
+- `POST /memgraph/insert` - KG 데이터 삽입
+- `GET /memgraph/document/{file_path:path}` - 특정 문서 KG 조회
+- `GET /memgraph/search/entities` - 엔티티 검색 (타입, 이름, 도메인 필터)
+- `POST /memgraph/query` - 사용자 정의 Cypher 쿼리 실행
+- `GET /memgraph/export` - KG 데이터 내보내기 (JSON/Cypher)
+- `GET /memgraph/graph/visualization` - 그래프 시각화 데이터
+- `GET /memgraph/entities/types` - 엔티티 타입 목록
+- `GET /memgraph/relationships/types` - 관계 타입 목록
+- `DELETE /memgraph/clear` - 데이터베이스 전체 삭제 (관리자 권한)
 
 ### 프론트엔드 컴포넌트
 - `App.tsx` - 메인 애플리케이션 (리사이저 기능 포함, 완성됨)
@@ -553,3 +590,85 @@ curl "http://localhost:58000/local-analysis/metadata?file_path=document.pdf"
 - **상대 경로 기반**: 현재 작업 디렉토리 기준으로 모든 파일 경로 해석
 - **결과 파일 저장**: 분석 결과를 `.analysis.json` 파일로 자동 저장
 - **Dublin Core 메타데이터**: 국제 표준 메타데이터 함께 제공
+
+## 🔥 Memgraph Knowledge Graph 시스템 <!-- SPEC: memgraph_kg_system --> ✅ 완성됨 (2025.08.30)
+
+### 시스템 개요
+DocExtract는 이제 전문 그래프 데이터베이스인 Memgraph를 사용하여 문서에서 추출한 지식을 의미있는 그래프 구조로 저장하고 관리합니다.
+
+### 주요 특징
+- **🎯 도메인 자동 감지**: 기술, 학술, 비즈니스, 법률, 일반 문서 자동 분류
+- **📊 도메인별 특화 엔티티**: 각 문서 타입에 최적화된 엔티티 타입 생성
+- **🔗 구체적 관계 추론**: `RELATED_TO` → `IMPLEMENTS`, `CITES`, `COMPETES_WITH` 등 의미있는 관계
+- **🚀 자동 저장**: KG 생성과 동시에 Memgraph DB에 자동 저장
+- **🔍 강력한 검색**: Cypher 쿼리를 통한 복잡한 그래프 검색
+- **📈 시각화 지원**: Memgraph Studio 및 웹 API를 통한 그래프 시각화
+
+### 도메인별 엔티티 및 관계
+
+#### 기술 문서
+**엔티티**: `Technology`, `API`, `Function`, `Class`, `Database`, `Server`, `Framework`, `Tool`
+**관계**: `DEPENDS_ON`, `IMPLEMENTS`, `EXTENDS`, `USES`, `CALLS`, `CONNECTS_TO`, `CONFIGURED_BY`
+
+#### 학술 논문
+**엔티티**: `Author`, `Institution`, `Research_Method`, `Theory`, `Dataset`, `Experiment`, `Finding`
+**관계**: `AUTHORED_BY`, `CITES`, `BUILDS_ON`, `PROVES`, `SUPPORTS`, `USES_METHOD`, `BASED_ON`
+
+#### 비즈니스 문서
+**엔티티**: `Company`, `Product`, `Market`, `Stakeholder`, `Process`, `KPI`, `Strategy`
+**관계**: `COMPETES_WITH`, `SUPPLIES_TO`, `PARTNERS_WITH`, `MANAGES`, `MEASURES`, `IMPLEMENTS`
+
+### 사용 예시
+
+#### KG 생성 및 자동 저장
+```bash
+# 문서 분석과 동시에 KG 생성 및 Memgraph 저장
+curl -X POST "http://localhost:8000/local-analysis/knowledge-graph" \
+  -d '{"file_path": "docs/api_manual.pdf"}'
+```
+
+#### 그래프 데이터 조회
+```bash
+# 특정 문서의 KG 조회
+curl "http://localhost:8000/memgraph/document/docs%2Fapi_manual.pdf"
+
+# 엔티티 검색
+curl "http://localhost:8000/memgraph/search/entities?entity_type=API&limit=10"
+
+# 시각화 데이터
+curl "http://localhost:8000/memgraph/graph/visualization?limit=50"
+```
+
+#### Cypher 쿼리 실행
+```bash
+curl -X POST "http://localhost:8000/memgraph/query" \
+  -d '{
+    "query": "MATCH (d:Document)-[:RELATED_TO]->(a:API) WHERE a.name CONTAINS \"REST\" RETURN d.title, a.name"
+  }'
+```
+
+### Memgraph Studio 시각화
+- **웹 인터페이스**: http://localhost:3000
+- **그래프 시각화**: 노드/관계 색상, 크기, 라벨 커스터마이징
+- **대화형 탐색**: 클릭 확장, 필터링, 줌인/줌아웃
+
+### 설치 및 설정
+자세한 설치 가이드는 `MEMGRAPH_SETUP.md` 파일을 참고하세요.
+
+```bash
+# Docker로 Memgraph 실행
+docker run -d -p 7687:7687 -p 3000:3000 --name memgraph memgraph/memgraph-platform
+
+# Python 의존성 설치
+pip install neo4j
+
+# DocExtract 백엔드 실행 (자동 연동)
+./scripts/start_backend.sh
+```
+
+### 통합 워크플로우
+1. **문서 업로드** → 파싱
+2. **키워드 추출** → 도메인 감지
+3. **구조 분석** → 엔티티/관계 추출
+4. **KG 생성** → Memgraph 자동 저장
+5. **시각화/분석** → Studio 또는 API 조회

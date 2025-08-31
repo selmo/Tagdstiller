@@ -37,27 +37,29 @@ class DocumentParserService:
             'zip': [('zip_parser', ZipParser())]
         }
         
-    def get_output_directory(self, file_path: Path) -> Path:
+    def get_output_directory(self, file_path: Path, directory: Optional[Path] = None) -> Path:
         """파일별 출력 디렉토리 경로 반환"""
+        if directory:
+            return directory / file_path.stem
         return file_path.parent / file_path.stem
         
-    def get_parsing_result_path(self, file_path: Path) -> Path:
+    def get_parsing_result_path(self, file_path: Path, directory: Optional[Path] = None) -> Path:
         """파싱 결과 JSON 파일 경로"""
-        output_dir = self.get_output_directory(file_path)
+        output_dir = self.get_output_directory(file_path, directory)
         return output_dir / "parsing_results.json"
         
-    def has_parsing_results(self, file_path: Path) -> bool:
+    def has_parsing_results(self, file_path: Path, directory: Optional[Path] = None) -> bool:
         """파싱 결과가 이미 존재하는지 확인"""
-        result_path = self.get_parsing_result_path(file_path)
+        result_path = self.get_parsing_result_path(file_path, directory)
         return result_path.exists()
         
-    def load_existing_parsing_results(self, file_path: Path) -> Optional[Dict[str, Any]]:
+    def load_existing_parsing_results(self, file_path: Path, directory: Optional[Path] = None) -> Optional[Dict[str, Any]]:
         """기존 파싱 결과 로드"""
-        if not self.has_parsing_results(file_path):
+        if not self.has_parsing_results(file_path, directory):
             return None
             
         try:
-            result_path = self.get_parsing_result_path(file_path)
+            result_path = self.get_parsing_result_path(file_path, directory)
             with open(result_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
@@ -67,7 +69,8 @@ class DocumentParserService:
     def parse_document_comprehensive(
         self, 
         file_path: Path, 
-        force_reparse: bool = False
+        force_reparse: bool = False,
+        directory: Optional[Path] = None
     ) -> Dict[str, Any]:
         """
         문서를 모든 적용 가능한 파서로 완전 파싱
@@ -82,12 +85,12 @@ class DocumentParserService:
         logger.info(f"📄 문서 완전 파싱 시작: {file_path.name}")
         
         # 기존 결과 확인
-        if not force_reparse and self.has_parsing_results(file_path):
+        if not force_reparse and self.has_parsing_results(file_path, directory):
             logger.info("기존 파싱 결과 재사용")
-            return self.load_existing_parsing_results(file_path)
+            return self.load_existing_parsing_results(file_path, directory)
             
         # 출력 디렉토리 생성
-        output_dir = self.get_output_directory(file_path)
+        output_dir = self.get_output_directory(file_path, directory)
         output_dir.mkdir(exist_ok=True)
         
         # 파일 확장자 확인
@@ -128,14 +131,17 @@ class DocumentParserService:
                     parsing_results["summary"]["successful_parsers"] += 1
                     parsing_results["parsers_used"].append(parser_name)
                     
-                    # 파싱 결과 저장
+                    # 개별 파서 결과를 파일로 저장 (Markdown 파일 이동 포함)
+                    self._save_individual_parser_result(output_dir, parser_name, result)
+                    
+                    # 파싱 결과 저장 (파일 저장 후 업데이트된 경로 사용)
                     parser_result = {
                         "success": True,
                         "parser_name": result.parser_name,
                         "text_length": len(result.text),
                         "word_count": len(result.text.split()) if result.text else 0,
                         "metadata": self._serialize_metadata(result.metadata) if result.metadata else None,
-                        "md_file_path": result.md_file_path,
+                        "md_file_path": result.md_file_path,  # 이동 후 업데이트된 경로 사용
                         "parsing_time": getattr(result, 'parsing_time', None)
                     }
                     
@@ -154,9 +160,6 @@ class DocumentParserService:
                         parser_result["structured_info"] = structured_info
                     
                     parsing_results["parsing_results"][parser_name] = parser_result
-                    
-                    # 개별 파서 결과를 파일로 저장
-                    self._save_individual_parser_result(output_dir, parser_name, result)
                     
                     logger.info(f"✅ {parser_name} 파싱 성공 (품질: {quality_score:.2f})")
                     
@@ -179,7 +182,7 @@ class DocumentParserService:
                 logger.error(f"💥 {parser_name} 파서 오류: {e}")
         
         # 전체 결과 저장
-        self._save_comprehensive_results(file_path, parsing_results)
+        self._save_comprehensive_results(file_path, parsing_results, directory)
         
         logger.info(f"📋 완전 파싱 완료: 성공 {parsing_results['summary']['successful_parsers']}/{parsing_results['summary']['total_parsers']}")
         return parsing_results
@@ -286,15 +289,31 @@ class DocumentParserService:
                 with open(structure_file, 'w', encoding='utf-8') as f:
                     json.dump(structured_info, f, ensure_ascii=False, indent=2)
             
+            # Markdown 파일을 올바른 위치로 이동 (docling 및 pymupdf4llm 파서의 경우)
+            if result.md_file_path and Path(result.md_file_path).exists():
+                import shutil
+                source_md_file = Path(result.md_file_path)
+                
+                # 원본 출력 디렉토리로 이동
+                target_md_file = output_dir / source_md_file.name
+                try:
+                    shutil.move(str(source_md_file), str(target_md_file))
+                    logger.info(f"📝 Markdown 파일 이동: {source_md_file} → {target_md_file}")
+                    
+                    # ParseResult의 md_file_path 업데이트
+                    result.md_file_path = str(target_md_file)
+                except Exception as move_error:
+                    logger.warning(f"⚠️ Markdown 파일 이동 실패: {move_error}")
+            
             logger.info(f"📁 {parser_name} 개별 결과 저장 완료: {parser_dir}")
             
         except Exception as e:
             logger.error(f"❌ {parser_name} 개별 결과 저장 실패: {e}")
             
-    def _save_comprehensive_results(self, file_path: Path, results: Dict[str, Any]):
+    def _save_comprehensive_results(self, file_path: Path, results: Dict[str, Any], directory: Optional[Path] = None):
         """전체 파싱 결과를 종합 파일로 저장"""
         try:
-            result_path = self.get_parsing_result_path(file_path)
+            result_path = self.get_parsing_result_path(file_path, directory)
             with open(result_path, 'w', encoding='utf-8') as f:
                 json.dump(results, f, ensure_ascii=False, indent=2)
             
