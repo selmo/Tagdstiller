@@ -15,6 +15,22 @@ Local Analysis API는 서버의 로컬 파일 시스템에 있는 문서를 직�
 - **메타데이터 추출**: Dublin Core 표준 메타데이터 완전 지원
 - **디렉토리 관리**: 작업 디렉토리 변경 및 파일 목록 조회
 - **결과 재사용**: 각 단계별 결과 캐싱으로 성능 최적화
+- **🆕 디렉토리 파라미터**: 모든 결과 파일을 사용자 지정 디렉토리에 저장 (2025.08.31)
+- **🆕 saved_files 응답**: 생성된 모든 파일의 경로와 유형 정보 포함
+- **🆕 마크다운 파일 관리**: docling.md, pymupdf4llm.md 파일을 지정된 위치에 정확히 생성
+
+## 🆕 최신 업데이트 (2025.08.31)
+
+### 새로운 기능
+1. **directory 파라미터**: 모든 API 엔드포인트에서 결과 파일 저장 위치 지정 가능
+2. **saved_files 응답**: API 응답에 생성된 모든 파일의 상세 정보 포함
+3. **마크다운 파일 위치 수정**: 파서가 생성하는 마크다운 파일이 지정된 디렉토리에 정확히 생성
+4. **use_llm 파라미터**: metadata 엔드포인트에서 LLM 기반 분석 옵션 추가
+
+### 개선사항
+- 파일 생성 위치의 완전한 제어 가능
+- 결과 파일 추적 및 관리 개선
+- API 응답의 일관성과 투명성 향상
 
 ## 📋 API 엔드포인트 목록
 
@@ -27,13 +43,15 @@ Content-Type: application/json
 
 {
     "file_path": "test_document.pdf",
-    "force_reparse": false
+    "force_reparse": false,
+    "directory": "/custom/output/path"
 }
 ```
 
 **Request Body**:
 - `file_path` (string, required): 파싱할 문서 경로
 - `force_reparse` (boolean, optional): 기존 결과 무시하고 재파싱 여부 (기본값: false)
+- `directory` (string, optional): **🆕** 결과 파일을 저장할 디렉토리 경로 (기본값: 파일과 같은 디렉토리)
 
 **Response**:
 ```json
@@ -59,7 +77,7 @@ Content-Type: application/json
                 "document_structure": {
                     "tables": [],
                     "images": [],
-                    "sections": [...]
+                    "sections": ["..."]
                 }
             }
         }
@@ -76,7 +94,7 @@ Content-Type: application/json
 
 #### 🔵 문서 완전 파싱 (GET)
 ```http
-GET /local-analysis/parse?file_path=test.pdf&force_reparse=false
+GET /local-analysis/parse?file_path=test.pdf&force_reparse=false&directory=/custom/output/path
 ```
 
 #### 🟢 파싱 상태 확인
@@ -223,13 +241,15 @@ GET /local-analysis/status?file_path=test_document.pdf
 
 #### 🟢 메타데이터 추출 (GET)
 ```http
-GET /local-analysis/metadata?file_path=test.pdf&force_reparse=false&parser_name=docling
+GET /local-analysis/metadata?file_path=test.pdf&force_reparse=false&parser_name=docling&directory=/custom/output&use_llm=true
 ```
 
 **Query Parameters**:
 - `file_path` (string, required): 파일 경로
 - `force_reparse` (boolean, optional): 재파싱 여부 (기본값: false)
 - `parser_name` (string, optional): 특정 파서의 메타데이터만 조회
+- `directory` (string, optional): **🆕** 결과 파일을 저장할 디렉토리 경로
+- `use_llm` (boolean, optional): **🆕** LLM 기반 분석 사용 여부 (기본값: false)
 
 **동작 방식**:
 1. 파싱 결과가 없으면 먼저 완전 파싱을 자동 수행
@@ -241,7 +261,7 @@ GET /local-analysis/metadata?file_path=test.pdf&force_reparse=false&parser_name=
 POST /local-analysis/metadata
 Content-Type: application/json
 
-{
+{F
     "file_path": "test_document.pdf",
     "force_reparse": false,
     "parser_name": "docling"

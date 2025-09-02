@@ -70,17 +70,19 @@
 - `POST /projects/{id}/upload_bulk` - 다중 파일 업로드
 - `POST /projects/{id}/extract_keywords/` - 키워드 추출
 
-#### 로컬 파일 완전 파싱 (신규)
-- `POST /local-analysis/parse` - 모든 파서를 사용한 완전 파싱
-- `GET /local-analysis/parse` - 완전 파싱 (GET 방식)
+#### 로컬 파일 완전 파싱 (2025.08.31 업데이트)
+- `POST /local-analysis/parse` - 모든 파서를 사용한 완전 파싱 (directory 파라미터 지원)
+- `GET /local-analysis/parse` - 완전 파싱 (GET 방식, directory 파라미터 지원)
 - `GET /local-analysis/parse/status` - 파싱 상태 확인
 - `GET /local-analysis/parse/results` - 파싱 결과 조회
 
-#### 고급 문서 분석 (신규)
-- `POST /local-analysis/structure-analysis` - 문서 구조 분석
+#### 고급 문서 분석 (2025.08.31 업데이트)
+- `POST /local-analysis/structure-analysis` - 문서 구조 분석 (directory, use_llm 파라미터 지원)
 - `GET /local-analysis/structure-analysis` - 구조 분석 (GET 방식)
-- `POST /local-analysis/knowledge-graph` - Knowledge Graph 생성
+- `POST /local-analysis/knowledge-graph` - Knowledge Graph 생성 (directory, use_llm 파라미터 지원)
 - `GET /local-analysis/knowledge-graph` - KG 조회 (GET 방식)
+- `GET /local-analysis/metadata` - 메타데이터 추출 (directory, use_llm 파라미터 지원)
+- `POST /local-analysis/metadata` - 메타데이터 추출 (POST 방식)
 
 #### 키워드 관리
 - `GET /projects/{id}/keywords/` - 프로젝트 키워드 조회
@@ -561,6 +563,9 @@ curl -X POST "http://localhost:58000/local-analysis/analyze" \
 - **실시간 분석**: 즉시 키워드 추출 결과 제공
 - **메타데이터 전용 추출**: 키워드 추출 없이 메타데이터만 빠르게 확인
 - **다중 추출기 지원**: 여러 키워드 추출기 동시 사용
+- **🆕 디렉토리 파라미터**: 모든 결과 파일을 사용자 지정 디렉토리에 생성 (2025.08.31)
+- **🆕 파일 경로 추적**: saved_files 응답으로 생성된 모든 파일 경로 제공
+- **🆕 마크다운 파일 관리**: docling.md, pymupdf4llm.md를 지정된 위치에 정확히 생성
 
 ### 핵심 API
 ```bash
@@ -572,13 +577,16 @@ curl -X POST "http://localhost:58000/local-analysis/config/change-directory" \
   -H "Content-Type: application/json" \
   -d '{"directory": "/path/to/documents"}'
 
-# 파일 분석
+# 파일 분석 (디렉토리 파라미터 사용)
 curl -X POST "http://localhost:58000/local-analysis/analyze" \
   -H "Content-Type: application/json" \
-  -d '{"file_path": "document.pdf", "extractors": ["KeyBERT", "spaCy NER"]}'
+  -d '{"file_path": "document.pdf", "extractors": ["KeyBERT", "spaCy NER"], "directory": "/results/output"}'
 
-# 메타데이터만 추출
-curl "http://localhost:58000/local-analysis/metadata?file_path=document.pdf"
+# 메타데이터만 추출 (디렉토리 파라미터 사용)
+curl -G "http://localhost:58000/local-analysis/metadata" \
+  --data-urlencode "file_path=document.pdf" \
+  --data-urlencode "directory=/results/output" \
+  --data-urlencode "use_llm=true"
 ```
 
 ### 구현 위치

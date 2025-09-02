@@ -11,6 +11,7 @@ from pathlib import Path
 from dependencies import get_db
 from services.local_file_analyzer import LocalFileAnalyzer
 from services.document_parser_service import DocumentParserService
+from services.memgraph_service import MemgraphService
 
 
 # Request/Response 모델
@@ -792,7 +793,7 @@ async def analyze_document_structure(
     
     force_reparse = request.get("force_reparse", False)
     force_reanalyze = request.get("force_reanalyze", False)
-    use_llm = request.get("use_llm", False)  # LLM 기반 구조 분석 옵션 추가
+    use_llm = request.get("use_llm", True)  # LLM 기반 구조 분석 옵션 (기본값: True)
     directory = request.get("directory")  # 디렉토리 옵션 추가
     
     parser_service = DocumentParserService()
@@ -1070,6 +1071,176 @@ async def get_structure_analysis(
     return await analyze_document_structure(request, db)
 
 
+def _integrate_llm_structure_into_kg(kg_result: Dict[str, Any], llm_analysis: Dict[str, Any], file_path: str) -> Dict[str, Any]:
+    """
+    LLM 구조 분석 결과를 Knowledge Graph에 통합합니다.
+    structureAnalysis 섹션만 사용하여 깨끗한 지식 그래프를 구축합니다.
+    
+    Args:
+        kg_result: 기존 KG 결과
+        llm_analysis: LLM 구조 분석 결과
+        file_path: 문서 파일 경로
+    
+    Returns:
+        통합된 KG 결과
+    """
+    import hashlib
+    import os
+    
+    def _hash(s: str) -> str:
+        return hashlib.sha1(s.encode("utf-8", errors="ignore")).hexdigest()[:16]
+    
+    # 타입 안전성 확인
+    if not isinstance(kg_result, dict) or not isinstance(llm_analysis, dict):
+        return kg_result
+    
+    if not llm_analysis:
+        return kg_result
+    
+    # structureAnalysis만 사용하므로 새로운 엔티티/관계 리스트로 시작
+    entities = []
+    relationships = []
+    structural_hierarchy = []
+    
+    # 문서 노드 생성 (structureAnalysis 전용)
+    doc_info = llm_analysis.get("documentInfo", {})
+    doc_entity_id = f"doc_{_hash(file_path)}"
+    
+    # 문서 엔티티 생성
+    doc_entity = {
+        "id": doc_entity_id,
+        "type": "Document",
+        "properties": {
+            "title": doc_info.get("title", "") if doc_info else os.path.basename(file_path),
+            "document_type": doc_info.get("documentType", "") if doc_info else "document",
+            "file_path": file_path,
+            "publication_date": doc_info.get("publicationInfo", {}).get("publicationDate", "") if doc_info else "",
+            "publishing_institution": doc_info.get("publicationInfo", {}).get("publishingInstitution", "") if doc_info else ""
+        }
+    }
+    entities.append(doc_entity)
+    
+    # structureAnalysis의 계층적 문서 구조를 그래프로 구성
+    for section_idx, section in enumerate(llm_analysis.get("structureAnalysis", [])):
+        # 메인 섹션 엔티티
+        section_entity = {
+            "id": f"llm_section_{_hash(section.get('title', ''))}_{section_idx}",
+            "type": "DocumentSection",
+            "properties": {
+                "title": section.get("title", ""),
+                "unit": section.get("unit", ""),
+                "content": section.get("mainContent", ""),
+                "keywords": section.get("keywords", []),
+                "page": section.get("page", ""),
+                "section_index": section_idx,
+                "hierarchical_level": 1,
+                "section_type": "main_section"
+            }
+        }
+        entities.append(section_entity)
+        
+        # 문서-섹션 관계
+        relationships.append({
+            "id": f"rel_{_hash(doc_entity_id + section_entity['id'])}",
+            "type": "CONTAINS_SECTION",
+            "source": doc_entity_id,
+            "target": section_entity["id"],
+            "properties": {
+                "unit": section.get("unit", ""),
+                "section_index": section_idx,
+                "relationship_type": "document_structure"
+            }
+        })
+        
+        # 섹션의 키워드들을 개별 엔티티로 추가하고 관계 설정
+        for keyword in section.get("keywords", []):
+            keyword_entity = {
+                "id": f"llm_keyword_{_hash(keyword)}_{section_idx}",
+                "type": "SectionKeyword",
+                "properties": {
+                    "text": keyword,
+                    "source_section": section.get("title", ""),
+                    "section_unit": section.get("unit", ""),
+                    "extraction_method": "llm_structure_analysis"
+                }
+            }
+            entities.append(keyword_entity)
+            
+            # 섹션-키워드 관계
+            relationships.append({
+                "id": f"rel_{_hash(section_entity['id'] + keyword_entity['id'])}",
+                "type": "HAS_KEYWORD",
+                "source": section_entity["id"],
+                "target": keyword_entity["id"],
+                "properties": {"extraction_source": "section_content"}
+            })
+        
+        # 하위 구조 (subStructure) 처리
+        for subsection_idx, subsection in enumerate(section.get("subStructure", [])):
+            subsection_entity = {
+                "id": f"llm_subsection_{_hash(subsection.get('title', ''))}_{section_idx}_{subsection_idx}",
+                "type": "DocumentSubsection",
+                "properties": {
+                    "title": subsection.get("title", ""),
+                    "unit": subsection.get("unit", ""),
+                    "content": subsection.get("mainContent", ""),
+                    "keywords": subsection.get("keywords", []),
+                    "parent_section": section.get("title", ""),
+                    "subsection_index": subsection_idx,
+                    "hierarchical_level": 2,
+                    "section_type": "subsection"
+                }
+            }
+            entities.append(subsection_entity)
+            
+            # 섹션-하위섹션 관계
+            relationships.append({
+                "id": f"rel_{_hash(section_entity['id'] + subsection_entity['id'])}",
+                "type": "HAS_SUBSECTION",
+                "source": section_entity["id"],
+                "target": subsection_entity["id"],
+                "properties": {
+                    "unit": subsection.get("unit", ""),
+                    "subsection_index": subsection_idx,
+                    "relationship_type": "hierarchical_structure"
+                }
+            })
+            
+            # 하위섹션의 키워드들을 개별 엔티티로 추가
+            for keyword in subsection.get("keywords", []):
+                subsection_keyword_entity = {
+                    "id": f"llm_sub_keyword_{_hash(keyword)}_{section_idx}_{subsection_idx}",
+                    "type": "SubsectionKeyword",
+                    "properties": {
+                        "text": keyword,
+                        "source_subsection": subsection.get("title", ""),
+                        "parent_section": section.get("title", ""),
+                        "subsection_unit": subsection.get("unit", ""),
+                        "extraction_method": "llm_structure_analysis"
+                    }
+                }
+                entities.append(subsection_keyword_entity)
+                
+                # 하위섹션-키워드 관계
+                relationships.append({
+                    "id": f"rel_{_hash(subsection_entity['id'] + subsection_keyword_entity['id'])}",
+                    "type": "HAS_KEYWORD",
+                    "source": subsection_entity["id"],
+                    "target": subsection_keyword_entity["id"],
+                    "properties": {"extraction_source": "subsection_content"}
+                })
+    
+    # structureAnalysis만 사용하므로 coreContent, keyData 등은 제거
+    # 오직 문서 구조(섹션, 하위섹션, 키워드)만 그래프로 구성
+    
+    return {
+        **kg_result,
+        "entities": entities,
+        "relationships": relationships,
+        "structural_hierarchy": structural_hierarchy
+    }
+
+
 @router.post("/knowledge-graph")
 async def generate_knowledge_graph(
     request: dict,
@@ -1093,6 +1264,7 @@ async def generate_knowledge_graph(
     force_reparse = request.get("force_reparse", False)
     force_reanalyze = request.get("force_reanalyze", False)
     force_rebuild = request.get("force_rebuild", False)
+    use_llm = request.get("use_llm", True)  # LLM 기반 분석 옵션 (기본값: True)
     directory = request.get("directory")
     
     parser_service = DocumentParserService()
@@ -1139,7 +1311,7 @@ async def generate_knowledge_graph(
             _move_markdown_files_to_correct_location(parsing_results, file_path_obj, output_dir)
         
         # 2. 구조 분석 수행 (KG 구축의 필수 전제조건)
-        structure_result_path = output_dir / "structure_analysis.json"
+        structure_result_path = output_dir / ("llm_structure_analysis.json" if use_llm else "structure_analysis.json")
         structure_results = {}
         
         # 구조 분석이 없거나 force_rebuild인 경우 구조 분석 수행
@@ -1154,10 +1326,25 @@ async def generate_knowledge_graph(
                     with open(text_file, 'r', encoding='utf-8') as f:
                         document_text = f.read()
             
-            structure_results = analyzer.analyze_document_structure(
-                text=document_text,
-                file_extension=file_path_obj.suffix
-            )
+            if use_llm:
+                # LLM 기반 구조 분석 수행
+                structure_results = analyzer.analyze_document_structure_with_llm(
+                    text=document_text,
+                    file_path=str(file_path_obj),
+                    file_extension=file_path_obj.suffix.lower()
+                )
+            else:
+                # 기본 구조 분석 수행
+                structure_results = analyzer.analyze_document_structure(
+                    text=document_text,
+                    file_extension=file_path_obj.suffix
+                )
+            
+            # 파싱 정보 추가
+            structure_results["file_info"] = parsing_results["file_info"]
+            structure_results["analysis_timestamp"] = datetime.now().isoformat()
+            structure_results["source_parser"] = best_parser
+            
             # 구조 분석 결과 저장
             with open(structure_result_path, 'w', encoding='utf-8') as f:
                 json.dump(structure_results, f, ensure_ascii=False, indent=2)
@@ -1181,7 +1368,8 @@ async def generate_knowledge_graph(
         
         # 4. 계층적 Knowledge Graph 생성
         from services.hierarchical_kg_builder import HierarchicalKGBuilder
-        kg_builder = HierarchicalKGBuilder(db_session=db)
+        # LLM을 사용할 경우 자동 Memgraph 저장을 비활성화 (향상된 버전을 나중에 저장)
+        kg_builder = HierarchicalKGBuilder(db_session=db, auto_save_to_memgraph=not use_llm)
         
         # 최고 품질 파서의 텍스트 사용  
         best_parser = parsing_results.get("summary", {}).get("best_parser")
@@ -1200,15 +1388,74 @@ async def generate_knowledge_graph(
             document_text = ""
         
         # 계층적 KG 생성 - 문서 구조 기반
+        # LLM 모드일 때는 키워드를 사용하지 않음 (structureAnalysis만 사용)
         kg_result = kg_builder.build_hierarchical_knowledge_graph(
             file_path=str(file_path_obj),
             document_text=document_text,
-            keywords=analysis_results.get("keywords", {}),
+            keywords={} if use_llm else analysis_results.get("keywords", {}),
             metadata=parsing_results.get("file_info", {}),
             structure_analysis=structure_results,
             parsing_results=parsing_results,
             force_rebuild=force_rebuild
         )
+        
+        # LLM 구조 분석 결과를 KG에 통합
+        if use_llm and structure_results.get("llm_analysis"):
+            kg_result = _integrate_llm_structure_into_kg(kg_result, structure_results["llm_analysis"], str(file_path_obj))
+        
+        # LLM 구조 통합 완료 후 향상된 KG를 Memgraph에 저장
+        if use_llm and structure_results.get("llm_analysis") and isinstance(kg_result, dict):
+            try:
+                import logging
+                logger = logging.getLogger(__name__)
+                
+                # 향상된 엔티티 타입 목록 확인
+                entity_types = set()
+                for entity in kg_result.get('entities', []):
+                    entity_types.add(entity.get('type', 'Unknown'))
+                
+                logger.info(f"🔄 LLM 향상된 KG를 Memgraph에 저장 시도 중...")
+                logger.info(f"📊 총 엔티티: {len(kg_result.get('entities', []))}, 총 관계: {len(kg_result.get('relationships', []))}")
+                logger.info(f"📝 엔티티 타입 목록: {', '.join(sorted(entity_types))}")
+                
+                # DocumentSection 등 LLM 엔티티 개수 확인
+                llm_entities = [e for e in kg_result.get('entities', []) if e.get('type') in ['DocumentSection', 'DocumentSubsection', 'Author', 'Topic', 'Statistic']]
+                logger.info(f"🎯 LLM 특화 엔티티: {len(llm_entities)}개")
+                
+                memgraph_service = MemgraphService()
+                
+                if memgraph_service.is_connected():
+                    # 기존 데이터 완전히 삭제하고 새로 저장
+                    logger.info("🗑️ 기존 Memgraph 데이터 삭제 및 향상된 KG 저장 중 (clear_existing=True)...")
+                    success = memgraph_service.insert_kg_data(kg_result, clear_existing=True)
+                    
+                    if success:
+                        if "metadata" not in kg_result:
+                            kg_result["metadata"] = {}
+                        kg_result["metadata"]["memgraph_enhanced_saved"] = True
+                        kg_result["metadata"]["memgraph_enhanced_saved_at"] = datetime.now().isoformat()
+                        kg_result["metadata"]["memgraph_enhanced_entities"] = len(kg_result.get("entities", []))
+                        kg_result["metadata"]["memgraph_enhanced_relationships"] = len(kg_result.get("relationships", []))
+                        logger.info(f"✅ Memgraph에 향상된 KG 저장 성공! (엔티티: {len(kg_result.get('entities', []))}, 관계: {len(kg_result.get('relationships', []))})")
+                    else:
+                        if "metadata" not in kg_result:
+                            kg_result["metadata"] = {}
+                        kg_result["metadata"]["memgraph_enhanced_saved"] = False
+                        logger.warning("⚠️ Memgraph에 향상된 KG 저장 실패")
+                else:
+                    if "metadata" not in kg_result:
+                        kg_result["metadata"] = {}
+                    kg_result["metadata"]["memgraph_enhanced_saved"] = False
+                    kg_result["metadata"]["memgraph_error"] = "Connection failed"
+                    logger.error("❌ Memgraph 연결 실패")
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"❌ Memgraph 향상된 KG 저장 중 오류: {e}")
+                if "metadata" not in kg_result:
+                    kg_result["metadata"] = {}
+                kg_result["metadata"]["memgraph_enhanced_saved"] = False
+                kg_result["metadata"]["memgraph_enhanced_error"] = str(e)
         
         # 계층적 KG 결과에 추가 정보 포함
         kg_with_context = {
@@ -1216,6 +1463,7 @@ async def generate_knowledge_graph(
             "generation_timestamp": datetime.now().isoformat(),
             "source_parser": best_parser,
             "keywords_used": len(analysis_results.get("keywords", {})),
+            "llm_structure_integrated": use_llm and "llm_analysis" in structure_results,
             "knowledge_graph": kg_result,
             "statistics": {
                 "total_entities": len(kg_result.get("entities", [])),
@@ -1256,7 +1504,7 @@ async def generate_knowledge_graph(
         })
         
         # 구조 분석 결과 파일
-        structure_result_path = output_dir / "structure_analysis.json"
+        structure_result_path = output_dir / ("llm_structure_analysis.json" if use_llm else "structure_analysis.json")
         if structure_result_path.exists():
             saved_files.append({
                 "type": "structure_analysis",
@@ -1344,6 +1592,7 @@ async def get_knowledge_graph(
     force_reparse: bool = Query(False, description="재파싱 여부"),
     force_reanalyze: bool = Query(False, description="재분석 여부"),
     force_rebuild: bool = Query(False, description="KG 재생성 여부"),
+    use_llm: bool = Query(True, description="LLM 기반 구조 분석 사용 여부 (기본값: True)"),
     directory: Optional[str] = Query(None, description="결과 저장 디렉토리"),
     db: Session = Depends(get_db)
 ):
@@ -1355,6 +1604,7 @@ async def get_knowledge_graph(
         "force_reparse": force_reparse,
         "force_reanalyze": force_reanalyze,
         "force_rebuild": force_rebuild,
+        "use_llm": use_llm,
         "directory": directory
     }
     

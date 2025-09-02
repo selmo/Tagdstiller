@@ -1,5 +1,10 @@
 # 🔍 로컬 분석 API 사용법
 
+## 🆕 최신 업데이트 (2025.08.31)
+- **directory 파라미터** 추가: 모든 결과 파일을 지정된 디렉토리에 저장 가능
+- **saved_files 응답** 추가: 생성된 모든 파일의 경로 정보 제공
+- **마크다운 파일 위치 수정**: docling.md, pymupdf4llm.md가 정확한 위치에 생성됨
+
 ## ⚠️ 중요: 올바른 사용법
 
 ### ❌ 잘못된 사용 예시
@@ -75,22 +80,33 @@ curl -X POST "http://localhost:58000/local-analysis/analyze" \
     "extractors": ["KeyBERT", "spaCy NER"]
   }'
 
+# 🆕 directory 파라미터 사용 (결과 파일을 특정 디렉토리에 저장)
+curl -X POST "http://localhost:58000/local-analysis/analyze" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_path": "test_document.txt",
+    "extractors": ["KeyBERT", "spaCy NER"],
+    "directory": "/Users/selmo/analysis_results"
+  }'
+
 # 한글 파일명 처리 (POST 방식 권장)
 curl -X POST "http://localhost:58000/local-analysis/analyze" \
   -H "Content-Type: application/json" \
   -d '{
     "file_path": "연구보고서_최종본.pdf",
     "extractors": ["KeyBERT", "spaCy NER", "LLM"],
-    "use_docling": true
+    "use_docling": true,
+    "directory": "/Users/selmo/analysis_results"
   }'
 
 # GET 방식 (영문 파일명)
 curl "http://localhost:58000/local-analysis/analyze?file_path=test_document.txt&extractors=KeyBERT,spaCy%20NER"
 
-# GET 방식 (한글 파일명 - URL 인코딩 필요)
+# 🆕 GET 방식 + directory 파라미터 (한글 파일명 - URL 인코딩 필요)
 curl -G "http://localhost:58000/local-analysis/analyze" \
   --data-urlencode "file_path=연구보고서_최종본.pdf" \
-  --data-urlencode "extractors=KeyBERT,spaCy NER"
+  --data-urlencode "extractors=KeyBERT,spaCy NER" \
+  --data-urlencode "directory=/Users/selmo/analysis_results"
 ```
 
 ### 4단계: 결과 확인
@@ -178,3 +194,50 @@ curl -X POST "http://localhost:58000/local-analysis/analyze" \
 ```
 
 이 스크립트는 올바른 형식으로 모든 API를 호출합니다.
+## 🆕 메타데이터 추출 (2025.08.31 업데이트)
+
+### directory 파라미터를 사용한 메타데이터 추출
+
+```bash
+# GET 방식으로 메타데이터 추출 (디렉토리 지정)
+curl -G "http://localhost:58000/local-analysis/metadata" \n  --data-urlencode "file_path=문서파일.pdf" \n  --data-urlencode "directory=/Users/selmo/metadata_results" \n  --data-urlencode "use_llm=true"
+
+# POST 방식으로 메타데이터 추출 (디렉토리 지정)
+curl -X POST "http://localhost:58000/local-analysis/metadata" \n  -H "Content-Type: application/json" \n  -d '{
+    "file_path": "문서파일.pdf",
+    "directory": "/Users/selmo/metadata_results",
+    "use_llm": true,
+    "force_reparse": false
+  }'
+```
+
+### saved_files 응답 예시
+API 응답에는 이제 `saved_files` 필드가 포함되어 생성된 모든 파일의 정보를 제공합니다:
+
+```json
+{
+  "file_info": { ... },
+  "metadata_by_parser": { ... },
+  "output_directory": "/Users/selmo/metadata_results/문서파일",
+  "saved_files": [
+    {
+      "type": "parsing_summary",
+      "path": "/Users/selmo/metadata_results/문서파일/parsing_results.json",
+      "description": "파싱 결과 종합 파일"
+    },
+    {
+      "type": "markdown",
+      "parser": "docling",
+      "path": "/Users/selmo/metadata_results/문서파일/docling.md",
+      "description": "Docling 파서로 생성된 Markdown 파일"
+    },
+    {
+      "type": "markdown",
+      "parser": "pdf_parser",
+      "path": "/Users/selmo/metadata_results/문서파일/pymupdf4llm.md",
+      "description": "PyMuPDF4LLM으로 생성된 Markdown 파일"
+    }
+  ]
+}
+```
+

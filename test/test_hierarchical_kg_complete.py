@@ -10,8 +10,8 @@ Complete KG Pipeline Test
 
 import sys
 import os
-sys.path.append('backend')
-os.chdir('backend')
+sys.path.append('../backend')
+os.chdir('../backend')
 
 from services.hierarchical_kg_builder import HierarchicalKGBuilder
 from services.local_file_analyzer import LocalFileAnalyzer

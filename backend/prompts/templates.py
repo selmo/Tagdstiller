@@ -272,68 +272,68 @@ class DocumentStructurePrompts:
 
 ```json
 {{
-  "문서정보": {{
-    "제목": "",
-    "부제목": "",
-    "문서유형": "",
-    "발행정보": {{
-      "발행일자": "",
-      "발행기관": "",
-      "문서번호": ""
+  "documentInfo": {{
+    "title": "",
+    "subtitle": "",
+    "documentType": "",
+    "publicationInfo": {{
+      "publicationDate": "",
+      "publishingInstitution": "",
+      "documentNumber": ""
     }},
-    "저자정보": [
+    "authorInfo": [
       {{
-        "이름": "",
-        "소속": "",
-        "역할": ""
+        "name": "",
+        "affiliation": "",
+        "role": ""
       }}
     ]
   }},
   
-  "구조분석": [
+  "structureAnalysis": [
     {{
-      "단위": "장/절",
-      "제목": "",
-      "페이지": "",
-      "주요내용": "",
-      "키워드": [],
-      "하위구조": [
+      "unit": "장/절",
+      "title": "",
+      "page": "",
+      "mainContent": "",
+      "keywords": [],
+      "subStructure": [
         {{
-          "단위": "소절",
-          "제목": "",
-          "주요내용": "",
-          "키워드": []
+          "unit": "소절",
+          "title": "",
+          "mainContent": "",
+          "keywords": []
         }}
       ]
     }}
   ],
   
-  "핵심내용": {{
-    "주제": [],
-    "목적": "",
-    "주요발견": [],
-    "결론": [],
-    "제언": []
+  "coreContent": {{
+    "topics": [],
+    "purpose": "",
+    "keyFindings": [],
+    "conclusion": [],
+    "recommendations": []
   }},
   
-  "주요데이터": {{
-    "통계": {{
-      "수치명": "값",
-      "단위": "설명"
+  "keyData": {{
+    "statistics": {{
+      "metricName": "value",
+      "unit": "description"
     }},
-    "일자": {{
-      "기준일": "",
-      "중요시점": []
+    "dates": {{
+      "referenceDate": "",
+      "keyTimelines": []
     }},
-    "제도": [],
-    "기관": []
+    "systems": [],
+    "organizations": []
   }},
   
-  "메타정보": {{
-    "방법론": "",
-    "대상독자": "",
-    "활용분야": [],
-    "분류태그": []
+  "metaInfo": {{
+    "methodology": "",
+    "targetAudience": "",
+    "applicationAreas": [],
+    "classificationTags": []
   }}
 }}
 ```
