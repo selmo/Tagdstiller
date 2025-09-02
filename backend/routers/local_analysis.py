@@ -1297,14 +1297,31 @@ async def generate_knowledge_graph(
                 return json.load(f)
         
         # 1. 파싱 결과 확인 및 필요시 파싱 수행
-        if not parser_service.has_parsing_results(file_path_obj, directory_path) or force_reparse:
-            parsing_results = parser_service.parse_document_comprehensive(
-                file_path=file_path_obj,
-                force_reparse=force_reparse,
-                directory=directory_path
-            )
-        else:
-            parsing_results = parser_service.load_existing_parsing_results(file_path_obj, directory_path)
+        parsing_results = {}
+        try:
+            if not parser_service.has_parsing_results(file_path_obj, directory_path) or force_reparse:
+                parsing_results = parser_service.parse_document_comprehensive(
+                    file_path=file_path_obj,
+                    force_reparse=force_reparse,
+                    directory=directory_path
+                )
+            else:
+                parsing_results = parser_service.load_existing_parsing_results(file_path_obj, directory_path)
+        except Exception as parsing_error:
+            # 파싱 실패 시 빈 결과로 계속 진행
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"⚠️ 파싱 실패, 빈 결과로 KG 생성 진행: {parsing_error}")
+            parsing_results = {
+                "parsing_results": {},
+                "summary": {"success": False, "best_parser": None, "error": str(parsing_error)},
+                "file_info": {
+                    "name": file_path_obj.name,
+                    "path": str(file_path_obj),
+                    "size": file_path_obj.stat().st_size if file_path_obj.exists() else 0,
+                    "extension": file_path_obj.suffix.lower()
+                }
+            }
             
         # Markdown 파일들을 올바른 위치로 이동 (기존 파싱 결과 로드 시에도 필요)
         if parsing_results.get("parsing_results"):
