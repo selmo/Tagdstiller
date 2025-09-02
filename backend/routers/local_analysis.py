@@ -1401,10 +1401,48 @@ async def generate_knowledge_graph(
         
         # LLM 구조 분석 결과를 KG에 통합
         if use_llm and structure_results.get("llm_analysis"):
-            kg_result = _integrate_llm_structure_into_kg(kg_result, structure_results["llm_analysis"], str(file_path_obj))
+            llm_analysis = structure_results["llm_analysis"]
+            # structureAnalysis가 비어있는지 확인
+            if llm_analysis.get("structureAnalysis") and len(llm_analysis["structureAnalysis"]) > 0:
+                kg_result = _integrate_llm_structure_into_kg(kg_result, llm_analysis, str(file_path_obj))
+            else:
+                # structureAnalysis가 비어있으면 기본 문서 엔티티만 생성
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning("⚠️ LLM structureAnalysis가 비어있어 기본 문서 엔티티만 생성합니다.")
+                
+                # 기본 문서 엔티티 생성
+                import hashlib
+                import os
+                def _hash(s: str) -> str:
+                    return hashlib.sha1(s.encode("utf-8", errors="ignore")).hexdigest()[:16]
+                
+                doc_info = llm_analysis.get("documentInfo", {})
+                doc_entity_id = f"doc_{_hash(str(file_path_obj))}"
+                
+                kg_result = {
+                    "entities": [{
+                        "id": doc_entity_id,
+                        "type": "Document",
+                        "properties": {
+                            "title": doc_info.get("title", "") if doc_info else os.path.basename(str(file_path_obj)),
+                            "document_type": doc_info.get("documentType", "") if doc_info else "document",
+                            "file_path": str(file_path_obj),
+                            "parsing_status": "failed",
+                            "note": "PDF 파싱 실패로 구조 분석 불가"
+                        }
+                    }],
+                    "relationships": [],
+                    "structural_hierarchy": []
+                }
+        elif use_llm and not structure_results.get("llm_analysis"):
+            # LLM 분석 자체가 실패한 경우
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error("❌ LLM 구조 분석이 실패하여 기본 KG를 사용합니다.")
         
         # LLM 구조 통합 완료 후 향상된 KG를 Memgraph에 저장
-        if use_llm and structure_results.get("llm_analysis") and isinstance(kg_result, dict):
+        if use_llm and isinstance(kg_result, dict):
             try:
                 import logging
                 logger = logging.getLogger(__name__)
