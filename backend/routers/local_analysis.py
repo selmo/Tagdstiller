@@ -800,12 +800,21 @@ async def analyze_document_structure(
     analyzer = LocalFileAnalyzer(db)
     
     try:
-        file_path_obj = Path(file_path)
-        if not file_path_obj.is_absolute():
-            file_path_obj = Path.cwd() / file_path_obj
-            
-        # 파일 존재 여부 확인
+        # 우선 표준화된 절대 경로 해석(현재 작업 디렉토리 기준)
+        file_path_obj = analyzer.get_absolute_path(file_path)
+
+        # 파일이 없으면 업로드 루트 기준으로 재시도
         if not file_path_obj.exists():
+            try:
+                file_root = analyzer.get_file_root()
+                candidate = Path(file_root) / file_path if not Path(file_path).is_absolute() else Path(file_path)
+                if candidate.exists():
+                    file_path_obj = candidate.resolve()
+            except Exception:
+                pass
+
+        # 최종 존재 여부 확인
+        if not file_path_obj.exists() or not file_path_obj.is_file():
             raise HTTPException(status_code=404, detail=f"파일을 찾을 수 없습니다: {file_path}")
         
         # 디렉토리 파라미터 처리
@@ -1071,7 +1080,7 @@ async def get_structure_analysis(
     return await analyze_document_structure(request, db)
 
 
-def _integrate_llm_structure_into_kg(kg_result: Dict[str, Any], llm_analysis: Dict[str, Any], file_path: str) -> Dict[str, Any]:
+def _integrate_llm_structure_into_kg(kg_result: Dict[str, Any], llm_analysis: Dict[str, Any], file_path: str, dataset_id: str = None) -> Dict[str, Any]:
     """
     LLM 구조 분석 결과를 Knowledge Graph에 통합합니다.
     structureAnalysis 섹션만 사용하여 깨끗한 지식 그래프를 구축합니다.
@@ -1107,35 +1116,47 @@ def _integrate_llm_structure_into_kg(kg_result: Dict[str, Any], llm_analysis: Di
     doc_entity_id = f"doc_{_hash(file_path)}"
     
     # 문서 엔티티 생성
+    doc_properties = {
+        "title": doc_info.get("title", "") if doc_info else os.path.basename(file_path),
+        "document_type": doc_info.get("documentType", "") if doc_info else "document",
+        "file_path": file_path,
+        "publication_date": doc_info.get("publicationInfo", {}).get("publicationDate", "") if doc_info else "",
+        "publishing_institution": doc_info.get("publicationInfo", {}).get("publishingInstitution", "") if doc_info else ""
+    }
+    
+    # dataset_id가 있으면 추가
+    if dataset_id:
+        doc_properties["dataset_id"] = dataset_id
+    
     doc_entity = {
         "id": doc_entity_id,
         "type": "Document",
-        "properties": {
-            "title": doc_info.get("title", "") if doc_info else os.path.basename(file_path),
-            "document_type": doc_info.get("documentType", "") if doc_info else "document",
-            "file_path": file_path,
-            "publication_date": doc_info.get("publicationInfo", {}).get("publicationDate", "") if doc_info else "",
-            "publishing_institution": doc_info.get("publicationInfo", {}).get("publishingInstitution", "") if doc_info else ""
-        }
+        "properties": doc_properties
     }
     entities.append(doc_entity)
     
     # structureAnalysis의 계층적 문서 구조를 그래프로 구성
     for section_idx, section in enumerate(llm_analysis.get("structureAnalysis", [])):
         # 메인 섹션 엔티티
+        section_properties = {
+            "title": section.get("title", ""),
+            "unit": section.get("unit", ""),
+            "content": section.get("mainContent", ""),
+            "keywords": section.get("keywords", []),
+            "page": section.get("page", ""),
+            "section_index": section_idx,
+            "hierarchical_level": 1,
+            "section_type": "main_section"
+        }
+        
+        # dataset_id가 있으면 추가
+        if dataset_id:
+            section_properties["dataset_id"] = dataset_id
+        
         section_entity = {
             "id": f"llm_section_{_hash(section.get('title', ''))}_{section_idx}",
             "type": "DocumentSection",
-            "properties": {
-                "title": section.get("title", ""),
-                "unit": section.get("unit", ""),
-                "content": section.get("mainContent", ""),
-                "keywords": section.get("keywords", []),
-                "page": section.get("page", ""),
-                "section_index": section_idx,
-                "hierarchical_level": 1,
-                "section_type": "main_section"
-            }
+            "properties": section_properties
         }
         entities.append(section_entity)
         
@@ -1154,15 +1175,21 @@ def _integrate_llm_structure_into_kg(kg_result: Dict[str, Any], llm_analysis: Di
         
         # 섹션의 키워드들을 개별 엔티티로 추가하고 관계 설정
         for keyword in section.get("keywords", []):
+            keyword_properties = {
+                "text": keyword,
+                "source_section": section.get("title", ""),
+                "section_unit": section.get("unit", ""),
+                "extraction_method": "llm_structure_analysis"
+            }
+            
+            # dataset_id가 있으면 추가
+            if dataset_id:
+                keyword_properties["dataset_id"] = dataset_id
+            
             keyword_entity = {
                 "id": f"llm_keyword_{_hash(keyword)}_{section_idx}",
                 "type": "SectionKeyword",
-                "properties": {
-                    "text": keyword,
-                    "source_section": section.get("title", ""),
-                    "section_unit": section.get("unit", ""),
-                    "extraction_method": "llm_structure_analysis"
-                }
+                "properties": keyword_properties
             }
             entities.append(keyword_entity)
             
@@ -1177,19 +1204,25 @@ def _integrate_llm_structure_into_kg(kg_result: Dict[str, Any], llm_analysis: Di
         
         # 하위 구조 (subStructure) 처리
         for subsection_idx, subsection in enumerate(section.get("subStructure", [])):
+            subsection_properties = {
+                "title": subsection.get("title", ""),
+                "unit": subsection.get("unit", ""),
+                "content": subsection.get("mainContent", ""),
+                "keywords": subsection.get("keywords", []),
+                "parent_section": section.get("title", ""),
+                "subsection_index": subsection_idx,
+                "hierarchical_level": 2,
+                "section_type": "subsection"
+            }
+            
+            # dataset_id가 있으면 추가
+            if dataset_id:
+                subsection_properties["dataset_id"] = dataset_id
+            
             subsection_entity = {
                 "id": f"llm_subsection_{_hash(subsection.get('title', ''))}_{section_idx}_{subsection_idx}",
                 "type": "DocumentSubsection",
-                "properties": {
-                    "title": subsection.get("title", ""),
-                    "unit": subsection.get("unit", ""),
-                    "content": subsection.get("mainContent", ""),
-                    "keywords": subsection.get("keywords", []),
-                    "parent_section": section.get("title", ""),
-                    "subsection_index": subsection_idx,
-                    "hierarchical_level": 2,
-                    "section_type": "subsection"
-                }
+                "properties": subsection_properties
             }
             entities.append(subsection_entity)
             
@@ -1252,6 +1285,7 @@ async def generate_knowledge_graph(
     - 파싱 및 키워드 추출 결과를 활용합니다
     - 엔티티와 관계를 추출하여 그래프 구조로 구성합니다
     - 결과는 파일로 저장되며 기본적으로 재사용됩니다
+    - dataset_id가 제공되면 모든 노드에 dataset 프로퍼티가 추가됩니다
     """
     from pathlib import Path
     import json
@@ -1261,24 +1295,46 @@ async def generate_knowledge_graph(
     if not file_path:
         raise HTTPException(status_code=400, detail="파일 경로가 필요합니다")
     
+    # 파일 경로 초기 검증
+    file_path_obj = Path(file_path)
+    if not file_path_obj.is_absolute():
+        file_path_obj = Path.cwd() / file_path_obj
+    
+    # 즉시 파일 경로 검증
+    if not file_path_obj.exists():
+        raise HTTPException(status_code=404, detail=f"파일을 찾을 수 없습니다: {file_path}")
+    
+    if file_path_obj.is_dir():
+        raise HTTPException(status_code=400, detail=f"디렉토리가 아닌 파일이어야 합니다: {file_path}")
+    
+    if file_path_obj.stat().st_size == 0:
+        raise HTTPException(status_code=400, detail=f"파일이 비어있습니다: {file_path}")
+    
+    # 지원되는 파일 형식인지 확인
+    supported_extensions = {'.pdf', '.docx', '.doc', '.txt', '.md', '.html', '.xml'}
+    if file_path_obj.suffix.lower() not in supported_extensions:
+        raise HTTPException(status_code=400, detail=f"지원되지 않는 파일 형식입니다: {file_path_obj.suffix}")
+    
+    try:
+        # 파일 접근 권한 확인
+        with open(file_path_obj, 'rb') as f:
+            f.read(1)  # 1바이트 읽기 테스트
+    except PermissionError:
+        raise HTTPException(status_code=403, detail=f"파일 접근 권한이 없습니다: {file_path}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"파일을 읽을 수 없습니다: {str(e)}")
+    
     force_reparse = request.get("force_reparse", False)
     force_reanalyze = request.get("force_reanalyze", False)
     force_rebuild = request.get("force_rebuild", False)
     use_llm = request.get("use_llm", True)  # LLM 기반 분석 옵션 (기본값: True)
     directory = request.get("directory")
+    dataset_id = request.get("dataset_id")  # 선택적 dataset_id 파라미터
     
     parser_service = DocumentParserService()
     analyzer = LocalFileAnalyzer(db)
     
     try:
-        file_path_obj = Path(file_path)
-        if not file_path_obj.is_absolute():
-            file_path_obj = Path.cwd() / file_path_obj
-            
-        # 파일 존재 여부 확인
-        if not file_path_obj.exists():
-            raise HTTPException(status_code=404, detail=f"파일을 찾을 수 없습니다: {file_path}")
-        
         # 디렉토리 파라미터 처리
         directory_path = None
         if directory:
@@ -1413,7 +1469,8 @@ async def generate_knowledge_graph(
             metadata=parsing_results.get("file_info", {}),
             structure_analysis=structure_results,
             parsing_results=parsing_results,
-            force_rebuild=force_rebuild
+            force_rebuild=force_rebuild,
+            dataset_id=dataset_id  # dataset_id 전달
         )
         
         # LLM 구조 분석 결과를 KG에 통합
@@ -1421,7 +1478,7 @@ async def generate_knowledge_graph(
             llm_analysis = structure_results["llm_analysis"]
             # structureAnalysis가 비어있는지 확인
             if llm_analysis.get("structureAnalysis") and len(llm_analysis["structureAnalysis"]) > 0:
-                kg_result = _integrate_llm_structure_into_kg(kg_result, llm_analysis, str(file_path_obj))
+                kg_result = _integrate_llm_structure_into_kg(kg_result, llm_analysis, str(file_path_obj), dataset_id)
             else:
                 # structureAnalysis가 비어있으면 기본 문서 엔티티만 생성
                 import logging
@@ -1437,17 +1494,24 @@ async def generate_knowledge_graph(
                 doc_info = llm_analysis.get("documentInfo", {})
                 doc_entity_id = f"doc_{_hash(str(file_path_obj))}"
                 
+                # 기본 문서 엔티티 properties 생성
+                doc_properties = {
+                    "title": doc_info.get("title", "") if doc_info else os.path.basename(str(file_path_obj)),
+                    "document_type": doc_info.get("documentType", "") if doc_info else "document",
+                    "file_path": str(file_path_obj),
+                    "parsing_status": "failed",
+                    "note": "PDF 파싱 실패로 구조 분석 불가"
+                }
+                
+                # dataset_id가 있으면 추가
+                if dataset_id:
+                    doc_properties["dataset_id"] = dataset_id
+                
                 kg_result = {
                     "entities": [{
                         "id": doc_entity_id,
                         "type": "Document",
-                        "properties": {
-                            "title": doc_info.get("title", "") if doc_info else os.path.basename(str(file_path_obj)),
-                            "document_type": doc_info.get("documentType", "") if doc_info else "document",
-                            "file_path": str(file_path_obj),
-                            "parsing_status": "failed",
-                            "note": "PDF 파싱 실패로 구조 분석 불가"
-                        }
+                        "properties": doc_properties
                     }],
                     "relationships": [],
                     "structural_hierarchy": []
@@ -1649,10 +1713,12 @@ async def get_knowledge_graph(
     force_rebuild: bool = Query(False, description="KG 재생성 여부"),
     use_llm: bool = Query(True, description="LLM 기반 구조 분석 사용 여부 (기본값: True)"),
     directory: Optional[str] = Query(None, description="결과 저장 디렉토리"),
+    dataset_id: Optional[str] = Query(None, description="데이터셋 ID (선택적, 모든 노드에 dataset 프로퍼티 추가)"),
     db: Session = Depends(get_db)
 ):
     """
     GET 방식으로 Knowledge Graph를 생성하거나 조회합니다.
+    dataset_id가 제공되면 모든 노드에 dataset 프로퍼티가 추가됩니다.
     """
     request = {
         "file_path": file_path,
@@ -1660,7 +1726,8 @@ async def get_knowledge_graph(
         "force_reanalyze": force_reanalyze,
         "force_rebuild": force_rebuild,
         "use_llm": use_llm,
-        "directory": directory
+        "directory": directory,
+        "dataset_id": dataset_id
     }
     
     return await generate_knowledge_graph(request, db)

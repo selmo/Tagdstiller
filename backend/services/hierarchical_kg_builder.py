@@ -104,7 +104,8 @@ class HierarchicalKGBuilder:
         metadata: Dict[str, Any], 
         structure_analysis: Dict[str, Any] = None, 
         parsing_results: Dict[str, Any] = None, 
-        force_rebuild: bool = False
+        force_rebuild: bool = False,
+        dataset_id: str = None
     ) -> Dict[str, Any]:
         """
         문서 구조를 기반으로 계층적 Knowledge Graph 구축
@@ -117,14 +118,16 @@ class HierarchicalKGBuilder:
             structure_analysis: 문서 구조 분석 결과
             parsing_results: 파싱 결과
             force_rebuild: 강제 재구축 여부
+            dataset_id: 데이터셋 ID (선택적, 모든 엔티티에 dataset 프로퍼티 추가)
             
         Returns:
             계층적 KG 데이터
         """
         self.logger.info(f"🏗️ 계층적 KG 구축 시작: {file_path}")
         
-        # 문서 텍스트를 인스턴스 변수로 저장 (관계 분석용)
+        # 문서 텍스트와 dataset_id를 인스턴스 변수로 저장 (관계 분석용)
         self._current_document_text = document_text
+        self._current_dataset_id = dataset_id
         
         # 도메인 감지
         domain, domain_confidence = self.schema_manager.detect_document_domain(document_text, metadata)
@@ -186,19 +189,25 @@ class HierarchicalKGBuilder:
     def _create_document_entity(self, doc_id: str, file_path: str, metadata: Dict[str, Any], 
                               parsing_results: Dict[str, Any], domain: DocumentDomain) -> Dict[str, Any]:
         """문서 루트 엔티티 생성"""
+        properties = {
+            "title": metadata.get("name", Path(file_path).name),
+            "path": file_path,
+            "domain": domain.value,
+            "size": metadata.get("size"),
+            "extension": metadata.get("extension"),
+            "parser_count": len(parsing_results.get("parsing_results", {})) if parsing_results else 0,
+            "best_parser": parsing_results.get("summary", {}).get("best_parser") if parsing_results else None,
+            "hierarchical_root": True
+        }
+        
+        # dataset_id가 있으면 추가
+        if hasattr(self, '_current_dataset_id') and self._current_dataset_id:
+            properties["dataset_id"] = self._current_dataset_id
+        
         return {
             "id": doc_id,
             "type": "Document",
-            "properties": {
-                "title": metadata.get("name", Path(file_path).name),
-                "path": file_path,
-                "domain": domain.value,
-                "size": metadata.get("size"),
-                "extension": metadata.get("extension"),
-                "parser_count": len(parsing_results.get("parsing_results", {})) if parsing_results else 0,
-                "best_parser": parsing_results.get("summary", {}).get("best_parser") if parsing_results else None,
-                "hierarchical_root": True
-            }
+            "properties": properties
         }
     
     def _analyze_document_structure(self, doc_id: str, structure_analysis: Dict[str, Any], 
@@ -433,16 +442,22 @@ class HierarchicalKGBuilder:
         
         for element in structural_elements:
             # 구조 엔티티 생성
+            structure_properties = {
+                **element.properties,
+                "domain": domain.value,
+                "structural_element": True,
+                "content_preview": element.content[:100] if element.content else "",
+                "has_content": bool(element.content)
+            }
+            
+            # dataset_id가 있으면 추가
+            if hasattr(self, '_current_dataset_id') and self._current_dataset_id:
+                structure_properties["dataset_id"] = self._current_dataset_id
+            
             structure_entity = {
                 "id": element.id,
                 "type": element.type,
-                "properties": {
-                    **element.properties,
-                    "domain": domain.value,
-                    "structural_element": True,
-                    "content_preview": element.content[:100] if element.content else "",
-                    "has_content": bool(element.content)
-                }
+                "properties": structure_properties
             }
             entities.append(structure_entity)
             
@@ -507,22 +522,29 @@ class HierarchicalKGBuilder:
                             word_keyword, entity_type, domain
                         )
                         
+                        # 키워드 엔티티 properties 생성
+                        keyword_properties = {
+                            "text": word_keyword,
+                            "domain": domain.value,
+                            "source_structure": structure_id,
+                            "source_structure_type": context_info.get("structure_type"),
+                            "extractor": extractor_name,
+                            "score": kw_data.get("score", 0),
+                            "category": kw_data.get("category", "unknown"),
+                            "extraction_context": context_info,
+                            "hierarchical_entity": True,
+                            **additional_props
+                        }
+                        
+                        # dataset_id가 있으면 추가
+                        if hasattr(self, '_current_dataset_id') and self._current_dataset_id:
+                            keyword_properties["dataset_id"] = self._current_dataset_id
+                        
                         # 키워드 엔티티 생성
                         keyword_entity = {
                             "id": kw_entity_id,
                             "type": entity_type,
-                            "properties": {
-                                "text": word_keyword,
-                                "domain": domain.value,
-                                "source_structure": structure_id,
-                                "source_structure_type": context_info.get("structure_type"),
-                                "extractor": extractor_name,
-                                "score": kw_data.get("score", 0),
-                                "category": kw_data.get("category", "unknown"),
-                                "extraction_context": context_info,
-                                "hierarchical_entity": True,
-                                **additional_props
-                            }
+                            "properties": keyword_properties
                         }
                         entities.append(keyword_entity)
                         
