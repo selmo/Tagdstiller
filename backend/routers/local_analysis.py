@@ -1311,7 +1311,7 @@ async def generate_knowledge_graph(
         raise HTTPException(status_code=400, detail=f"파일이 비어있습니다: {file_path}")
     
     # 지원되는 파일 형식인지 확인
-    supported_extensions = {'.pdf', '.docx', '.doc', '.txt', '.md', '.html', '.xml'}
+    supported_extensions = {'.pdf', '.docx', '.doc', '.txt', '.md', '.html', '.xml', '.hwp'}
     if file_path_obj.suffix.lower() not in supported_extensions:
         raise HTTPException(status_code=400, detail=f"지원되지 않는 파일 형식입니다: {file_path_obj.suffix}")
     
@@ -1543,7 +1543,7 @@ async def generate_knowledge_graph(
                 
                 memgraph_service = MemgraphService()
                 
-                if memgraph_service.is_connected():
+                if False and memgraph_service.is_connected():
                     # 기존 데이터 완전히 삭제하고 새로 저장
                     logger.info("🗑️ 기존 Memgraph 데이터 삭제 및 향상된 KG 저장 중 (clear_existing=True)...")
                     success = memgraph_service.insert_kg_data(kg_result, clear_existing=True)

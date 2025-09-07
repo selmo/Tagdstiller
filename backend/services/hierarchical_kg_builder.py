@@ -179,9 +179,9 @@ class HierarchicalKGBuilder:
         # 6. 구조적 계층 정보 구축
         result["structural_hierarchy"] = self._build_structural_hierarchy(structural_elements)
         
-        # 7. Memgraph에 자동 저장
-        if self.memgraph_service and self.auto_save_to_memgraph:
-            self._save_to_memgraph(result, file_path)
+        # # 7. Memgraph에 자동 저장
+        # if self.memgraph_service and self.auto_save_to_memgraph:
+        #     self._save_to_memgraph(result, file_path)
         
         self.logger.info(f"✅ 계층적 KG 구축 완료: {len(result['entities'])}개 엔티티, {len(result['relationships'])}개 관계")
         return result

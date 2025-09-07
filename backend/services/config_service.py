@@ -125,7 +125,7 @@ class ConfigService:
             "description": "최대 크기 (MB)"
         },
         "ALLOWED_EXTENSIONS": {
-            "value": json.dumps([".txt", ".pdf", ".docx", ".html", ".md"]),
+            "value": json.dumps([".txt", ".pdf", ".docx", ".html", ".md", ".hwp"]),
             "description": "허용 확장자"
         },
         

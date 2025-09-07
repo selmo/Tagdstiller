@@ -15,6 +15,7 @@ from services.parser.txt_parser import TxtParser
 from services.parser.html_parser import HtmlParser
 from services.parser.md_parser import MarkdownParser
 from services.parser.zip_parser import ZipParser
+from services.parser.hwp_parser import HwpParser
 from services.parser.base import ParseResult, DocumentMetadata
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,8 @@ class DocumentParserService:
             'html': [('html_parser', HtmlParser())],
             'htm': [('html_parser', HtmlParser())], 
             'md': [('md_parser', MarkdownParser())],
-            'zip': [('zip_parser', ZipParser())]
+            'zip': [('zip_parser', ZipParser())],
+            'hwp': [('hwp_parser', HwpParser())]
         }
         
     def get_output_directory(self, file_path: Path, directory: Optional[Path] = None) -> Path:
