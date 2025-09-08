@@ -1,0 +1,74 @@
+services:
+  # DocExtract 백엔드 서비스
+  docextract-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    platform: linux/amd64
+    container_name: docextract-backend
+    ports:
+      - "58000:58000"  # DocExtract API
+    environment:
+      - PYTHONPATH=/app/backend
+      - MEMGRAPH_URI=bolt://memgraph:7687
+      - MEMGRAPH_USERNAME=
+      - MEMGRAPH_PASSWORD=
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_MODEL=llama3.2
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    depends_on:
+      - memgraph
+    networks:
+      - docextract-network
+    restart: unless-stopped
+
+  # Memgraph 데이터베이스
+  memgraph:
+    image: memgraph/memgraph:2.11.1
+    platform: linux/amd64
+    container_name: docextract-memgraph
+    ports:
+      - "7687:7687"  # Bolt protocol
+      - "7444:7444"  # Monitoring
+    environment:
+      - MEMGRAPH_LOG_LEVEL=INFO
+    volumes:
+      - memgraph_data:/var/lib/memgraph
+      - memgraph_log:/var/log/memgraph
+      - memgraph_etc:/etc/memgraph
+    networks:
+      - docextract-network
+    restart: unless-stopped
+    command: ["memgraph", "--log-level=INFO", "--also-log-to-stderr"]
+
+  # Memgraph Studio (선택적)
+  memgraph-studio:
+    image: memgraph/lab:2.11.1
+    platform: linux/amd64
+    container_name: docextract-studio
+    ports:
+      - "3000:3000"  # Studio Web UI
+    environment:
+      - REACT_APP_MEMGRAPH_HOST=memgraph
+      - REACT_APP_MEMGRAPH_PORT=7687
+    depends_on:
+      - memgraph
+    networks:
+      - docextract-network
+    restart: unless-stopped
+
+volumes:
+  memgraph_data:
+    driver: local
+  memgraph_log:
+    driver: local
+  memgraph_etc:
+    driver: local
+
+networks:
+  docextract-network:
+    driver: bridge
+    name: docextract-network

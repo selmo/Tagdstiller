@@ -1,0 +1,86 @@
+# DocExtract Backend Dockerfile - AMD64 Windows 호환
+FROM python:3.11-slim
+
+# 시스템 의존성 설치
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    gcc \
+    g++ \
+    git \
+    curl \
+    poppler-utils \
+    tesseract-ocr \
+    tesseract-ocr-kor \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/* || \
+    apt-get update && apt-get install -y \
+    build-essential \
+    gcc \
+    g++ \
+    git \
+    curl \
+    poppler-utils \
+    tesseract-ocr \
+    tesseract-ocr-kor \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 작업 디렉토리 설정
+WORKDIR /app
+
+# Python 의존성 복사 및 설치
+COPY backend/requirements.txt /app/backend/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir -r /app/backend/requirements.txt
+
+# spaCy 모델 다운로드 (한국어 지원)
+RUN python -m spacy download ko_core_news_sm || echo "Korean model download failed, continuing..."
+RUN python -m spacy download en_core_web_sm
+
+# KoNLPy 데이터 다운로드 (선택적)
+RUN python -c "import sys; \
+try: \
+    from konlpy.tag import Okt; \
+    okt = Okt(); \
+    print('KoNLPy initialized successfully') \
+except Exception as e: \
+    print(f'KoNLPy initialization failed: {e}'); \
+    sys.exit(0)"
+
+# 백엔드 소스 코드 복사
+COPY backend/ /app/backend/
+COPY CLAUDE.md /app/
+
+# 환경 변수 설정
+ENV PYTHONPATH=/app/backend
+ENV PYTHONUNBUFFERED=1
+ENV CUDA_VISIBLE_DEVICES=""
+
+# 디렉토리 생성
+RUN mkdir -p /app/data /app/uploads /app/logs
+
+# 권한 설정
+RUN chmod +x /app/backend/*.py
+
+# 포트 노출
+EXPOSE 58000
+
+# 헬스체크
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:58000/docs || exit 1
+
+# 시작 명령
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "58000", "--reload"]
+
+# 작업 디렉토리를 backend로 변경
+WORKDIR /app/backend
