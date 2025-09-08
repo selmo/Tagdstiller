@@ -27,12 +27,12 @@ services:
 
   # Memgraph 데이터베이스
   memgraph:
-    image: memgraph/memgraph:2.11.1
+    image: memgraph/memgraph:latest
     platform: linux/amd64
     container_name: docextract-memgraph
     ports:
-      - "7687:7687"  # Bolt protocol
-      - "7444:7444"  # Monitoring
+      - "7688:7687"  # Bolt protocol
+      - "7445:7444"  # Monitoring
     environment:
       - MEMGRAPH_LOG_LEVEL=INFO
     volumes:
@@ -44,21 +44,6 @@ services:
     restart: unless-stopped
     command: ["memgraph", "--log-level=INFO", "--also-log-to-stderr"]
 
-  # Memgraph Studio (선택적)
-  memgraph-studio:
-    image: memgraph/lab:2.11.1
-    platform: linux/amd64
-    container_name: docextract-studio
-    ports:
-      - "3000:3000"  # Studio Web UI
-    environment:
-      - REACT_APP_MEMGRAPH_HOST=memgraph
-      - REACT_APP_MEMGRAPH_PORT=7687
-    depends_on:
-      - memgraph
-    networks:
-      - docextract-network
-    restart: unless-stopped
 
 volumes:
   memgraph_data:

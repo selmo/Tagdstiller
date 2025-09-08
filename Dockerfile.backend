@@ -47,15 +47,7 @@ RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 RUN python -m spacy download ko_core_news_sm || echo "Korean model download failed, continuing..."
 RUN python -m spacy download en_core_web_sm
 
-# KoNLPy 데이터 다운로드 (선택적)
-RUN python -c "import sys; \
-try: \
-    from konlpy.tag import Okt; \
-    okt = Okt(); \
-    print('KoNLPy initialized successfully') \
-except Exception as e: \
-    print(f'KoNLPy initialization failed: {e}'); \
-    sys.exit(0)"
+# KoNLPy는 런타임에 초기화됩니다
 
 # 백엔드 소스 코드 복사
 COPY backend/ /app/backend/
