@@ -372,7 +372,18 @@ async def parse_document_comprehensive(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"파싱 중 오류가 발생했습니다: {str(e)}")
+        from utils.error_handler import log_and_raise_http_exception, collect_context_info
+        
+        # 컨텍스트 정보 수집
+        context = collect_context_info(locals(), ["file_path", "directory", "force_reparse"])
+        
+        # 상세한 오류 로깅 및 HTTPException 발생
+        log_and_raise_http_exception(
+            e, 
+            "문서 파싱", 
+            context=context,
+            logger_name=__name__
+        )
 
 
 @router.get("/parse", response_model=DocumentParsingResponse)
@@ -557,7 +568,18 @@ async def analyze_local_file(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"분석 중 오류가 발생했습니다: {str(e)}")
+        from utils.error_handler import log_and_raise_http_exception, collect_context_info
+        
+        # 컨텍스트 정보 수집
+        context = collect_context_info(locals(), ["file_path", "extractors", "force_reanalyze", "force_reparse"])
+        
+        # 상세한 오류 로깅 및 HTTPException 발생
+        log_and_raise_http_exception(
+            e, 
+            "로컬 파일 분석", 
+            context=context,
+            logger_name=__name__
+        )
 
 
 @router.get("/analyze", response_model=FileAnalysisResponse)
@@ -1047,7 +1069,18 @@ async def analyze_document_structure(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"구조 분석 중 오류가 발생했습니다: {str(e)}")
+        from utils.error_handler import log_and_raise_http_exception, collect_context_info
+        
+        # 컨텍스트 정보 수집
+        context = collect_context_info(locals())
+        
+        # 상세한 오류 로깅 및 HTTPException 발생
+        log_and_raise_http_exception(
+            e, 
+            "문서 구조 분석", 
+            context=context,
+            logger_name=__name__
+        )
 
 
 @router.get("/structure-analysis")
@@ -1710,7 +1743,18 @@ async def generate_knowledge_graph(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Knowledge Graph 생성 중 오류가 발생했습니다: {str(e)}")
+        from utils.error_handler import log_and_raise_http_exception, collect_context_info
+        
+        # 컨텍스트 정보 수집
+        context = collect_context_info(locals())
+        
+        # 상세한 오류 로깅 및 HTTPException 발생
+        log_and_raise_http_exception(
+            e, 
+            "Knowledge Graph 생성", 
+            context=context,
+            logger_name=__name__
+        )
 
 
 @router.get("/knowledge-graph")
