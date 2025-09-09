@@ -40,7 +40,15 @@ Base.metadata.create_all(bind=engine)
 logger.info("데이터베이스 테이블 생성 완료")
 
 # 기본 설정 값 초기화 및 캐시 초기화
+import os
 from services.config_cache import config_cache
+
+# 환경변수 확인
+offline_mode = os.getenv('OFFLINE_MODE') == 'true'
+skip_checks = os.getenv('SKIP_EXTERNAL_CHECKS') == 'true'
+
+if offline_mode or skip_checks:
+    logger.info("🔄 오프라인/빠른 시작 모드 활성화")
 
 db = SessionLocal()
 try:

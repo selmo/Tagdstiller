@@ -318,6 +318,13 @@ class ConfigService:
     @classmethod
     def initialize_default_configs(cls, db: Session) -> None:
         """Initialize default configuration values if they don't exist."""
+        import os
+        
+        # 오프라인 모드나 외부 연결 건너뛰기 모드인 경우
+        if os.getenv('OFFLINE_MODE') == 'true' or os.getenv('SKIP_EXTERNAL_CHECKS') == 'true':
+            cls.logger.info("🔄 오프라인 모드: 외부 연결 확인 건너뜀")
+            print("🔄 오프라인 모드: 외부 연결 확인 건너뜀")
+        
         # 중복 설정 제거 및 마이그레이션
         deprecated_keys = [
             # 기존 ollama.* 설정들
