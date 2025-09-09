@@ -80,6 +80,25 @@ else
     fi
 fi
 
+# 필수 패키지 확인 및 설치
+echo -e "${YELLOW}🔍 필수 패키지 확인 중...${NC}"
+REQUIRED_PACKAGES=("lucide-react" "@types/react" "@types/react-dom" "typescript")
+MISSING_PACKAGES=()
+
+for package in "${REQUIRED_PACKAGES[@]}"; do
+    if ! npm list "$package" > /dev/null 2>&1; then
+        MISSING_PACKAGES+=("$package")
+    fi
+done
+
+if [[ ${#MISSING_PACKAGES[@]} -gt 0 ]]; then
+    echo -e "${YELLOW}📦 누락된 패키지 설치 중: ${MISSING_PACKAGES[*]}${NC}"
+    npm install "${MISSING_PACKAGES[@]}"
+    echo -e "${GREEN}✅ 누락된 패키지 설치 완료${NC}"
+else
+    echo -e "${GREEN}✅ 모든 필수 패키지가 설치되어 있습니다${NC}"
+fi
+
 # 환경 변수 파일 확인
 if [[ ! -f ".env" ]] && [[ ! -f ".env.local" ]]; then
     echo -e "${YELLOW}📝 환경 변수 파일 생성 중...${NC}"

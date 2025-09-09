@@ -454,7 +454,7 @@ class LocalFileAnalyzer:
             # LLM 분석 (요청된 경우)
             if use_llm and text:
                 try:
-                    llm_metadata = self.extract_metadata_with_llm(text[:5000])
+                    llm_metadata = self.extract_metadata_with_llm(text[:10000])
                     if llm_metadata:
                         metadata_result["content_analysis"] = llm_metadata
                 except Exception as e:
@@ -587,7 +587,7 @@ class LocalFileAnalyzer:
             # LLM을 사용한 고급 메타데이터 추출
             if use_llm and parse_result.text:
                 try:
-                    llm_metadata = self.extract_metadata_with_llm(parse_result.text[:5000])  # 처음 5000자만 사용
+                    llm_metadata = self.extract_metadata_with_llm(parse_result.text[:10000])  # 처음 10000자 사용
                     if llm_metadata:
                         metadata_dict["content_analysis"] = llm_metadata
                 except Exception as e:
@@ -719,7 +719,7 @@ class LocalFileAnalyzer:
         
         return '\n'.join(markdown_lines)
     
-    def extract_metadata_with_llm(self, text: str) -> Optional[Dict[str, Any]]:
+    def extract_metadata_with_llm(self, text: str, file_path: str = None) -> Optional[Dict[str, Any]]:
         """LangChain을 사용하여 문서 메타데이터 추출"""
         from services.config_service import ConfigService
         import json
@@ -746,8 +746,8 @@ class LocalFileAnalyzer:
         logger.info(f"📋 LLM 설정: URL={ollama_url}, Model={model_name}")
         
         # 메타데이터 추출 프롬프트
-        # 텍스트 크기 제한 (타임아웃 방지를 위해 더 짧게)
-        max_text_length = 800  # 1500 -> 800으로 감소
+        # 텍스트 크기 제한 (더 많은 내용 포함을 위해 증가)
+        max_text_length = 10000  # 800 -> 10000으로 증가
         truncated_text = text[:max_text_length]
         
         # 문서 언어 감지 (한글 문자가 많으면 한국어 문서)
@@ -819,7 +819,18 @@ Text:
             else:
                 logger.warning("⚠️ LangChain에서 빈 응답 반환")
             
-            # 프롬프트/응답 파일 저장
+            # 프롬프트/응답 파일 저장 (결과 파일들과 같은 디렉토리에)
+            base_dir = "tests/debug_outputs/llm"  # 기본값
+            if file_path:
+                try:
+                    from services.document_parser_service import DocumentParserService
+                    absolute_path = self.get_absolute_path(file_path)
+                    parser_service = DocumentParserService()
+                    output_dir = parser_service.get_output_directory(absolute_path)
+                    base_dir = str(output_dir)
+                except Exception:
+                    pass  # 기본값 사용
+            
             log_prompt_and_response(
                 label="local_metadata_langchain",
                 provider="ollama",
@@ -827,6 +838,7 @@ Text:
                 prompt=prompt,
                 response=response_text,
                 logger=logger,
+                base_dir=base_dir,
                 meta={
                     "base_url": ollama_url,
                     "temperature": 0.3,
@@ -908,6 +920,18 @@ Text:
             
             # 오류 시에도 로깅
             try:
+                # 출력 디렉토리 설정
+                base_dir = "tests/debug_outputs/llm"  # 기본값
+                if file_path:
+                    try:
+                        from services.document_parser_service import DocumentParserService
+                        absolute_path = self.get_absolute_path(file_path)
+                        parser_service = DocumentParserService()
+                        output_dir = parser_service.get_output_directory(absolute_path)
+                        base_dir = str(output_dir)
+                    except Exception:
+                        pass  # 기본값 사용
+                        
                 log_prompt_and_response(
                     label="local_metadata_langchain_error",
                     provider="ollama",
@@ -915,6 +939,7 @@ Text:
                     prompt=prompt,
                     response="",
                     logger=logger,
+                    base_dir=base_dir,
                     meta={"base_url": ollama_url, "error": f"exception: {e}", "langchain_version": True},
                 )
             except Exception:
@@ -1041,7 +1066,7 @@ Text:
             # 간소화된 프롬프트 (더 안정적인 응답을 위해)
             prompt = f"""Analyze this document and extract metadata in JSON format:
 
-{text[:1500]}
+{text[:8000]}
 
 Return only a JSON object with these fields:
 {{
@@ -1064,7 +1089,18 @@ JSON only, no explanations:"""
                 logger.warning("⚠️ LangChain에서도 빈 응답 반환")
                 return None
             
-            # 프롬프트/응답 로깅
+            # 프롬프트/응답 로깅 (결과 파일들과 같은 디렉토리에)
+            base_dir = "tests/debug_outputs/llm"  # 기본값
+            if hasattr(self, '_current_file_path') and self._current_file_path:
+                try:
+                    from services.document_parser_service import DocumentParserService
+                    absolute_path = self.get_absolute_path(self._current_file_path)
+                    parser_service = DocumentParserService()
+                    output_dir = parser_service.get_output_directory(absolute_path)
+                    base_dir = str(output_dir)
+                except Exception:
+                    pass  # 기본값 사용
+            
             log_prompt_and_response(
                 label="local_metadata_langchain",
                 provider="ollama",
@@ -1072,6 +1108,7 @@ JSON only, no explanations:"""
                 prompt=prompt,
                 response=response,
                 logger=logger,
+                base_dir=base_dir,
                 meta={
                     "base_url": ollama_url,
                     "langchain_version": True,
@@ -1428,8 +1465,8 @@ JSON only, no explanations:"""
                 temperature=0.2,  # 구조 분석은 일관성이 중요함
             )
             
-            # 텍스트 길이 제한 (토큰 제한 고려)
-            max_text_length = 3000
+            # 텍스트 길이 제한 (더 많은 내용 포함을 위해 증가)
+            max_text_length = 15000  # 3000 -> 15000으로 증가
             truncated_text = text[:max_text_length] if len(text) > max_text_length else text
             
             # 프롬프트 템플릿 사용
@@ -1458,7 +1495,17 @@ JSON only, no explanations:"""
             
             logger.info(f"📥 LLM 응답 수신 완료 (길이: {len(response)} 문자)")
             
-            # 프롬프트/응답 로깅
+            # 프롬프트/응답 로깅 (결과 파일들과 같은 디렉토리에)
+            base_dir = "tests/debug_outputs/llm"  # 기본값
+            try:
+                from services.document_parser_service import DocumentParserService
+                absolute_path = self.get_absolute_path(file_path) if isinstance(file_path, str) else file_path
+                parser_service = DocumentParserService()
+                output_dir = parser_service.get_output_directory(absolute_path)
+                base_dir = str(output_dir)
+            except Exception:
+                pass  # 기본값 사용
+                
             log_prompt_and_response(
                 label="document_structure_analysis",
                 provider="ollama",
@@ -1466,6 +1513,7 @@ JSON only, no explanations:"""
                 prompt=prompt,
                 response=response,
                 logger=logger,
+                base_dir=base_dir,
                 meta={
                     "base_url": ollama_url,
                     "temperature": 0.2,

@@ -6,7 +6,7 @@ DocExtract 백엔드는 문서 키워드 추출 시스템을 위한 RESTful API�
 기본 URL: `http://localhost:58000` (로컬 개발용)
 
 **포트 정보:**
-- 백엔드 API: 포트 8001
+- 백엔드 API: 포트 58000
 - 프론트엔드: 포트 3001
 
 ## 📋 목차
@@ -19,6 +19,7 @@ DocExtract 백엔드는 문서 키워드 추출 시스템을 위한 RESTful API�
 - [프롬프트 템플릿 API](#프롬프트-템플릿-api)
 - [로컬 분석 API](#로컬-분석-api)
 - [관리자 API](#관리자-api)
+- [Memgraph Knowledge Graph API](#memgraph-knowledge-graph-api)
 
 ---
 
@@ -375,6 +376,42 @@ curl -X POST "http://localhost:58000/kg/build-from-metadata" \
 | `POST` | `/admin/config/refresh/{key}` | 특정 설정 캐시 새로고침 |
 | `GET` | `/admin/config/cache/stats` | 캐시 통계 |
 | `GET` | `/admin/config/cache/all` | 전체 캐시 내용 |
+
+---
+
+## Memgraph Knowledge Graph API
+
+### 연결 상태 및 통계
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/memgraph/health` | Memgraph 연결 상태 확인 |
+| `GET` | `/memgraph/stats` | 데이터베이스 통계 정보 조회 |
+
+### KG 데이터 관리
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/memgraph/insert` | KG 데이터 삽입 |
+| `GET` | `/memgraph/document/{file_path:path}` | 특정 문서의 KG 데이터 조회 |
+| `POST` | `/memgraph/rebuild-from-document` | 문서로부터 KG 재구성 |
+| `DELETE` | `/memgraph/clear` | 전체 데이터베이스 삭제 |
+
+### 검색 및 조회
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/memgraph/search/entities` | 엔티티 검색 |
+| `GET` | `/memgraph/entities/types` | 엔티티 타입 목록 |
+| `GET` | `/memgraph/relationships/types` | 관계 타입 목록 |
+| `POST` | `/memgraph/query` | 사용자 정의 Cypher 쿼리 실행 |
+
+### 데이터 내보내기 및 시각화
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/memgraph/export` | KG 데이터 내보내기 (JSON/Cypher) |
+| `GET` | `/memgraph/graph/visualization` | 그래프 시각화 데이터 |
 
 ---
 

@@ -88,7 +88,24 @@ Content-Type: application/json
         "best_parser": "docling",
         "best_quality_score": 0.615
     },
-    "output_directory": "/path/to/output"
+    "output_directory": "/path/to/output",
+    "saved_files": [
+        {
+            "path": "/path/to/output/parsing_results.json",
+            "type": "parsing_results",
+            "parser": "comprehensive"
+        },
+        {
+            "path": "/path/to/output/docling.md",
+            "type": "markdown",
+            "parser": "docling"
+        },
+        {
+            "path": "/path/to/output/docling/docling_text.txt",
+            "type": "text",
+            "parser": "docling"
+        }
+    ]
 }
 ```
 
@@ -96,6 +113,11 @@ Content-Type: application/json
 ```http
 GET /local-analysis/parse?file_path=test.pdf&force_reparse=false&directory=/custom/output/path
 ```
+
+**Query Parameters**:
+- `file_path` (string, required): 파싱할 문서 경로
+- `force_reparse` (boolean, optional): 기존 결과 무시하고 재파싱 여부 (기본값: false)
+- `directory` (string, optional): **🆕** 결과 파일을 저장할 디렉토리 경로
 
 #### 🟢 파싱 상태 확인
 ```http
@@ -150,6 +172,7 @@ Content-Type: application/json
 - `extractors` (array, optional): 사용할 추출기 목록
 - `force_reanalyze` (boolean, optional): 키워드 재분석 여부 (기본값: false)
 - `force_reparse` (boolean, optional): 파싱부터 다시 수행할지 여부 (기본값: false)
+- `directory` (string, optional): **🆕** 결과 파일을 저장할 디렉토리 경로
 
 **동작 방식**:
 1. 파싱 결과가 없으면 먼저 완전 파싱을 자동 수행
@@ -187,7 +210,19 @@ Content-Type: application/json
     },
     "analysis_status": "completed",
     "analysis_timestamp": "2025-08-30T12:30:00",
-    "result_file": "/path/to/result.json"
+    "result_file": "/path/to/result.json",
+    "saved_files": [
+        {
+            "path": "/path/to/result.json",
+            "type": "analysis_results",
+            "parser": "comprehensive"
+        },
+        {
+            "path": "/path/to/document.pdf.analysis.json",
+            "type": "keyword_analysis",
+            "parser": "comprehensive"
+        }
+    ]
 }
 ```
 
@@ -201,6 +236,7 @@ GET /local-analysis/analyze?file_path=test.pdf&extractors=KeyBERT,spaCy%20NER&us
 - `extractors` (string, optional): 추출기 목록 (쉼표로 구분)
 - `force_reanalyze` (boolean, optional): 재분석 여부
 - `use_docling` (boolean, optional): Docling 파서 사용 여부
+- `directory` (string, optional): **🆕** 결과 파일을 저장할 디렉토리 경로
 
 #### 🔵 파일 재분석
 ```http

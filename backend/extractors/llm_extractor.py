@@ -167,8 +167,8 @@ class LLMExtractor(KeywordExtractor):
             logger.info(f"🎯 LLM '{self.provider}:{self.model_name}'으로 키워드 추출 중...")
             
             if self.provider == 'ollama':
-                response = self._call_ollama_langchain(prompt)
-                # 프롬프트/응답 파일 저장 및 로그 기록
+                response, request_data, response_data = self._call_ollama_langchain(prompt)
+                # 프롬프트/응답 파일 저장 및 로그 기록 (JSON 포함)
                 log_prompt_and_response(
                     label="keyword_extraction",
                     provider=self.provider,
@@ -182,6 +182,8 @@ class LLMExtractor(KeywordExtractor):
                         "config_max_keywords": self.config.get('max_keywords') if self.config else None,
                         "langchain_version": True,
                     },
+                    request_data=request_data,
+                    response_data=response_data,
                 )
                 if response:
                     keywords = self._parse_llm_response(response, text, position_mapper, position_map)
@@ -300,8 +302,8 @@ Return ONLY a JSON array with this exact format (no other text):
 
 Output:"""
     
-    def _call_ollama_langchain(self, prompt: str) -> str:
-        """LangChain을 사용하여 Ollama API를 호출합니다."""
+    def _call_ollama_langchain(self, prompt: str) -> tuple[str, dict, dict]:
+        """LangChain을 사용하여 Ollama API를 호출합니다. (JSON 데이터 포함 반환)"""
         import logging
         logger = logging.getLogger(__name__)
         debug_logger = get_debug_logger()
@@ -309,10 +311,19 @@ Output:"""
         try:
             if not self.ollama_client:
                 logger.error("❌ LangChain Ollama 클라이언트가 초기화되지 않음")
-                return ""
+                return "", {}, {}
             
             # 프롬프트 설정에서 LLM 파라미터 가져오기
             llm_params = self.prompt_config.get_llm_params('keyword_extraction')
+            
+            # 요청 데이터 구성 (LangChain에서 사용될 데이터)
+            request_data = {
+                "model": self.model_name,
+                "prompt": prompt,
+                "base_url": self.base_url,
+                "options": llm_params,
+                "langchain_version": True
+            }
             
             logger.info(f"🚀 LangChain Ollama 호출 시작 - 모델: {self.model_name}")
             logger.debug(f"LLM 파라미터: {llm_params}")
@@ -322,7 +333,21 @@ Output:"""
             result = self.ollama_client.invoke(prompt)
             call_duration = time.time() - start_time
             
+            # 응답 데이터 구성
+            response_data = {
+                "response": result,
+                "model": self.model_name,
+                "created_at": time.time(),
+                "done": True,
+                "total_duration": call_duration * 1e9,  # nanoseconds (Ollama API 호환)
+                "load_duration": 0,
+                "prompt_eval_count": len(prompt.split()),
+                "eval_count": len(result.split()) if result else 0,
+                "langchain_wrapper": True
+            }
+            
             logger.info(f"✅ LangChain Ollama 호출 성공 - 응답 길이: {len(result)} 문자, 소요시간: {call_duration:.2f}초")
+            logger.info(f"🔍 JSON 데이터 생성 확인 - request_data: {bool(request_data)}, response_data: {bool(response_data)}")
             
             # 디버그 로깅: LLM 응답 분석
             debug_logger.log_algorithm_application(
@@ -339,7 +364,7 @@ Output:"""
                 }
             )
             
-            return result.strip()
+            return result.strip(), request_data, response_data
                 
         except Exception as e:
             logger.error(f"❌ LangChain Ollama 호출 실패: {e}")
@@ -347,8 +372,8 @@ Output:"""
             logger.info("기존 requests 방식으로 폴백 시도...")
             return self._call_ollama_fallback(prompt)
     
-    def _call_ollama_fallback(self, prompt: str) -> str:
-        """기존 requests 방식의 Ollama API 호출 (폴백용)."""
+    def _call_ollama_fallback(self, prompt: str) -> tuple[str, dict, dict]:
+        """기존 requests 방식의 Ollama API 호출 (폴백용). JSON 데이터 포함 반환."""
         import logging
         logger = logging.getLogger(__name__)
         debug_logger = get_debug_logger()
@@ -374,7 +399,8 @@ Output:"""
             )
             
             if response.status_code == 200:
-                result = response.json().get("response", "")
+                response_json = response.json()
+                result = response_json.get("response", "")
                 logger.info(f"✅ Ollama API 폴백 성공 - 응답 길이: {len(result)} 문자")
                 
                 # 디버그 로깅: LLM 응답 분석
@@ -392,17 +418,17 @@ Output:"""
                     }
                 )
                 
-                return result.strip()
+                return result.strip(), payload, response_json
             else:
                 logger.error(f"❌ Ollama API 폴백 오류: {response.status_code} - {response.text}")
-                return ""
+                return "", payload, {"error": response.text, "status_code": response.status_code}
                 
         except requests.exceptions.Timeout:
             logger.error(f"❌ Ollama API 폴백 타임아웃 ({timeout}초)")
-            return ""
+            return "", {}, {"error": "timeout", "timeout": timeout}
         except Exception as e:
             logger.error(f"❌ Ollama API 폴백 호출 실패: {e}")
-            return ""
+            return "", {}, {"error": str(e)}
     
     def _call_openai(self, prompt: str) -> str:
         """OpenAI API를 호출합니다."""

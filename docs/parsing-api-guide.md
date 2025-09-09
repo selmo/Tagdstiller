@@ -52,13 +52,15 @@ Content-Type: application/json
 
 {
     "file_path": "document.pdf",
-    "force_reparse": false
+    "force_reparse": false,
+    "directory": "/custom/output/path"
 }
 ```
 
 **Parameters**:
 - `file_path` (required): 파싱할 파일 경로
 - `force_reparse` (optional): 기존 결과 무시하고 재파싱 여부
+- `directory` (optional): **🆕** 결과 파일을 저장할 디렉토리 경로
 
 **Response**:
 ```json
@@ -92,13 +94,25 @@ Content-Type: application/json
         "best_parser": "docling",
         "best_quality_score": 0.615
     },
-    "output_directory": "/path/to/output"
+    "output_directory": "/path/to/output",
+    "saved_files": [
+        {
+            "path": "/path/to/output/parsing_results.json",
+            "type": "parsing_results",
+            "parser": "comprehensive"
+        },
+        {
+            "path": "/path/to/output/docling.md",
+            "type": "markdown", 
+            "parser": "docling"
+        }
+    ]
 }
 ```
 
 #### 🟢 GET 방식
 ```http
-GET /local-analysis/parse?file_path=document.pdf&force_reparse=false
+GET /local-analysis/parse?file_path=document.pdf&force_reparse=false&directory=/custom/output/path
 ```
 
 ### 2. 파싱 상태 확인

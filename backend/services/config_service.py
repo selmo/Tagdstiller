@@ -2,10 +2,14 @@ from sqlalchemy.orm import Session
 from db.models import Config
 from typing import Dict, Any, Optional
 import json
+import requests
+import logging
 from .config_cache import config_cache
 
 class ConfigService:
     """Service for managing application configuration."""
+    
+    logger = logging.getLogger(__name__)
     
     # Default configuration values for keyword extraction and API settings
     DEFAULT_CONFIGS = {
@@ -320,6 +324,102 @@ class ConfigService:
         
         db.commit()
         print(f"Configuration migration completed: removed {removed_count} deprecated configs, added {added_count} new configs")
+        
+        # Ollama 서버 연결 테스트 (일시 비활성화 - startup 속도 개선)
+        # cls._test_ollama_connection(db)
+        print("ℹ️ Ollama 연결 테스트 건너뜀 - /llm/test_connection API로 수동 테스트 가능")
+    
+    @classmethod
+    def _check_and_configure_ollama(cls, db: Session) -> None:
+        """Check Ollama server connection and configure default model."""
+        cls.logger.info("🔍 Ollama 서버 연결 테스트 시작...")
+        print("🔍 Ollama 서버 연결 테스트 시작...")
+        try:
+            ollama_url = cls.get_config_value(db, "OLLAMA_BASE_URL", "http://localhost:11434")
+            current_model = cls.get_config_value(db, "OLLAMA_MODEL", "mistral")
+            cls.logger.info(f"📍 Ollama URL: {ollama_url}, 현재 모델: {current_model}")
+            print(f"📍 Ollama URL: {ollama_url}, 현재 모델: {current_model}")
+            
+            # Ollama 서버 연결 테스트 (더 짧은 타임아웃으로 빠른 실패)
+            response = requests.get(f"{ollama_url}/api/tags", timeout=2)
+            if response.status_code == 200:
+                available_models = [model['name'] for model in response.json().get('models', [])]
+                
+                if available_models:
+                    cls.logger.info(f"Ollama 서버 연결 성공. 사용 가능한 모델: {len(available_models)}개")
+                    
+                    # 현재 설정된 모델이 사용 가능한지 확인
+                    if current_model not in available_models:
+                        # 우선순위에 따라 자동 선택
+                        preferred_models = [
+                            "phi3.5:latest", "phi3:latest", "mistral:latest", "llama3.2:latest",
+                            "qwen2.5:latest", "gemma2:latest", "deepseek-r1:latest"
+                        ]
+                        
+                        selected_model = None
+                        for preferred in preferred_models:
+                            if preferred in available_models:
+                                selected_model = preferred
+                                break
+                        
+                        # 우선순위 모델이 없으면 첫 번째 모델 선택
+                        if not selected_model:
+                            selected_model = available_models[0]
+                        
+                        # 모델 업데이트
+                        config = db.query(Config).filter(Config.key == "OLLAMA_MODEL").first()
+                        if config:
+                            old_model = config.value
+                            config.value = selected_model
+                            db.commit()
+                            config_cache.invalidate("OLLAMA_MODEL")
+                            cls.logger.info(f"🔄 Ollama 모델 자동 변경: {old_model} → {selected_model}")
+                            print(f"🔄 Ollama 모델 자동 변경: {old_model} → {selected_model}")
+                    else:
+                        cls.logger.info(f"✅ Ollama 모델 '{current_model}' 사용 가능")
+                        print(f"✅ Ollama 모델 '{current_model}' 사용 가능")
+                else:
+                    cls.logger.warning("⚠️ Ollama에 설치된 모델이 없습니다")
+                    print("⚠️ Ollama에 설치된 모델이 없습니다")
+            else:
+                cls.logger.warning(f"⚠️ Ollama 서버 응답 오류: HTTP {response.status_code}")
+                print(f"⚠️ Ollama 서버 응답 오류: HTTP {response.status_code}")
+                
+        except requests.exceptions.ConnectionError:
+            cls.logger.warning("⚠️ Ollama 서버에 연결할 수 없습니다. LLM 기능을 사용하려면 Ollama를 시작하세요.")
+            print("⚠️ Ollama 서버에 연결할 수 없습니다. LLM 기능을 사용하려면 Ollama를 시작하세요.")
+        except requests.exceptions.Timeout:
+            cls.logger.warning("⚠️ Ollama 서버 연결 타임아웃")
+            print("⚠️ Ollama 서버 연결 타임아웃")
+        except Exception as e:
+            cls.logger.error(f"❌ Ollama 설정 확인 중 오류: {e}")
+            print(f"❌ Ollama 설정 확인 중 오류: {e}")
+    
+    @classmethod
+    def _test_ollama_connection(cls, db: Session) -> None:
+        """Test Ollama server connection using /api/tags endpoint."""
+        try:
+            ollama_url = cls.get_config_value(db, "OLLAMA_BASE_URL", "http://localhost:11434")
+            
+            # 짧은 타임아웃으로 빠른 연결 테스트
+            response = requests.get(f"{ollama_url}/api/tags", timeout=1)
+            if response.status_code == 200:
+                model_count = len(response.json().get('models', []))
+                cls.logger.info(f"✅ Ollama 서버 연결 성공 - {model_count}개 모델 사용 가능")
+                print(f"✅ Ollama 서버 연결 성공 - {model_count}개 모델 사용 가능")
+            else:
+                cls.logger.warning(f"⚠️ Ollama 서버 응답 오류: HTTP {response.status_code}")
+                print(f"⚠️ Ollama 서버 응답 오류: HTTP {response.status_code}")
+                
+        except requests.exceptions.ConnectionError:
+            cls.logger.info("ℹ️ Ollama 서버 미연결 (LLM 기능 비활성화)")
+            print("ℹ️ Ollama 서버 미연결 (LLM 기능 비활성화)")
+        except requests.exceptions.Timeout:
+            cls.logger.warning("⚠️ Ollama 서버 연결 타임아웃")
+            print("⚠️ Ollama 서버 연결 타임아웃")
+        except Exception as e:
+            cls.logger.warning(f"⚠️ Ollama 연결 테스트 오류: {e}")
+            print(f"⚠️ Ollama 연결 테스트 오류: {e}")
     
     @classmethod
     def get_config_value(cls, db: Session, key: str, default: Any = None) -> Any:
