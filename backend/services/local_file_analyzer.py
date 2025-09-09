@@ -1434,36 +1434,69 @@ JSON only, no explanations:"""
         # 빈 문장 제외
         return len([s for s in sentences if s.strip()])
     
-    def analyze_document_structure_with_llm(self, text: str, file_path: str, file_extension: str) -> Dict[str, Any]:
-        """LLM을 사용한 문서 구조 분석"""
+    def analyze_document_structure_with_llm(self, text: str, file_path: str, file_extension: str, overrides: Dict[str, Any] = None) -> Dict[str, Any]:
+        """LLM을 사용한 문서 구조 분석 (Ollama/OpenAI/Gemini)
+        
+        overrides: 요청 단위로 LLM 구성을 덮어쓰는 옵션(dict)
+        예) {"enabled": true, "provider": "gemini", "model": "models/gemini-2.0-flash", "api_key": "...", "base_url": "...", "max_tokens": 1000, "temperature": 0.2}
+        """
         import logging
         import json
         from services.config_service import ConfigService
         from prompts.templates import DocumentStructurePrompts
         from utils.llm_logger import log_prompt_and_response
-        from langchain_ollama import OllamaLLM
         
         logger = logging.getLogger(__name__)
         
         # LLM 설정 확인
-        llm_enabled = ConfigService.get_bool_config(self.db, "ENABLE_LLM_EXTRACTION", False)
+        overrides = overrides or {}
+        llm_enabled = overrides.get("enabled") if "enabled" in overrides else ConfigService.get_bool_config(self.db, "ENABLE_LLM_EXTRACTION", False)
         if not llm_enabled:
             logger.warning("⚠️ LLM extraction is disabled in configuration")
             return self._fallback_structure_analysis(text, file_extension)
         
-        ollama_url = ConfigService.get_config_value(self.db, "OLLAMA_BASE_URL", "http://localhost:11434")
-        model_name = ConfigService.get_config_value(self.db, "OLLAMA_MODEL", "llama3.2")
+        provider = overrides.get("provider") or ConfigService.get_config_value(self.db, "LLM_PROVIDER", "ollama")
+        logger.info(f"🔍 LLM 기반 문서 구조 분석 시작 - provider={provider}")
         
-        logger.info(f"🔍 LLM 기반 문서 구조 분석 시작 - 모델: {model_name}")
+        # Provider별 모델/엔드포인트 구성
+        if provider == "ollama":
+            ollama_url = overrides.get("base_url") or ConfigService.get_config_value(self.db, "OLLAMA_BASE_URL", "http://localhost:11434")
+            model_name = overrides.get("model") or ConfigService.get_config_value(self.db, "OLLAMA_MODEL", "llama3.2")
+            openai_conf = None
+            gemini_conf = None
+        elif provider == "openai":
+            openai_conf = {**ConfigService.get_openai_config(self.db), **overrides}
+            gemini_conf = None
+            model_name = openai_conf.get("model")
+        elif provider == "gemini":
+            gemini_conf = {**ConfigService.get_gemini_config(self.db), **overrides}
+            openai_conf = None
+            model_name = gemini_conf.get("model")
+        else:
+            logger.warning(f"알 수 없는 LLM provider '{provider}', ollama로 폴백")
+            provider = "ollama"
+            ollama_url = overrides.get("base_url") or ConfigService.get_config_value(self.db, "OLLAMA_BASE_URL", "http://localhost:11434")
+            model_name = overrides.get("model") or ConfigService.get_config_value(self.db, "OLLAMA_MODEL", "llama3.2")
+            openai_conf = None
+            gemini_conf = None
+        
+        logger.info(f"🔍 LLM 모델: {model_name}")
         
         try:
-            # LangChain Ollama 클라이언트 생성
-            ollama_client = OllamaLLM(
-                base_url=ollama_url,
-                model=model_name,
-                timeout=120,  # 2분 타임아웃
-                temperature=0.2,  # 구조 분석은 일관성이 중요함
-            )
+            # LangChain Ollama 클라이언트 또는 HTTP 호출 준비
+            ollama_client = None
+            if provider == "ollama":
+                try:
+                    from langchain_ollama import OllamaLLM
+                    ollama_client = OllamaLLM(
+                        base_url=ollama_url,
+                        model=model_name,
+                        timeout=120,
+                        temperature=0.2,
+                    )
+                except Exception as e:
+                    logger.error(f"❌ Ollama 클라이언트 초기화 실패: {e}")
+                    return self._fallback_structure_analysis_with_llm_attempt(text, file_extension, str(e))
             
             # 텍스트 길이 제한 (더 많은 내용 포함을 위해 증가)
             max_text_length = 15000  # 3000 -> 15000으로 증가
@@ -1491,7 +1524,20 @@ JSON only, no explanations:"""
             logger.info(f"📤 LLM 구조 분석 요청 중... (텍스트 길이: {len(truncated_text)} 문자)")
             
             # LLM 호출
-            response = ollama_client.invoke(prompt)
+            if provider == "ollama":
+                response = ollama_client.invoke(prompt)
+                base_dir_provider = "ollama"
+                base_url_meta = ollama_url
+            elif provider == "openai":
+                response = self._call_openai_chat(prompt, openai_conf)
+                base_dir_provider = "openai"
+                base_url_meta = openai_conf.get("base_url", "https://api.openai.com/v1")
+            elif provider == "gemini":
+                response = self._call_gemini_generate(prompt, gemini_conf)
+                base_dir_provider = "gemini"
+                base_url_meta = gemini_conf.get("base_url", "https://generativelanguage.googleapis.com")
+            else:
+                return self._fallback_structure_analysis_with_llm_attempt(text, file_extension, f"Unsupported provider: {provider}")
             
             logger.info(f"📥 LLM 응답 수신 완료 (길이: {len(response)} 문자)")
             
@@ -1508,14 +1554,14 @@ JSON only, no explanations:"""
                 
             log_prompt_and_response(
                 label="document_structure_analysis",
-                provider="ollama",
+                provider=base_dir_provider,
                 model=model_name,
                 prompt=prompt,
                 response=response,
                 logger=logger,
                 base_dir=base_dir,
                 meta={
-                    "base_url": ollama_url,
+                    "base_url": base_url_meta,
                     "temperature": 0.2,
                     "file_extension": file_extension,
                     "text_length": len(text),
@@ -1563,6 +1609,60 @@ JSON only, no explanations:"""
         except Exception as e:
             logger.error(f"❌ LLM 구조 분석 실패: {e}")
             return self._fallback_structure_analysis_with_llm_attempt(text, file_extension, str(e))
+
+    def _call_openai_chat(self, prompt: str, conf: Dict[str, Any]) -> str:
+        """OpenAI Chat Completions 호출 (단순 문자열 응답)."""
+        import requests
+        import logging
+        logger = logging.getLogger(__name__)
+        api_key = conf.get("api_key")
+        base_url = conf.get("base_url", "https://api.openai.com/v1")
+        model = conf.get("model", "gpt-3.5-turbo")
+        max_tokens = conf.get("max_tokens", 1000)
+        temperature = conf.get("temperature", 0.2)
+        if not api_key:
+            raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다")
+        url = f"{base_url}/chat/completions"
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        r = requests.post(url, headers=headers, json=payload, timeout=120)
+        r.raise_for_status()
+        data = r.json()
+        return data["choices"][0]["message"]["content"]
+
+    def _call_gemini_generate(self, prompt: str, conf: Dict[str, Any]) -> str:
+        """Google Gemini GenerateContent 호출 (v1beta REST)."""
+        import requests
+        import logging
+        logger = logging.getLogger(__name__)
+        api_key = conf.get("api_key")
+        base_url = conf.get("base_url", "https://generativelanguage.googleapis.com")
+        model = conf.get("model", "models/gemini-1.5-pro")
+        max_tokens = conf.get("max_tokens", 1000)
+        temperature = conf.get("temperature", 0.2)
+        if not api_key:
+            raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다")
+        url = f"{base_url}/v1beta/{model}:generateContent?key={api_key}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens
+            }
+        }
+        r = requests.post(url, json=payload, timeout=120)
+        r.raise_for_status()
+        data = r.json()
+        candidates = data.get("candidates", [])
+        if not candidates:
+            return ""
+        parts = candidates[0].get("content", {}).get("parts", [])
+        return "\n".join(part.get("text", "") for part in parts if isinstance(part, dict))
     
     def _extract_json_from_response(self, response: str) -> Optional[Dict[str, Any]]:
         """LLM 응답에서 JSON 부분을 추출"""

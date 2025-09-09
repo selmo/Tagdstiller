@@ -21,7 +21,7 @@ except ImportError:
         OllamaLLM = None
 
 class LLMExtractor(KeywordExtractor):
-    """LLM 기반 키워드 추출기 (Ollama/OpenAI)"""
+    """LLM 기반 키워드 추출기 (Ollama/OpenAI/Gemini)"""
     
     def __init__(self, config: Optional[Dict[str, Any]] = None, db_session = None):
         super().__init__("llm", config)
@@ -100,12 +100,31 @@ class LLMExtractor(KeywordExtractor):
                     else:
                         logger.error(f"❌ Ollama 서버 연결 실패: {self.base_url} (상태: {response.status_code})")
                         self.is_loaded = False
-                        
+            
             elif self.provider == 'openai':
-                # TODO: OpenAI 클라이언트 초기화
-                logger.warning("OpenAI 구현 미완료")
-                self.is_loaded = False
-                pass
+                # OpenAI는 REST 호출 기반. API 키만 확인
+                import os
+                api_key = self.config.get('api_key') if self.config else None
+                if not api_key:
+                    api_key = os.environ.get('OPENAI_API_KEY')
+                if not api_key:
+                    logger.error("❌ OPENAI_API_KEY가 설정되지 않았습니다")
+                    self.is_loaded = False
+                else:
+                    self.is_loaded = True
+                    logger.info("✅ OpenAI provider 준비 완료")
+            elif self.provider == 'gemini':
+                # Gemini도 REST 호출 기반. API 키 확인
+                import os
+                api_key = self.config.get('api_key') if self.config else None
+                if not api_key:
+                    api_key = os.environ.get('GEMINI_API_KEY')
+                if not api_key:
+                    logger.error("❌ GEMINI_API_KEY가 설정되지 않았습니다")
+                    self.is_loaded = False
+                else:
+                    self.is_loaded = True
+                    logger.info("✅ Gemini provider 준비 완료")
             
             logger.info(f"LLM 추출기 최종 상태: is_loaded={self.is_loaded}")
             return self.is_loaded
@@ -209,6 +228,41 @@ class LLMExtractor(KeywordExtractor):
                     return keywords
             elif self.provider == 'openai':
                 response = self._call_openai(prompt)
+                # 프롬프트/응답 파일 저장 및 로그 기록
+                log_prompt_and_response(
+                    label="keyword_extraction",
+                    provider=self.provider,
+                    model=self.model_name,
+                    prompt=prompt,
+                    response=response or "",
+                    logger=logger,
+                    meta={
+                        "file_path": str(file_path) if file_path else None,
+                        "config_max_keywords": self.config.get('max_keywords') if self.config else None,
+                    },
+                )
+                if response:
+                    keywords = self._parse_llm_response(response, text, position_mapper, position_map)
+                    
+                    # 디버그 로깅: 최종 결과
+                    extraction_time = time.time() - start_time
+                    debug_logger.log_final_results(
+                        extractor_name="llm",
+                        final_keywords=[{
+                            "keyword": kw.text,
+                            "score": kw.score,
+                            "category": kw.category,
+                            "start_position": kw.start_position,
+                            "end_position": kw.end_position,
+                            "context": kw.context_snippet
+                        } for kw in keywords],
+                        extraction_time=extraction_time,
+                        total_processing_time=time.time() - start_time
+                    )
+                    
+                    return keywords
+            elif self.provider == 'gemini':
+                response = self._call_gemini(prompt)
                 # 프롬프트/응답 파일 저장 및 로그 기록
                 log_prompt_and_response(
                     label="keyword_extraction",
@@ -431,15 +485,62 @@ Output:"""
             return "", {}, {"error": str(e)}
     
     def _call_openai(self, prompt: str) -> str:
-        """OpenAI API를 호출합니다."""
-        # TODO: 실제 OpenAI API 호출
-        # response = self.client.chat.completions.create(
-        #     model=self.model_name,
-        #     messages=[{"role": "user", "content": prompt}],
-        #     max_tokens=self.config.get('max_tokens', 1000)
-        # )
-        # return response.choices[0].message.content
-        return ""
+        """OpenAI Chat Completions REST 호출."""
+        import os
+        base_url = (self.config or {}).get('base_url') or os.environ.get('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+        api_key = (self.config or {}).get('api_key') or os.environ.get('OPENAI_API_KEY')
+        if not api_key:
+            return ""
+        model = self.model_name or 'gpt-3.5-turbo'
+        max_tokens = (self.config or {}).get('max_tokens', 1000)
+        temperature = (self.config or {}).get('temperature', 0.2)
+        url = f"{base_url}/chat/completions"
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        try:
+            r = requests.post(url, headers=headers, json=payload, timeout=(self.config or {}).get('timeout', 120))
+            if r.status_code != 200:
+                return ""
+            data = r.json()
+            return data.get('choices', [{}])[0].get('message', {}).get('content', '')
+        except Exception:
+            return ""
+
+    def _call_gemini(self, prompt: str) -> str:
+        """Google Generative Language (Gemini) REST 호출."""
+        import os
+        base_url = (self.config or {}).get('base_url') or os.environ.get('GEMINI_API_BASE', 'https://generativelanguage.googleapis.com')
+        api_key = (self.config or {}).get('api_key') or os.environ.get('GEMINI_API_KEY')
+        if not api_key:
+            return ""
+        model = self.model_name or 'models/gemini-1.5-pro'
+        max_tokens = (self.config or {}).get('max_tokens', 1000)
+        temperature = (self.config or {}).get('temperature', 0.2)
+        url = f"{base_url}/v1beta/{model}:generateContent?key={api_key}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens
+            }
+        }
+        try:
+            r = requests.post(url, json=payload, timeout=(self.config or {}).get('timeout', 120))
+            if r.status_code != 200:
+                return ""
+            data = r.json()
+            candidates = data.get('candidates', [])
+            if not candidates:
+                return ""
+            parts = candidates[0].get('content', {}).get('parts', [])
+            return "\n".join(part.get('text', '') for part in parts if isinstance(part, dict))
+        except Exception:
+            return ""
     
     def _parse_llm_response(self, response: str, original_text: str, position_mapper: PositionMapper, position_map: Dict[str, any]) -> List[Keyword]:
         """LLM 응답을 파싱하여 키워드 목록을 생성합니다."""

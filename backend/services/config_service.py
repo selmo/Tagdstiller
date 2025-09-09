@@ -83,7 +83,12 @@ class ConfigService:
             "description": "최대 키워드 수"
         },
         
-        # LLM 설정 (Ollama 통합)
+        # LLM 설정 (Provider + Ollama/OpenAI/Gemini)
+        "LLM_PROVIDER": {
+            "value": "ollama",
+            "description": "LLM 제공자 (ollama|openai|gemini)"
+        },
+        # Ollama
         "OLLAMA_BASE_URL": {
             "value": "http://localhost:11434",
             "description": "서버 주소"
@@ -110,6 +115,10 @@ class ConfigService:
         },
         
         # OpenAI 설정
+        "OPENAI_BASE_URL": {
+            "value": "https://api.openai.com/v1",
+            "description": "API Base URL"
+        },
         "OPENAI_API_KEY": {
             "value": "",
             "description": "API 키"
@@ -121,6 +130,32 @@ class ConfigService:
         "OPENAI_MAX_TOKENS": {
             "value": "1000",
             "description": "최대 토큰"
+        },
+        "OPENAI_TEMPERATURE": {
+            "value": "0.2",
+            "description": "온도 (0.0-1.0)"
+        },
+
+        # Gemini 설정
+        "GEMINI_API_BASE": {
+            "value": "https://generativelanguage.googleapis.com",
+            "description": "API Base URL"
+        },
+        "GEMINI_API_KEY": {
+            "value": "",
+            "description": "API 키"
+        },
+        "GEMINI_MODEL": {
+            "value": "models/gemini-1.5-pro",
+            "description": "모델 이름 (v1beta)"
+        },
+        "GEMINI_MAX_TOKENS": {
+            "value": "1000",
+            "description": "최대 토큰"
+        },
+        "GEMINI_TEMPERATURE": {
+            "value": "0.2",
+            "description": "온도 (0.0-1.0)"
         },
         
         # 파일 처리 설정
@@ -290,7 +325,7 @@ class ConfigService:
             # 중복 LLM 설정들
             "extractor.llm.enabled", "extractor.llm.provider", "extractor.llm.model", 
             "extractor.llm.max_tokens", "extractor.llm.temperature",
-            "LLM_PROVIDER",  # ENABLE_LLM_EXTRACTION으로 통합
+            # 사용: LLM_PROVIDER (삭제하지 않음)
             # 중복 파일 설정들
             "file.allowed_extensions", "file.max_size_mb",
             # 중복 키워드 개수 설정들
@@ -522,7 +557,7 @@ class ConfigService:
             "ner_model": cls.get_config_value(db, "extractor.ner.model", "ko_core_news_sm"),
             "ner_auto_download": cls.get_bool_config(db, "extractor.ner.auto_download", True),
             "llm_enabled": cls.get_bool_config(db, "ENABLE_LLM_EXTRACTION", False),
-            "llm_provider": "ollama",
+            "llm_provider": cls.get_config_value(db, "LLM_PROVIDER", "ollama"),
             "konlpy_enabled": cls.get_bool_config(db, "extractor.konlpy.enabled", False),
             "konlpy_tagger": cls.get_config_value(db, "extractor.konlpy.tagger", "Okt"),
             "konlpy_min_length": cls.get_int_config(db, "extractor.konlpy.min_length", 2),
@@ -558,4 +593,24 @@ class ConfigService:
             "base_url": cls.get_config_value(db, "OLLAMA_BASE_URL", "http://localhost:11434"),
             "model": cls.get_config_value(db, "OLLAMA_MODEL", "mistral"),
             "timeout": cls.get_int_config(db, "OLLAMA_TIMEOUT", 30)
+        }
+
+    @classmethod
+    def get_openai_config(cls, db: Session) -> Dict[str, Any]:
+        return {
+            "base_url": cls.get_config_value(db, "OPENAI_BASE_URL", "https://api.openai.com/v1"),
+            "api_key": cls.get_config_value(db, "OPENAI_API_KEY", ""),
+            "model": cls.get_config_value(db, "OPENAI_MODEL", "gpt-3.5-turbo"),
+            "max_tokens": cls.get_int_config(db, "OPENAI_MAX_TOKENS", 1000),
+            "temperature": cls.get_float_config(db, "OPENAI_TEMPERATURE", 0.2),
+        }
+
+    @classmethod
+    def get_gemini_config(cls, db: Session) -> Dict[str, Any]:
+        return {
+            "base_url": cls.get_config_value(db, "GEMINI_API_BASE", "https://generativelanguage.googleapis.com"),
+            "api_key": cls.get_config_value(db, "GEMINI_API_KEY", ""),
+            "model": cls.get_config_value(db, "GEMINI_MODEL", "models/gemini-1.5-pro"),
+            "max_tokens": cls.get_int_config(db, "GEMINI_MAX_TOKENS", 1000),
+            "temperature": cls.get_float_config(db, "GEMINI_TEMPERATURE", 0.2),
         }

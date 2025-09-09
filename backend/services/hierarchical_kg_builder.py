@@ -46,11 +46,12 @@ class HierarchicalEntity:
 class HierarchicalKGBuilder:
     """계층적 Knowledge Graph 빌더"""
     
-    def __init__(self, memgraph_config: Dict[str, Any] = None, auto_save_to_memgraph: bool = True, db_session = None):
+    def __init__(self, memgraph_config: Dict[str, Any] = None, auto_save_to_memgraph: bool = True, db_session = None, llm_config: Dict[str, Any] = None):
         self.schema_manager = KGSchemaManager()
         self.auto_save_to_memgraph = auto_save_to_memgraph
         self.logger = logging.getLogger(__name__)
         self.db_session = db_session
+        self._llm_config_override = llm_config
         
         # LLM 서비스 초기화 (관계 추출용)
         self.llm_service = None
@@ -59,13 +60,36 @@ class HierarchicalKGBuilder:
                 from extractors.llm_extractor import LLMExtractor
                 from services.config_service import ConfigService
                 
-                # LLM 설정 로드
-                llm_config = {
-                    'provider': 'ollama',
-                    'model': ConfigService.get_config_value(db_session, 'OLLAMA_MODEL', 'llama3.2'),
-                    'base_url': ConfigService.get_config_value(db_session, 'OLLAMA_BASE_URL', 'http://localhost:11434'),
-                    'timeout': ConfigService.get_int_config(db_session, 'OLLAMA_TIMEOUT', 30)
-                }
+                # LLM 설정 로드 (override 우선)
+                if self._llm_config_override:
+                    llm_config = self._llm_config_override
+                else:
+                    provider = ConfigService.get_config_value(db_session, 'LLM_PROVIDER', 'ollama')
+                    if provider == 'openai':
+                        oc = ConfigService.get_openai_config(db_session)
+                        llm_config = {
+                            'provider': 'openai',
+                            'model': oc.get('model'),
+                            'base_url': oc.get('base_url'),
+                            'api_key': oc.get('api_key'),
+                            'timeout':  ConfigService.get_int_config(db_session, 'OLLAMA_TIMEOUT', 30)
+                        }
+                    elif provider == 'gemini':
+                        gc = ConfigService.get_gemini_config(db_session)
+                        llm_config = {
+                            'provider': 'gemini',
+                            'model': gc.get('model'),
+                            'base_url': gc.get('base_url'),
+                            'api_key': gc.get('api_key'),
+                            'timeout':  ConfigService.get_int_config(db_session, 'OLLAMA_TIMEOUT', 30)
+                        }
+                    else:
+                        llm_config = {
+                            'provider': 'ollama',
+                            'model': ConfigService.get_config_value(db_session, 'OLLAMA_MODEL', 'llama3.2'),
+                            'base_url': ConfigService.get_config_value(db_session, 'OLLAMA_BASE_URL', 'http://localhost:11434'),
+                            'timeout': ConfigService.get_int_config(db_session, 'OLLAMA_TIMEOUT', 30)
+                        }
                 
                 self.llm_service = LLMExtractor(config=llm_config, db_session=db_session)
                 if self.llm_service.load_model():

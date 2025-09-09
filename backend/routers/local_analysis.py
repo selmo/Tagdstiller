@@ -1328,6 +1328,9 @@ async def generate_knowledge_graph(
     force_reanalyze = request.get("force_reanalyze", False)
     force_rebuild = request.get("force_rebuild", False)
     use_llm = request.get("use_llm", True)  # LLM 기반 분석 옵션 (기본값: True)
+    llm_overrides = request.get("llm") or request.get("llm_config")  # 단일 요청용 LLM 설정
+    if use_llm and isinstance(llm_overrides, dict) and "enabled" not in llm_overrides:
+        llm_overrides["enabled"] = True
     directory = request.get("directory")
     dataset_id = request.get("dataset_id")  # 선택적 dataset_id 파라미터
     
@@ -1404,7 +1407,8 @@ async def generate_knowledge_graph(
                 structure_results = analyzer.analyze_document_structure_with_llm(
                     text=document_text,
                     file_path=str(file_path_obj),
-                    file_extension=file_path_obj.suffix.lower()
+                    file_extension=file_path_obj.suffix.lower(),
+                    overrides=llm_overrides
                 )
             else:
                 # 기본 구조 분석 수행
@@ -1427,22 +1431,26 @@ async def generate_knowledge_graph(
         
         # 3. 키워드 추출 결과 확인 및 필요시 분석 수행
         analysis_result_path = output_dir / "keyword_analysis.json"
-        if not force_reanalyze and analysis_result_path.exists():
-            with open(analysis_result_path, 'r', encoding='utf-8') as f:
-                analysis_results = json.load(f)
+        if use_llm:
+            # LLM 모드에서는 구조 분석 내 키워드를 사용하므로 별도 키워드 추출을 생략
+            analysis_results = {"keywords": {}}
         else:
-            # 키워드 추출 수행
-            result = analyzer.analyze_file(
-                file_path=str(file_path_obj),
-                extractors=None,  # 모든 추출기 사용
-                force_reanalyze=force_reanalyze
-            )
-            analysis_results = result
+            if not force_reanalyze and analysis_result_path.exists():
+                with open(analysis_result_path, 'r', encoding='utf-8') as f:
+                    analysis_results = json.load(f)
+            else:
+                # 키워드 추출 수행
+                result = analyzer.analyze_file(
+                    file_path=str(file_path_obj),
+                    extractors=None,  # 모든 추출기 사용
+                    force_reanalyze=force_reanalyze
+                )
+                analysis_results = result
         
         # 4. 계층적 Knowledge Graph 생성
         from services.hierarchical_kg_builder import HierarchicalKGBuilder
         # LLM을 사용할 경우 자동 Memgraph 저장을 비활성화 (향상된 버전을 나중에 저장)
-        kg_builder = HierarchicalKGBuilder(db_session=db, auto_save_to_memgraph=not use_llm)
+        kg_builder = HierarchicalKGBuilder(db_session=db, auto_save_to_memgraph=not use_llm, llm_config=llm_overrides if llm_overrides else None)
         
         # 최고 품질 파서의 텍스트 사용  
         best_parser = parsing_results.get("summary", {}).get("best_parser")
