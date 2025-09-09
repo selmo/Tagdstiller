@@ -365,7 +365,7 @@ For each keyword, determine:
 5. semantic_type: grammatical/semantic classification
 
 TEXT TO ANALYZE:
-{text[:1500]}
+{text[:15000]}
 
 Return ONLY a valid JSON object with this exact structure:
 {{

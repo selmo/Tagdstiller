@@ -1066,7 +1066,7 @@ Text:
             # 간소화된 프롬프트 (더 안정적인 응답을 위해)
             prompt = f"""Analyze this document and extract metadata in JSON format:
 
-{text[:8000]}
+{text[:15000]}
 
 Return only a JSON object with these fields:
 {{
@@ -1703,8 +1703,35 @@ JSON only, no explanations:"""
             # 파일 정보 수집
             absolute_path = self.get_absolute_path(file_path)
             
-            # 파일 내용 파싱 (use_docling 옵션 전달)
-            content = self.parse_file_content(file_path, use_docling=use_docling)
+            # DocumentParserService를 통해 기존 파싱 결과 확인
+            from services.document_parser_service import DocumentParserService
+            parser_service = DocumentParserService()
+            
+            content = None
+            parsing_used = "new_parsing"
+            
+            # 기존 파싱 결과 확인
+            if parser_service.has_parsing_results(absolute_path):
+                try:
+                    # 기존 파싱 결과에서 텍스트 추출
+                    existing_results = parser_service.load_existing_parsing_results(absolute_path)
+                    best_parser = existing_results.get("summary", {}).get("best_parser")
+                    
+                    if best_parser and best_parser in existing_results.get("parsing_results", {}):
+                        parser_dir = parser_service.get_output_directory(absolute_path) / best_parser
+                        text_file = parser_dir / f"{best_parser}_text.txt"
+                        if text_file.exists():
+                            with open(text_file, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                                parsing_used = f"existing_{best_parser}"
+                                print(f"✅ 기존 파싱 결과 재사용: {best_parser} ({len(content)} 문자)")
+                except Exception as e:
+                    print(f"⚠️ 기존 파싱 결과 로드 실패, 새로 파싱: {e}")
+            
+            # 파싱 결과가 없거나 로드 실패 시 새로 파싱
+            if not content:
+                content = self.parse_file_content(file_path, use_docling=use_docling)
+                parsing_used = "new_parsing"
             
             # 키워드 추출
             keywords = self.extract_keywords(content, extractors, filename=absolute_path.name)
@@ -1738,7 +1765,8 @@ JSON only, no explanations:"""
                     "extractors_used": extractors if extractors is not None else ConfigService.get_json_config(
                         self.db, "DEFAULT_EXTRACTORS", ["llm"]
                     ),
-                    "total_keywords": len(keywords)
+                    "total_keywords": len(keywords),
+                    "parsing_method": parsing_used
                 },
                 "keywords": grouped_keywords,
                 "analysis_status": "completed"

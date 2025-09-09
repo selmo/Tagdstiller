@@ -279,8 +279,8 @@ class LLMExtractor(KeywordExtractor):
             # 템플릿 이름 결정
             template_name = self.prompt_config.get_template_name('keyword_extraction')
             
-            # 템플릿 변수 생성
-            variables = self.prompt_config.get_template_variables('keyword_extraction', text[:600])
+            # 템플릿 변수 생성 (텍스트 길이 제한을 15000자로 증가)
+            variables = self.prompt_config.get_template_variables('keyword_extraction', text[:15000])
             
             # 프롬프트 생성
             prompt = get_prompt_template('keyword_extraction', template_name, **variables)
@@ -295,7 +295,7 @@ class LLMExtractor(KeywordExtractor):
             max_keywords = min(self.config.get('max_keywords', 20), 8)
             return f"""You are a keyword extraction system. Extract exactly {max_keywords} important keywords from the text below.
 
-Text: {text[:600]}
+Text: {text[:15000]}
 
 Return ONLY a JSON array with this exact format (no other text):
 [{{"keyword":"word1","score":0.9,"category":"noun"}},{{"keyword":"word2","score":0.8,"category":"technology"}}]

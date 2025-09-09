@@ -271,6 +271,12 @@ class PdfParser(DocumentParser):
     def _parse_with_docling(self, file_path: Path) -> Tuple[str, dict]:
         """PDFDocling으로 구조 보존 파싱 (테이블, 이미지 포함)"""
         try:
+            # 기존 docling 결과가 있는지 확인
+            existing_text = self._check_existing_docling_result(file_path)
+            if existing_text:
+                self.logger.info("✅ 기존 docling 결과 재사용")
+                return existing_text, {}
+            
             from services.parser.docling_parser import DoclingParser
             
             docling_parser = DoclingParser()
@@ -520,3 +526,29 @@ class PdfParser(DocumentParser):
         """현재 시간을 문자열로 반환"""
         from datetime import datetime
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    def _check_existing_docling_result(self, file_path: Path) -> Optional[str]:
+        """기존 docling 결과가 있는지 확인하고 텍스트 반환"""
+        try:
+            # DocumentParserService가 생성한 docling 결과 경로 확인
+            output_dir = file_path.parent / file_path.stem
+            docling_dir = output_dir / "docling"
+            docling_text_file = docling_dir / "docling_text.txt"
+            
+            self.logger.info(f"🔍 기존 docling 결과 확인: {docling_text_file}")
+            
+            if docling_text_file.exists():
+                with open(docling_text_file, 'r', encoding='utf-8') as f:
+                    text = f.read()
+                if text and text.strip():
+                    self.logger.info(f"✅ 기존 docling 결과 발견 ({len(text)} 문자) - 재사용 함")
+                    return text
+                else:
+                    self.logger.info("⚠️ 기존 docling 파일이 비어있음")
+            else:
+                self.logger.info("❌ 기존 docling 결과 파일 없음")
+            
+            return None
+        except Exception as e:
+            self.logger.warning(f"❌ 기존 docling 결과 확인 실패: {e}")
+            return None
