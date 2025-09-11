@@ -1130,6 +1130,11 @@ def _integrate_llm_structure_into_kg(kg_result: Dict[str, Any], llm_analysis: Di
     import os
     
     def _hash(s: str) -> str:
+        # None 또는 빈 값 처리
+        if s is None:
+            s = ""
+        elif not isinstance(s, str):
+            s = str(s)
         return hashlib.sha1(s.encode("utf-8", errors="ignore")).hexdigest()[:16]
     
     # 타입 안전성 확인
@@ -1186,8 +1191,13 @@ def _integrate_llm_structure_into_kg(kg_result: Dict[str, Any], llm_analysis: Di
         if dataset_id:
             section_properties["dataset_id"] = dataset_id
         
+        # title이 None인 경우 처리
+        section_title = section.get('title')
+        if section_title is None:
+            section_title = f"Section_{section_idx}"
+            
         section_entity = {
-            "id": f"llm_section_{_hash(section.get('title', ''))}_{section_idx}",
+            "id": f"llm_section_{_hash(section_title)}_{section_idx}",
             "type": "DocumentSection",
             "properties": section_properties
         }
@@ -1530,6 +1540,11 @@ async def generate_knowledge_graph(
                 import hashlib
                 import os
                 def _hash(s: str) -> str:
+                    # None 또는 빈 값 처리
+                    if s is None:
+                        s = ""
+                    elif not isinstance(s, str):
+                        s = str(s)
                     return hashlib.sha1(s.encode("utf-8", errors="ignore")).hexdigest()[:16]
                 
                 doc_info = llm_analysis.get("documentInfo", {})
@@ -1582,7 +1597,7 @@ async def generate_knowledge_graph(
                 llm_entities = [e for e in kg_result.get('entities', []) if e.get('type') in ['DocumentSection', 'DocumentSubsection', 'Author', 'Topic', 'Statistic']]
                 logger.info(f"🎯 LLM 특화 엔티티: {len(llm_entities)}개")
                 
-                memgraph_service = MemgraphService()
+                # memgraph_service = MemgraphService()
                 
                 if False and memgraph_service.is_connected():
                     # 기존 데이터 완전히 삭제하고 새로 저장
