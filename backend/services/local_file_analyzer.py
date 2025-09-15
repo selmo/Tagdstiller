@@ -1457,29 +1457,34 @@ JSON only, no explanations:"""
         
         provider = overrides.get("provider") or ConfigService.get_config_value(self.db, "LLM_PROVIDER", "ollama")
         logger.info(f"🔍 LLM 기반 문서 구조 분석 시작 - provider={provider}")
-        
-        # Provider별 모델/엔드포인트 구성
-        if provider == "ollama":
-            ollama_url = overrides.get("base_url") or ConfigService.get_config_value(self.db, "OLLAMA_BASE_URL", "http://localhost:11434")
-            model_name = overrides.get("model") or ConfigService.get_config_value(self.db, "OLLAMA_MODEL", "llama3.2")
-            openai_conf = None
-            gemini_conf = None
-        elif provider == "openai":
-            openai_conf = {**ConfigService.get_openai_config(self.db), **overrides}
-            gemini_conf = None
-            model_name = openai_conf.get("model")
-        elif provider == "gemini":
-            gemini_conf = {**ConfigService.get_gemini_config(self.db), **overrides}
-            openai_conf = None
-            model_name = gemini_conf.get("model")
-        else:
-            logger.warning(f"알 수 없는 LLM provider '{provider}', ollama로 폴백")
-            provider = "ollama"
-            ollama_url = overrides.get("base_url") or ConfigService.get_config_value(self.db, "OLLAMA_BASE_URL", "http://localhost:11434")
-            model_name = overrides.get("model") or ConfigService.get_config_value(self.db, "OLLAMA_MODEL", "llama3.2")
-            openai_conf = None
-            gemini_conf = None
-        
+
+        try:
+            # Provider별 모델/엔드포인트 구성
+            logger.info(f"🔍 Provider 설정 시작: {provider}")
+            if provider == "ollama":
+                ollama_url = overrides.get("base_url") or ConfigService.get_config_value(self.db, "OLLAMA_BASE_URL", "http://localhost:11434")
+                model_name = overrides.get("model") or ConfigService.get_config_value(self.db, "OLLAMA_MODEL", "llama3.2")
+                openai_conf = None
+                gemini_conf = None
+            elif provider == "openai":
+                openai_conf = {**ConfigService.get_openai_config(self.db), **overrides}
+                gemini_conf = None
+                model_name = openai_conf.get("model")
+            elif provider == "gemini":
+                gemini_conf = {**ConfigService.get_gemini_config(self.db), **overrides}
+                openai_conf = None
+                model_name = gemini_conf.get("model")
+            else:
+                logger.warning(f"알 수 없는 LLM provider '{provider}', ollama로 폴백")
+                provider = "ollama"
+                ollama_url = overrides.get("base_url") or ConfigService.get_config_value(self.db, "OLLAMA_BASE_URL", "http://localhost:11434")
+                model_name = overrides.get("model") or ConfigService.get_config_value(self.db, "OLLAMA_MODEL", "llama3.2")
+                openai_conf = None
+                gemini_conf = None
+        except Exception as e:
+            logger.error(f"❌ LLM provider 설정 실패: {e}")
+            return self._fallback_structure_analysis(text, file_extension)
+
         logger.info(f"🔍 LLM 모델: {model_name}")
         
         try:
@@ -1525,7 +1530,18 @@ JSON only, no explanations:"""
             
             # LLM 호출
             if provider == "ollama":
-                response = ollama_client.invoke(prompt)
+                try:
+                    logger.info("🔍 Ollama 호출 시작...")
+                    logger.info(f"🔍 프롬프트 길이: {len(prompt)}자")
+                    response = ollama_client.invoke(prompt)
+                    logger.info(f"🔍 Ollama 응답 성공 - 길이: {len(response)}자")
+                    logger.info(f"🔍 Ollama 응답 시작부 (300자): {response[:300]!r}")
+                    logger.info(f"🔍 Ollama 응답 끝부 (300자): {response[-300:]!r}")
+                except Exception as e:
+                    logger.error(f"❌ Ollama 호출 중 예외 발생: {type(e).__name__}: {e}")
+                    import traceback
+                    logger.error(f"❌ 예외 상세: {traceback.format_exc()}")
+                    raise e
                 base_dir_provider = "ollama"
                 base_url_meta = ollama_url
             elif provider == "openai":
@@ -1618,7 +1634,7 @@ JSON only, no explanations:"""
         api_key = conf.get("api_key")
         base_url = conf.get("base_url", "https://api.openai.com/v1")
         model = conf.get("model", "gpt-3.5-turbo")
-        max_tokens = conf.get("max_tokens", 1000)
+        max_tokens = conf.get("max_tokens", 8000)
         temperature = conf.get("temperature", 0.2)
         if not api_key:
             raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다")
@@ -1643,7 +1659,7 @@ JSON only, no explanations:"""
         api_key = conf.get("api_key")
         base_url = conf.get("base_url", "https://generativelanguage.googleapis.com")
         model = conf.get("model", "models/gemini-1.5-pro")
-        max_tokens = conf.get("max_tokens", 1000)
+        max_tokens = conf.get("max_tokens", 8000)
         temperature = conf.get("temperature", 0.2)
         if not api_key:
             raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다")
@@ -1665,64 +1681,437 @@ JSON only, no explanations:"""
         return "\n".join(part.get("text", "") for part in parts if isinstance(part, dict))
     
     def _extract_json_from_response(self, response: str) -> Optional[Dict[str, Any]]:
-        """LLM 응답에서 JSON 부분을 추출"""
+        """LLM 응답에서 JSON 부분을 추출 (문서 구조 분석에 특화)"""
         import json
         import re
-        
-        # JSON 코드 블록 추출
-        if "```json" in response:
-            json_start = response.find("```json") + 7
-            json_end = response.find("```", json_start)
-            if json_end != -1:
-                json_text = response[json_start:json_end].strip()
-            else:
-                json_text = response[json_start:].strip()
-        elif "```" in response:
-            json_start = response.find("```") + 3
-            json_end = response.find("```", json_start)
-            if json_end != -1:
-                json_text = response[json_start:json_end].strip()
-            else:
-                json_text = response[json_start:].strip()
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        logger.info(f"🔍 JSON 추출 시작 - 응답 길이: {len(response)}자")
+        logger.info(f"🔍 응답 시작부 (200자): {response[:200]!r}")
+        logger.info(f"🔍 응답 끝부 (200자): {response[-200:]!r}")
+
+        # 1. JSON 코드 블록 추출 (우선순위)
+        json_text = None
+
+        # 방법 1: ```json ... ``` 블록 (강화된 패턴)
+        json_patterns = [
+            r'```json\s*(.*?)\s*```',           # 기본 json 블록
+            r'```JSON\s*(.*?)\s*```',           # 대문자 JSON
+            r'```\s*json\s*(.*?)\s*```',        # json 앞에 공백
+            r'```\s*{.*?}\s*```',               # 중괄호로 시작하는 블록
+        ]
+
+        for pattern in json_patterns:
+            match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+            if match:
+                json_text = match.group(1).strip()
+                logger.debug(f"📝 JSON 코드 블록에서 추출 (패턴: {pattern[:20]}...)")
+                break
+
+        # 방법 2: ``` ... ``` 일반 블록
+        if not json_text and "```" in response:
+            pattern = r'```\s*(.*?)\s*```'
+            match = re.search(pattern, response, re.DOTALL)
+            if match:
+                candidate = match.group(1).strip()
+                # JSON 같은 내용인지 확인
+                if candidate.startswith('{') and candidate.endswith('}'):
+                    json_text = candidate
+                    logger.debug("📝 일반 코드 블록에서 추출")
+
+        # 방법 3: 중괄호 매칭 (복잡한 JSON 구조 지원)
+        if not json_text:
+            # documentInfo나 structureAnalysis 키를 찾아서 시작점 결정
+            start_patterns = [
+                r'\{\s*"documentInfo"',
+                r'\{\s*"structureAnalysis"',
+                r'\{\s*"coreContent"',
+                r'\{\s*"metaInfo"'
+            ]
+
+            start_pos = -1
+            needs_opening_brace = False
+
+            for pattern in start_patterns:
+                match = re.search(pattern, response)
+                if match:
+                    start_pos = match.start()
+                    break
+
+            # 중괄호가 없는 경우 주요 필드를 찾아서 시작점 결정
+            if start_pos == -1:
+                field_patterns = [
+                    r'"documentInfo"',
+                    r'"structureAnalysis"',
+                    r'"coreContent"',
+                    r'"metaInfo"'
+                ]
+                for pattern in field_patterns:
+                    match = re.search(pattern, response)
+                    if match:
+                        # 필드 앞에서 개행/공백을 찾아 그 지점을 시작점으로 설정
+                        field_start = match.start()
+                        # 필드 앞의 공백/개행을 찾아서 시작점 설정
+                        line_start = response.rfind('\n', 0, field_start)
+                        if line_start != -1:
+                            # 개행 후 공백을 무시하고 시작점 설정
+                            while line_start + 1 < len(response) and response[line_start + 1] in ' \t':
+                                line_start += 1
+                            start_pos = line_start + 1
+                        else:
+                            start_pos = field_start
+                        needs_opening_brace = True
+                        logger.info(f"🔧 중괄호 없는 JSON 감지: '{pattern}' 필드부터 시작, start_pos={start_pos}")
+                        break
+
+            if start_pos == -1:
+                # 첫 번째 { 찾기
+                start_pos = response.find('{')
+
+            if start_pos != -1:
+                # 중괄호 균형 맞추기로 끝점 찾기
+                # needs_opening_brace가 True면 시작 중괄호가 없으므로 카운트를 1로 시작
+                brace_count = 1 if needs_opening_brace else 0
+                end_pos = -1
+                in_string = False
+                escape_next = False
+
+                for i in range(start_pos, len(response)):
+                    char = response[i]
+
+                    if escape_next:
+                        escape_next = False
+                        continue
+
+                    if char == '\\':
+                        escape_next = True
+                        continue
+
+                    if char == '"' and not escape_next:
+                        in_string = not in_string
+                        continue
+
+                    if not in_string:
+                        if char == '{':
+                            brace_count += 1
+                        elif char == '}':
+                            brace_count -= 1
+                            if brace_count == 0:
+                                end_pos = i + 1
+                                break
+
+                if end_pos > start_pos:
+                    json_text = response[start_pos:end_pos]
+                    # 중괄호가 누락된 경우 추가
+                    if needs_opening_brace and not json_text.strip().startswith('{'):
+                        json_text = '{' + json_text
+                        logger.info(f"🔧 누락된 시작 중괄호 추가: {json_text[:100]}...")
+                    logger.debug("📝 중괄호 매칭으로 추출")
+                else:
+                    # 닫는 중괄호를 찾지 못했지만 주요 필드에서 시작한 경우
+                    # 남은 텍스트를 사용하고 누락된 중괄호를 보정
+                    if needs_opening_brace:
+                        candidate = response[start_pos:].strip()
+                        if not candidate.startswith('{'):
+                            candidate = '{' + candidate
+                            logger.info("🔧 누락된 시작 중괄호 보정 추가")
+                        # 괄호 균형 맞추기
+                        open_braces = candidate.count('{')
+                        close_braces = candidate.count('}')
+                        if close_braces < open_braces:
+                            candidate = candidate + ('}' * (open_braces - close_braces))
+                            logger.info(f"🔧 누락된 닫는 중괄호 {open_braces - close_braces}개 추가")
+                        json_text = candidate
+                        logger.debug("📝 중괄호 종결 보정으로 추출")
+
+        # 방법 4: 최후의 수단 - 전체 텍스트
+        if not json_text:
+            json_text = response.strip()
+            logger.debug("📝 전체 응답 사용")
+
+        # JSON 추출 결과 로깅
+        if json_text:
+            logger.debug(f"📝 JSON 추출 성공 - 길이: {len(json_text)}자, 방법: {'코드블록' if '```' in response else '중괄호매칭' if json_text != response.strip() else '전체응답'}")
+            logger.debug(f"📝 추출된 JSON 시작: {json_text[:200]}")
         else:
-            # 첫 번째 { 부터 마지막 } 까지 추출
-            start = response.find('{')
-            end = response.rfind('}')
-            if start != -1 and end != -1 and end > start:
-                json_text = response[start:end+1]
-            else:
-                json_text = response
-        
+            logger.error("❌ JSON 추출 실패 - 모든 방법으로 JSON을 찾을 수 없음")
+            logger.debug(f"📝 원본 응답 시작 200자: {response[:200]}")
+            logger.debug(f"📝 원본 응답 끝 200자: {response[-200:]}")
+            return None
+
+        # JSON 정리
+        if json_text:
+            # 앞뒤 불필요한 텍스트 제거
+            json_text = json_text.strip()
+
+            # 마크다운 코드펜스 제거 (혹시 남아있을 경우)
+            json_text = re.sub(r'^```json\s*', '', json_text, flags=re.IGNORECASE)
+            json_text = re.sub(r'^```JSON\s*', '', json_text, flags=re.IGNORECASE)
+            json_text = re.sub(r'\s*```$', '', json_text)
+            json_text = re.sub(r'^```\s*', '', json_text)
+
+            # Gemini 특화: 설명 텍스트 제거는
+            # JSON이 '{'로 바로 시작하지 않을 때만 적용하여
+            # 정상 JSON 내부 문자열을 잘못 잘라내지 않도록 함
+            if not json_text.lstrip().startswith('{'):
+                explanation_patterns = [
+                    r'^[^{]*?(다음은|결과는|분석|구조|JSON)\s*:?\s*\n*\s*{',
+                    r'^[^{]*?(Here is|The result|Analysis|Structure|JSON)\s*:?\s*\n*\s*{',
+                    r'^.*?분석.*?결과.*?\n*\s*{',
+                    r'^.*?구조.*?분석.*?\n*\s*{'
+                ]
+
+                for pattern in explanation_patterns:
+                    match = re.search(pattern, json_text, re.IGNORECASE | re.DOTALL)
+                    if match:
+                        # 설명 부분을 제거하고 { 부터 시작
+                        start_pos = match.end() - 1  # { 문자 포함
+                        json_text = json_text[start_pos:]
+                        logger.debug("📝 설명 텍스트 제거")
+                        break
+
+            # 불완전한 JSON 수정 시도
+            if not json_text.endswith('}') and json_text.count('{') > json_text.count('}'):
+                missing_braces = json_text.count('{') - json_text.count('}')
+                json_text += '}' * missing_braces
+                logger.debug(f"📝 누락된 중괄호 {missing_braces}개 추가")
+
         try:
             # 기본 JSON 파싱 시도
+            logger.debug(f"📝 JSON 파싱 시도 - 길이: {len(json_text)}자")
+            logger.info(f"🔍 파싱할 JSON 내용 (첫 200자): {json_text[:200]!r}")
             return json.loads(json_text)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ 기본 JSON 파싱 실패: {e}")
+            logger.debug(f"📝 문제가 된 JSON 앞부분(500자): {json_text[:500]}")
+            logger.debug(f"📝 문제가 된 JSON 뒷부분(500자): {json_text[-500:]}")
+
             try:
-                # 간단한 JSON 수정 시도
+                # 대안 1: JSON5 라이브러리 시도 (더 관대한 파싱)
+                try:
+                    import json5
+                    logger.debug("🔧 JSON5 파싱 시도")
+                    result = json5.loads(json_text)
+                    logger.debug("✅ JSON5 파싱 성공")
+                    return result
+                except ImportError:
+                    logger.debug("⚠️ json5 라이브러리가 설치되지 않음")
+                except Exception as e_json5:
+                    logger.debug(f"❌ JSON5 파싱 실패: {e_json5}")
+
+                # 대안 2: 강화된 자체 수정 시도
+                try:
+                    logger.debug("🔧 강화된 JSON 수정 시도")
+                    fixed_json = self._aggressive_json_repair(json_text)
+                    if fixed_json != json_text:
+                        logger.debug("✅ JSON 구조 수정 완료")
+                        result = json.loads(fixed_json)
+                        logger.debug("✅ 수정된 JSON 파싱 성공")
+                        return result
+                except json.JSONDecodeError as e_aggressive:
+                    logger.debug(f"❌ 강화된 수정도 실패: {e_aggressive}")
+                except Exception as e_repair:
+                    logger.debug(f"❌ JSON 수정 중 오류: {e_repair}")
+
+                # 대안 3: 기존 수정 방식
+                logger.debug("🔧 기존 JSON 수정 시도")
                 cleaned_json = self._repair_json(json_text)
+                logger.debug(f"📝 수정된 JSON 앞부분(300자): {cleaned_json[:300]}")
                 return json.loads(cleaned_json)
-            except:
+
+            except json.JSONDecodeError as e2:
+                logger.error(f"❌ 수정 후에도 JSON 파싱 실패: {e2}")
+                logger.debug(f"📝 최종 실패한 JSON 앞부분(200자): {cleaned_json[:200] if 'cleaned_json' in locals() else 'N/A'}")
+                return None
+            except Exception as e3:
+                logger.error(f"❌ JSON 수정 중 예외 발생: {e3}")
                 return None
     
     def _repair_json(self, json_text: str) -> str:
-        """간단한 JSON 수정"""
+        """JSON 수정 (문서 구조 분석에 특화)"""
         import re
-        
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        # 1. 기본적인 문자 수정
         # 스마트 인용부호를 ASCII로 변환
         json_text = json_text.replace(""", '"').replace(""", '"').replace("'", "'")
-        
-        # 단일 인용부호를 이중 인용부호로 변환
-        json_text = re.sub(r"'([^']*)':", r'"\1":', json_text)  # 키
-        json_text = re.sub(r":\s*'([^']*)'", r': "\1"', json_text)  # 값
-        
-        # 끝에 붙은 쉼표 제거
+        json_text = json_text.replace("'", "'").replace("`", "'")
+
+        # 2. 인용부호 수정
+        # 단일 인용부호를 이중 인용부호로 변환 (키)
+        json_text = re.sub(r"'([^']*)':", r'"\1":', json_text)
+        # 단일 인용부호를 이중 인용부호로 변환 (값)
+        json_text = re.sub(r":\s*'([^']*)'", r': "\1"', json_text)
+
+        # 3. 배열 내 단일 인용부호 수정
+        json_text = re.sub(r'\[\s*\'([^\']*)\'\s*\]', r'["\1"]', json_text)
+        json_text = re.sub(r',\s*\'([^\']*)\'\s*(?=[,\]])', r', "\1"', json_text)
+
+        # 4. 키-값 쌍에서 키가 인용부호 없이 있는 경우 수정
+        json_text = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', json_text)
+
+        # 5. 끝에 붙은 쉼표 제거
         json_text = re.sub(r",\s*([}\]])", r"\1", json_text)
-        
-        # 제어 문자 제거
+
+        # 6. 줄바꿈/탭 문자 처리 (문자열 내부만 안전하게 치환)
+        def _escape_in_strings(s: str) -> str:
+            result = []
+            in_string = False
+            escape_next = False
+            for ch in s:
+                if escape_next:
+                    result.append(ch)
+                    escape_next = False
+                    continue
+                if ch == '\\':
+                    result.append(ch)
+                    escape_next = True
+                    continue
+                if ch == '"':
+                    result.append(ch)
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    if ch == '\n':
+                        result.append('\\n')
+                        continue
+                    if ch == '\r':
+                        result.append('\\r')
+                        continue
+                    if ch == '\t':
+                        result.append('\\t')
+                        continue
+                result.append(ch)
+            return ''.join(result)
+
+        json_text = _escape_in_strings(json_text)
+
+        # 7. 제어 문자 제거 (강화)
+        # Invalid control character 오류 해결
         json_text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', json_text)
-        
+
+        # 8. Extra data 오류 해결 - JSON 뒤의 추가 데이터 제거
+        # 첫 번째 완전한 JSON 객체만 추출
+        brace_count = 0
+        json_end = -1
+        in_string = False
+        escape_next = False
+
+        for i, char in enumerate(json_text):
+            if escape_next:
+                escape_next = False
+                continue
+
+            if char == '\\':
+                escape_next = True
+                continue
+
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+
+            if not in_string:
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        json_end = i + 1
+                        break
+
+        if json_end > 0 and json_end < len(json_text):
+            original_length = len(json_text)
+            json_text = json_text[:json_end]
+            logger.debug(f"📝 Extra data 제거: {original_length - len(json_text)}자 삭제")
+
+        # 9. 빈 키워드/분류 배열 수정
+        json_text = re.sub(r'"keywords"\s*:\s*\[\s*\]', '"keywords": []', json_text)
+        json_text = re.sub(r'"classificationTags"\s*:\s*\[\s*\]', '"classificationTags": []', json_text)
+
+        # 10. 불완전한 객체 수정
+        # 키워드/분류 객체에 필수 필드가 없는 경우 기본값 추가
+        def fix_keyword_objects(match):
+            obj = match.group(1)
+            if '"name"' not in obj:
+                return match.group(0)  # name 필드가 없으면 그대로 둠
+            if '"desc"' not in obj:
+                obj = obj.rstrip('} ') + ', "desc": ""}'
+            if '"readme"' not in obj:
+                obj = obj.rstrip('} ') + ', "readme": ""}'
+            return '{"' + obj
+
+        json_text = re.sub(r'\{([^{}]*"name"[^{}]*)\}', fix_keyword_objects, json_text)
+
+        # 11. 불완전한 JSON 마무리
+        if json_text.count('{') > json_text.count('}'):
+            missing_braces = json_text.count('{') - json_text.count('}')
+            json_text += '}' * missing_braces
+            logger.debug(f"📝 JSON 수정: 누락된 중괄호 {missing_braces}개 추가")
+
+        if json_text.count('[') > json_text.count(']'):
+            missing_brackets = json_text.count('[') - json_text.count(']')
+            json_text += ']' * missing_brackets
+            logger.debug(f"📝 JSON 수정: 누락된 대괄호 {missing_brackets}개 추가")
+
         return json_text.strip()
-    
+
+    def _aggressive_json_repair(self, json_text: str) -> str:
+        """매우 적극적인 JSON 수정 (demjson 대체)"""
+        import re
+        import logging
+
+        logger = logging.getLogger(__name__)
+        original = json_text
+
+        # 1. 인용부호 없는 키 수정 (JavaScript 스타일)
+        json_text = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', json_text)
+
+        # 2. 단일 인용부호를 이중 인용부호로 변환 (전체)
+        json_text = re.sub(r"'([^'\\]*(\\.[^'\\]*)*)'", r'"\1"', json_text)
+
+        # 3. 잘린 문자열 복구 시도
+        # 예: "키워드1", "키워드2 → "키워드1", "키워드2"
+        lines = json_text.split('\n')
+        fixed_lines = []
+        for line in lines:
+            # 끝에 쉼표가 있지만 따옴표가 닫히지 않은 경우
+            if line.strip().endswith(',') and line.count('"') % 2 == 1:
+                line += '"'
+            fixed_lines.append(line)
+        json_text = '\n'.join(fixed_lines)
+
+        # 4. 마지막 원소 뒤 쉼표 제거
+        json_text = re.sub(r',(\s*[}\]])', r'\1', json_text)
+
+        # 5. 중복 쉼표 제거
+        json_text = re.sub(r',\s*,', ',', json_text)
+
+        # 6. JavaScript 주석 제거
+        json_text = re.sub(r'//.*$', '', json_text, flags=re.MULTILINE)
+        json_text = re.sub(r'/\*.*?\*/', '', json_text, flags=re.DOTALL)
+
+        # 7. 불완전한 배열/객체 닫기
+        open_braces = json_text.count('{') - json_text.count('}')
+        open_brackets = json_text.count('[') - json_text.count(']')
+
+        if open_braces > 0:
+            json_text += '}' * open_braces
+        if open_brackets > 0:
+            json_text += ']' * open_brackets
+
+        # 8. 연속된 공백 정리
+        json_text = re.sub(r'\s+', ' ', json_text)
+        json_text = json_text.strip()
+
+        if json_text != original:
+            logger.debug(f"📝 적극적 수정 완료: {len(original)}자 → {len(json_text)}자")
+
+        return json_text
+
     def _fallback_structure_analysis(self, text: str, file_extension: str) -> Dict[str, Any]:
         """LLM이 비활성화된 경우 기본 구조 분석으로 폴백"""
         basic_structure = self.analyze_document_structure(text, file_extension)
@@ -1734,14 +2123,22 @@ JSON only, no explanations:"""
         return basic_structure
     
     def _fallback_structure_analysis_with_llm_attempt(self, text: str, file_extension: str, error_msg: str) -> Dict[str, Any]:
-        """LLM 실패 시 기본 구조 분석으로 폴백"""
-        basic_structure = self.analyze_document_structure(text, file_extension)
-        basic_structure.update({
-            "analysis_method": "basic_fallback",
+        """LLM 실패 시 실패 상태를 명시적으로 반환 (더 이상 결과 생성하지 않음)"""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.error(f"❌ LLM 구조 분석 완전 실패: {error_msg}")
+
+        # 실패 상태만 반환 (llm_analysis 없음)
+        return {
+            "analysis_method": "llm_failed",
             "llm_success": False,
-            "llm_error": error_msg
-        })
-        return basic_structure
+            "llm_error": error_msg,
+            "file_info": {},
+            "analysis_timestamp": "",
+            "source_parser": ""
+            # llm_analysis는 의도적으로 누락 - 이로 인해 HTTPException 발생
+        }
     
     def extract_keywords(self, content: str, extractors: Optional[List[str]] = None, filename: str = "local_analysis.txt") -> List[Dict[str, Any]]:
         """키워드 추출 수행"""

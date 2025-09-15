@@ -888,7 +888,14 @@ async def analyze_document_structure(
                 file_path=str(file_path_obj),
                 file_extension=file_path_obj.suffix.lower()
             )
-            
+
+            # LLM 분석 결과 검증
+            if not structure_analysis or not structure_analysis.get("llm_analysis"):
+                raise HTTPException(
+                    status_code=500,
+                    detail="LLM 구조 분석이 실패했습니다. JSON 파싱 오류 또는 LLM 응답 오류가 발생했습니다."
+                )
+
             # 파싱 정보 추가
             structure_analysis["file_info"] = parsing_results["file_info"]
             structure_analysis["analysis_timestamp"] = datetime.now().isoformat()
@@ -1323,11 +1330,12 @@ async def generate_knowledge_graph(
     db: Session = Depends(get_db)
 ):
     """
-    문서로부터 Knowledge Graph를 생성합니다.
-    
-    - 파싱 및 키워드 추출 결과를 활용합니다
-    - 엔티티와 관계를 추출하여 그래프 구조로 구성합니다
-    - 결과는 파일로 저장되며 기본적으로 재사용됩니다
+    문서로부터 Knowledge Graph를 생성하고 저장된 파일 정보를 반환합니다.
+
+    - 파싱 및 키워드 추출 결과를 활용하여 KG를 생성합니다
+    - 생성된 결과는 파일로 저장되며 기본적으로 재사용됩니다
+    - force_* 옵션이 없는 경우 기존 결과를 바로 반환합니다
+    - 응답은 saved_files 목록과 통계 정보만 포함합니다
     - dataset_id가 제공되면 모든 노드에 dataset 프로퍼티가 추가됩니다
     """
     from pathlib import Path
@@ -1389,13 +1397,14 @@ async def generate_knowledge_graph(
                 directory_path = Path.cwd() / directory_path
             directory_path.mkdir(parents=True, exist_ok=True)
         
-        # Knowledge Graph 결과 파일 경로
+        # Knowledge Graph 결과 파일 경로들
         output_dir = parser_service.get_output_directory(file_path_obj, directory_path)
-        kg_result_path = output_dir / "knowledge_graph.json"
-        
-        # 기존 KG 결과 확인
-        if not force_rebuild and kg_result_path.exists():
-            with open(kg_result_path, 'r', encoding='utf-8') as f:
+        kg_result_path = output_dir / "knowledge_graph.json"  # 전체 KG 데이터
+        kg_response_path = output_dir / "knowledge_graph_response.json"  # API 응답용
+
+        # force 옵션이 없고 기존 응답이 있는 경우 바로 반환
+        if not any([force_reparse, force_reanalyze, force_rebuild]) and kg_response_path.exists():
+            with open(kg_response_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         
         # 1. 파싱 결과 확인 및 필요시 파싱 수행
@@ -1573,10 +1582,16 @@ async def generate_knowledge_graph(
                     "structural_hierarchy": []
                 }
         elif use_llm and not structure_results.get("llm_analysis"):
-            # LLM 분석 자체가 실패한 경우
+            # LLM 분석 자체가 실패한 경우 - 기본 KG 결과로 계속 진행 (500 반환 대신 경고)
             import logging
             logger = logging.getLogger(__name__)
-            logger.error("❌ LLM 구조 분석이 실패하여 기본 KG를 사용합니다.")
+            logger.warning("⚠️ LLM 구조 분석이 실패하여 기본 KG 결과로 반환합니다.")
+            # 최소한의 메타데이터에 실패 정보 기록
+            if isinstance(kg_result, dict):
+                kg_result.setdefault("metadata", {})
+                kg_result["metadata"]["llm_success"] = False
+                if isinstance(structure_results, dict) and structure_results.get("llm_error"):
+                    kg_result["metadata"]["llm_error"] = structure_results.get("llm_error")
         
         # LLM 구조 통합 완료 후 향상된 KG를 Memgraph에 저장
         if use_llm and isinstance(kg_result, dict):
@@ -1752,8 +1767,30 @@ async def generate_knowledge_graph(
         # 응답에 파일 경로 정보 추가
         kg_with_context["saved_files"] = saved_files
         kg_with_context["output_directory"] = str(output_dir)
-        
-        return kg_with_context
+
+        # API 응답용 데이터 생성 (saved_files만 포함)
+        api_response = {
+            "saved_files": saved_files,
+            "output_directory": str(output_dir),
+            "generation_timestamp": datetime.now().isoformat(),
+            "statistics": {
+                "total_saved_files": len(saved_files),
+                "file_types": {}
+            }
+        }
+
+        # 파일 타입별 통계
+        file_types = {}
+        for file_info in saved_files:
+            file_type = file_info.get("type", "unknown")
+            file_types[file_type] = file_types.get(file_type, 0) + 1
+        api_response["statistics"]["file_types"] = file_types
+
+        # API 응답 저장 (saved_files 중심)
+        with open(kg_response_path, 'w', encoding='utf-8') as f:
+            json.dump(api_response, f, ensure_ascii=False, indent=2)
+
+        return api_response
         
     except HTTPException:
         raise
@@ -1784,8 +1821,11 @@ async def get_knowledge_graph(
     db: Session = Depends(get_db)
 ):
     """
-    GET 방식으로 Knowledge Graph를 생성하거나 조회합니다.
-    dataset_id가 제공되면 모든 노드에 dataset 프로퍼티가 추가됩니다.
+    GET 방식으로 Knowledge Graph를 생성하고 저장된 파일 정보를 반환합니다.
+
+    - 기존 결과가 있고 force 옵션이 없으면 저장된 응답을 바로 반환
+    - 응답은 saved_files 목록과 통계 정보만 포함합니다
+    - dataset_id가 제공되면 모든 노드에 dataset 프로퍼티가 추가됩니다
     """
     request = {
         "file_path": file_path,

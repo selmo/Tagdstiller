@@ -6,3 +6,7 @@ pytest
 pytest-asyncio
 httpx
 python-multipart
+
+# Enhanced JSON parsing for LLM responses
+json5
+ijson
