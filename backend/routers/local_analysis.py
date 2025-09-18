@@ -1180,138 +1180,290 @@ def _integrate_llm_structure_into_kg(kg_result: Dict[str, Any], llm_analysis: Di
     }
     entities.append(doc_entity)
     
-    # structureAnalysis의 계층적 문서 구조를 그래프로 구성
-    for section_idx, section in enumerate(llm_analysis.get("structureAnalysis", [])):
-        # 메인 섹션 엔티티
-        section_properties = {
-            "title": section.get("title", ""),
-            "unit": section.get("unit", ""),
-            "content": section.get("mainContent", ""),
-            "keywords": section.get("keywords", []),
-            "page": section.get("page", ""),
-            "section_index": section_idx,
-            "hierarchical_level": 1,
-            "section_type": "main_section"
+    structural_hierarchy_nodes: Dict[str, Dict[str, Any]] = {}
+
+    def add_hierarchy_node(node_id: str, node_type: str, level: int, parent_id: str = None, properties: Dict[str, Any] = None):
+        existing_entry = structural_hierarchy_nodes.get(node_id, {})
+        entry: Dict[str, Any] = {
+            "id": node_id,
+            "type": node_type,
+            "level": level,
+            "children": existing_entry.get("children", [])
         }
-        
-        # dataset_id가 있으면 추가
-        if dataset_id:
-            section_properties["dataset_id"] = dataset_id
-        
-        # title이 None인 경우 처리
-        section_title = section.get('title')
-        if section_title is None:
-            section_title = f"Section_{section_idx}"
-            
-        section_entity = {
-            "id": f"llm_section_{_hash(section_title)}_{section_idx}",
-            "type": "DocumentSection",
-            "properties": section_properties
-        }
-        entities.append(section_entity)
-        
-        # 문서-섹션 관계
-        relationships.append({
-            "id": f"rel_{_hash(doc_entity_id + section_entity['id'])}",
-            "type": "CONTAINS_SECTION",
-            "source": doc_entity_id,
-            "target": section_entity["id"],
-            "properties": {
-                "unit": section.get("unit", ""),
-                "section_index": section_idx,
-                "relationship_type": "document_structure"
-            }
-        })
-        
-        # 섹션의 키워드들을 개별 엔티티로 추가하고 관계 설정
-        for keyword in section.get("keywords", []):
-            keyword_properties = {
-                "text": keyword,
-                "source_section": section.get("title", ""),
-                "section_unit": section.get("unit", ""),
-                "extraction_method": "llm_structure_analysis"
-            }
-            
-            # dataset_id가 있으면 추가
-            if dataset_id:
-                keyword_properties["dataset_id"] = dataset_id
-            
-            keyword_entity = {
-                "id": f"llm_keyword_{_hash(keyword)}_{section_idx}",
-                "type": "SectionKeyword",
-                "properties": keyword_properties
-            }
-            entities.append(keyword_entity)
-            
-            # 섹션-키워드 관계
-            relationships.append({
-                "id": f"rel_{_hash(section_entity['id'] + keyword_entity['id'])}",
-                "type": "HAS_KEYWORD",
-                "source": section_entity["id"],
-                "target": keyword_entity["id"],
-                "properties": {"extraction_source": "section_content"}
-            })
-        
-        # 하위 구조 (subStructure) 처리
-        for subsection_idx, subsection in enumerate(section.get("subStructure", [])):
-            subsection_properties = {
-                "title": subsection.get("title", ""),
-                "unit": subsection.get("unit", ""),
-                "content": subsection.get("mainContent", ""),
-                "keywords": subsection.get("keywords", []),
-                "parent_section": section.get("title", ""),
-                "subsection_index": subsection_idx,
-                "hierarchical_level": 2,
-                "section_type": "subsection"
-            }
-            
-            # dataset_id가 있으면 추가
-            if dataset_id:
-                subsection_properties["dataset_id"] = dataset_id
-            
-            subsection_entity = {
-                "id": f"llm_subsection_{_hash(subsection.get('title', ''))}_{section_idx}_{subsection_idx}",
-                "type": "DocumentSubsection",
-                "properties": subsection_properties
-            }
-            entities.append(subsection_entity)
-            
-            # 섹션-하위섹션 관계
-            relationships.append({
-                "id": f"rel_{_hash(section_entity['id'] + subsection_entity['id'])}",
-                "type": "HAS_SUBSECTION",
-                "source": section_entity["id"],
-                "target": subsection_entity["id"],
-                "properties": {
-                    "unit": subsection.get("unit", ""),
-                    "subsection_index": subsection_idx,
-                    "relationship_type": "hierarchical_structure"
+        if parent_id:
+            entry["parent_id"] = parent_id
+        existing_properties = existing_entry.get("properties")
+        if existing_properties and not properties:
+            entry["properties"] = existing_properties
+        elif properties:
+            entry["properties"] = properties
+
+        structural_hierarchy_nodes[node_id] = entry
+
+        if parent_id:
+            parent_entry = structural_hierarchy_nodes.get(parent_id)
+            if not parent_entry:
+                parent_entry = {
+                    "id": parent_id,
+                    "type": "",
+                    "level": max(level - 1, 0),
+                    "children": []
                 }
-            })
-            
-            # 하위섹션의 키워드들을 개별 엔티티로 추가
-            for keyword in subsection.get("keywords", []):
-                subsection_keyword_entity = {
-                    "id": f"llm_sub_keyword_{_hash(keyword)}_{section_idx}_{subsection_idx}",
-                    "type": "SubsectionKeyword",
-                    "properties": {
-                        "text": keyword,
-                        "source_subsection": subsection.get("title", ""),
-                        "parent_section": section.get("title", ""),
-                        "subsection_unit": subsection.get("unit", ""),
-                        "extraction_method": "llm_structure_analysis"
-                    }
+                structural_hierarchy_nodes[parent_id] = parent_entry
+            children = parent_entry.setdefault("children", [])
+            if node_id not in children:
+                children.append(node_id)
+
+    def extract_content(node: Dict[str, Any]) -> str:
+        for key in ("mainContent", "summary", "content", "description", "body"):
+            value = node.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+        return ""
+
+    def extract_page_info(node: Dict[str, Any]) -> str:
+        for key in ("pageRange", "page", "pages"):
+            value = node.get(key)
+            if isinstance(value, (int, float)):
+                return str(value)
+            if isinstance(value, str) and value.strip():
+                return value
+        return ""
+
+    def normalize_keywords(node: Dict[str, Any]) -> List[Dict[str, Any]]:
+        raw_keywords = node.get("keywords") or []
+        if isinstance(raw_keywords, dict):
+            raw_keywords = [raw_keywords]
+        normalized: List[Dict[str, Any]] = []
+        seen: set = set()
+        for keyword in raw_keywords:
+            if isinstance(keyword, str):
+                text = keyword.strip()
+                if text and text not in seen:
+                    normalized.append({"text": text})
+                    seen.add(text)
+            elif isinstance(keyword, dict):
+                text = keyword.get("text") or keyword.get("name") or keyword.get("keyword") or ""
+                if text:
+                    text = str(text).strip()
+                if not text or text in seen:
+                    continue
+                keyword_entry = {"text": text}
+                description = keyword.get("desc") or keyword.get("description")
+                readme = keyword.get("readme")
+                if isinstance(description, str) and description.strip():
+                    keyword_entry["description"] = description.strip()
+                if isinstance(readme, str) and readme.strip():
+                    keyword_entry["readme"] = readme.strip()
+                normalized.append(keyword_entry)
+                seen.add(text)
+        return normalized
+
+    def get_child_structures(node: Dict[str, Any]) -> List[Dict[str, Any]]:
+        if not isinstance(node, dict):
+            return []
+        child_keys = [
+            "subStructure",
+            "substructure",
+            "substructures",
+            "subSections",
+            "subsections",
+            "sections",
+            "children"
+        ]
+        for key in child_keys:
+            value = node.get(key)
+            if not value:
+                continue
+            if isinstance(value, list):
+                return [item for item in value if isinstance(item, dict)]
+            if isinstance(value, dict):
+                return [value]
+        return []
+
+    def process_structures(
+        nodes: List[Dict[str, Any]],
+        parent_id: str,
+        parent_context: Dict[str, Any],
+        level: int,
+        index_path: str
+    ) -> None:
+        if not isinstance(nodes, list):
+            return
+
+        parent_title = parent_context.get("title", "")
+        titles_path = parent_context.get("titles_path", [])
+
+        for idx, node in enumerate(nodes):
+            if not isinstance(node, dict):
+                continue
+
+            path = f"{index_path}.{idx}" if index_path else str(idx)
+            raw_title = node.get("title") or node.get("heading") or node.get("name")
+            if isinstance(raw_title, str):
+                title = raw_title.strip()
+            elif raw_title is None:
+                title = ""
+            else:
+                title = str(raw_title)
+            if not title:
+                title = f"Level{level}_Section_{idx + 1}"
+
+            unit = node.get("unit", "")
+            number = node.get("number", "")
+            page_info = extract_page_info(node)
+            content = extract_content(node)
+            keyword_entries = normalize_keywords(node)
+            entity_type = "DocumentSection" if level == 1 else "DocumentSubsection"
+            section_type = "main_section" if level == 1 else f"subsection_level_{level}"
+            hashed_source = f"{title}|{path}|{level}|{parent_id}"
+            entity_prefix = "llm_section" if level == 1 else "llm_subsection"
+            entity_id = f"{entity_prefix}_{_hash(hashed_source)}"
+
+            properties: Dict[str, Any] = {
+                "title": title,
+                "unit": unit or "",
+                "number": number or "",
+                "content": content,
+                "keywords": [kw.get("text", "") for kw in keyword_entries],
+                "parent_section": parent_title,
+                "section_index": idx,
+                "hierarchical_level": level,
+                "section_type": section_type,
+                "page": page_info,
+                "hierarchical_path": path,
+                "section_path": " > ".join([t for t in titles_path + [title] if t])
+            }
+
+            if dataset_id:
+                properties["dataset_id"] = dataset_id
+
+            section_entity = {
+                "id": entity_id,
+                "type": entity_type,
+                "properties": properties
+            }
+            entities.append(section_entity)
+
+            add_hierarchy_node(
+                node_id=entity_id,
+                node_type=entity_type,
+                level=level,
+                parent_id=parent_id,
+                properties={
+                    "title": title,
+                    "unit": unit or "",
+                    "number": number or "",
+                    "hierarchical_path": path
                 }
-                entities.append(subsection_keyword_entity)
-                
-                # 하위섹션-키워드 관계
+            )
+
+            relationship_type = "CONTAINS_SECTION" if level == 1 else "HAS_SUBSECTION"
+            relationship_properties = {
+                "unit": unit or "",
+                "relationship_type": "document_structure" if level == 1 else "hierarchical_structure"
+            }
+            if level == 1:
+                relationship_properties["section_index"] = idx
+            else:
+                relationship_properties["subsection_index"] = idx
+
+            relationships.append({
+                "id": f"rel_{_hash(parent_id + entity_id)}",
+                "type": relationship_type,
+                "source": parent_id,
+                "target": entity_id,
+                "properties": relationship_properties
+            })
+
+            extraction_source = "section_content" if level == 1 else f"section_level_{level}_content"
+            for kw_idx, keyword in enumerate(keyword_entries):
+                text = keyword.get("text", "").strip()
+                if not text:
+                    continue
+                keyword_id = f"llm_kw_{_hash(text + entity_id)}_{kw_idx}"
+                keyword_properties = {
+                    "text": text,
+                    "source_section": title,
+                    "parent_section": parent_title,
+                    "section_unit": unit or "",
+                    "section_number": number or "",
+                    "hierarchical_level": level,
+                    "hierarchical_path": path,
+                    "extraction_method": "llm_structure_analysis"
+                }
+                if dataset_id:
+                    keyword_properties["dataset_id"] = dataset_id
+                description = keyword.get("description")
+                if description:
+                    keyword_properties["description"] = description
+                readme = keyword.get("readme")
+                if readme:
+                    keyword_properties["readme"] = readme
+
+                keyword_entity = {
+                    "id": keyword_id,
+                    "type": "SectionKeyword" if level == 1 else "SubsectionKeyword",
+                    "properties": keyword_properties
+                }
+                entities.append(keyword_entity)
+
                 relationships.append({
-                    "id": f"rel_{_hash(subsection_entity['id'] + subsection_keyword_entity['id'])}",
+                    "id": f"rel_{_hash(entity_id + keyword_id)}",
                     "type": "HAS_KEYWORD",
-                    "source": subsection_entity["id"],
-                    "target": subsection_keyword_entity["id"],
-                    "properties": {"extraction_source": "subsection_content"}
+                    "source": entity_id,
+                    "target": keyword_entity["id"],
+                    "properties": {
+                        "extraction_source": extraction_source,
+                        "hierarchical_path": path
+                    }
                 })
+
+            child_context = {
+                "title": title,
+                "titles_path": titles_path + [title]
+            }
+            child_nodes = get_child_structures(node)
+            if child_nodes:
+                process_structures(
+                    nodes=child_nodes,
+                    parent_id=entity_id,
+                    parent_context=child_context,
+                    level=level + 1,
+                    index_path=path
+                )
+
+    add_hierarchy_node(
+        node_id=doc_entity_id,
+        node_type="Document",
+        level=0,
+        properties={
+            "title": doc_properties.get("title", ""),
+            "hierarchical_path": "0"
+        }
+    )
+
+    process_structures(
+        nodes=llm_analysis.get("structureAnalysis", []),
+        parent_id=doc_entity_id,
+        parent_context={
+            "title": doc_properties.get("title", ""),
+            "titles_path": [doc_properties.get("title", "")]
+        },
+        level=1,
+        index_path=""
+    )
+
+    structural_hierarchy = sorted(
+        [
+            {
+                **entry,
+                "children": entry.get("children", [])
+            }
+            for entry in structural_hierarchy_nodes.values()
+        ],
+        key=lambda item: (item.get("level", 0), item.get("id", ""))
+    )
     
     # structureAnalysis만 사용하므로 coreContent, keyData 등은 제거
     # 오직 문서 구조(섹션, 하위섹션, 키워드)만 그래프로 구성

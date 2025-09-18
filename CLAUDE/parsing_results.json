@@ -1,0 +1,46 @@
+{
+  "file_info": {
+    "name": "CLAUDE.md",
+    "path": "/Users/selmo/Projects/Tagdstiller/CLAUDE.md",
+    "size": 33809,
+    "extension": "md",
+    "modified": 1757382474.3670514
+  },
+  "parsing_timestamp": "2025-09-14T08:20:55.177646",
+  "parsers_used": [
+    "md_parser"
+  ],
+  "parsing_results": {
+    "md_parser": {
+      "success": true,
+      "parser_name": "markdown_parser",
+      "text_length": 12018,
+      "word_count": 2805,
+      "metadata": {
+        "title": "📄 CLAUDE.md - DocExtract 시스템",
+        "created_date": "1757382474.3670514",
+        "modified_date": "1757382474.3670514",
+        "word_count": 2805,
+        "file_size": 33809,
+        "mime_type": "text/markdown",
+        "encoding": "utf-8"
+      },
+      "md_file_path": null,
+      "parsing_time": null,
+      "quality_score": 0.7992584029481625,
+      "structured_info": {
+        "total_lines": 546,
+        "non_empty_lines": 461,
+        "paragraphs": 461,
+        "headers": 0
+      }
+    }
+  },
+  "summary": {
+    "total_parsers": 1,
+    "successful_parsers": 1,
+    "failed_parsers": 0,
+    "best_parser": "md_parser",
+    "best_quality_score": 0.7992584029481625
+  }
+}
