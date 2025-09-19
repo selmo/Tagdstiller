@@ -10,7 +10,6 @@ from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
 
 from services.config_service import ConfigService
-from routers.extraction import ExtractorManager
 from services.parser.auto_parser import AutoParser
 from utils.llm_logger import log_prompt_and_response
 from services.parser_file_manager import save_parser_results, file_manager
@@ -21,9 +20,18 @@ LANGCHAIN_AVAILABLE = True
 class LocalFileAnalyzer:
     """로컬 파일 분석을 위한 서비스 클래스"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, initialize_extractors: bool = True):
         self.db = db
-        self.extractor_manager = ExtractorManager(db)
+        self.extractor_manager = None
+        if initialize_extractors:
+            self._ensure_extractor_manager()
+
+    def _ensure_extractor_manager(self):
+        """필요 시 추출기 매니저를 지연 로딩한다."""
+        if self.extractor_manager is None:
+            from routers.extraction import ExtractorManager  # 지연 로딩으로 초기화 피하기
+            self.extractor_manager = ExtractorManager(self.db)
+        return self.extractor_manager
         
     def get_file_root(self) -> str:
         """설정에서 파일 루트 디렉토리를 가져오고 없으면 생성"""
@@ -2442,7 +2450,7 @@ JSON only, no explanations:"""
             )
         
         # ExtractorManager를 사용하여 키워드 추출
-        keywords = self.extractor_manager.extract_keywords(content, extractors, filename)
+        keywords = self._ensure_extractor_manager().extract_keywords(content, extractors, filename)
         
         # 결과를 딕셔너리 형태로 변환
         result = []

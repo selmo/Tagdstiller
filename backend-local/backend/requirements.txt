@@ -1,0 +1,82 @@
+# FastAPI and web framework (최신 안정 버전)
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+
+# Database
+sqlalchemy>=2.0.30
+
+# Knowledge Graph Database - Memgraph
+neo4j>=5.24.0,<6.0.0     # Neo4j driver for Memgraph connection
+
+# Pydantic for data validation (최신 안정 버전으로 통일)
+pydantic>=2.9.0,<3.0.0
+pydantic-settings>=2.6.0,<3.0.0
+
+# Enhanced JSON parsing libraries for LLM response processing
+json5>=0.12.1             # More lenient JSON parsing (primary alternative)
+ijson>=3.4.0             # Streaming JSON parser (alternative to demjson)
+jsonschema>=4.20.0       # JSON schema validation and error recovery
+
+# Document parsing libraries
+PyMuPDF>=1.23.19        # PDF parsing (primary) - flexible version
+python-docx>=1.1.2,<2.0.0  # DOCX parsing (Docling compatible)
+beautifulsoup4>=4.12.3,<5.0.0  # HTML parsing (Docling compatible)
+chardet==5.2.0          # Character encoding detection
+pypdf2==3.0.1           # Alternative PDF parser
+pdfplumber==0.10.3      # Alternative PDF parser with better text extraction
+pymupdf4llm             # Enhanced PyMuPDF for better text extraction - latest compatible
+
+# Docling parser for advanced PDF processing
+docling>=2.48.0         # Advanced PDF parser with table/image extraction
+docling-core>=2.45.0    # Core Docling functionality
+
+# Keyword extraction libraries (최신 호환 버전)
+keybert>=0.9.0
+spacy>=3.8.0            # 최신 spaCy 버전으로 업그레이드
+scikit-learn>=1.5.0     # 최신 scikit-learn
+sentence-transformers>=3.0.0  # 최신 sentence-transformers
+numpy>=1.24.0,<2.0.0    # numpy 1.x 유지
+
+# Korean language processing
+konlpy>=0.6.0           # Korean morphological analysis
+JPype1>=1.5.0          # Java bridge for KoNLPy
+
+# Advanced NLP and LLM integration
+langchain>=0.3.0        # LangChain for LLM integration
+langchain-ollama>=0.2.0 # Ollama integration
+langchain-community>=0.3.0  # Community integrations
+huggingface-hub>=0.26.0 # Hugging Face model hub
+
+# Testing (최신 버전)
+pytest>=8.0.0
+pytest-asyncio>=0.24.0
+httpx>=0.27.0
+
+# Utility (최신 버전)
+python-dateutil>=2.9.0
+requests>=2.32.0
+typer>=0.12.0           # Docling과 호환되는 최신 typer
+
+# Machine Learning and AI utilities
+torch>=2.0.0            # PyTorch for deep learning models
+transformers>=4.45.0    # Hugging Face transformers
+tokenizers>=0.20.0      # Fast tokenizers
+
+# Data processing and analysis
+pandas>=2.2.0           # Data manipulation
+nltk>=3.9.1             # Natural language toolkit
+
+# File handling and compression
+Pillow>=10.4.0          # Image processing
+openpyxl>=3.1.5         # Excel file handling
+psutil>=6.0.0           # System and process utilities
+
+# Configuration and environment
+python-dotenv>=1.0.1    # Environment variable management
+toml>=0.10.2            # TOML configuration parsing
+pyyaml>=6.0.2           # YAML configuration parsing
+
+# Essential packages
+setuptools>=70.0.0
+wheel>=0.44.0           # Package building
