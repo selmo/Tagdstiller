@@ -14,10 +14,6 @@ from sqlalchemy.orm import Session
 from dependencies import get_db
 from services.document_parser_service import DocumentParserService
 from services.local_file_analyzer import LocalFileAnalyzer
-from routers.local_analysis import (
-    _collect_saved_files,
-    _move_markdown_files_to_correct_location,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +56,7 @@ async def generate_knowledge_graph(req: StructureAnalysisRequest, db: Session = 
         directory_path.mkdir(parents=True, exist_ok=True)
 
     parser_service = DocumentParserService()
-    analyzer = LocalFileAnalyzer(db, initialize_extractors=False)
+    analyzer = LocalFileAnalyzer(db)
 
     output_dir = parser_service.get_output_directory(file_path, directory_path)
     response_path = output_dir / "llm_structure_response.json"
@@ -82,9 +78,6 @@ async def generate_knowledge_graph(req: StructureAnalysisRequest, db: Session = 
     except Exception as parsing_error:
         logger.error("❌ 문서 파싱 실패", exc_info=True)
         raise HTTPException(status_code=500, detail=f"문서 파싱 실패: {parsing_error}")
-
-    if parsing_results.get("parsing_results"):
-        _move_markdown_files_to_correct_location(parsing_results, file_path, output_dir)
 
     # 2. LLM 기반 구조 분석 (기존 결과 재사용 가능)
     structure_result_path = output_dir / "llm_structure_analysis.json"
@@ -119,20 +112,77 @@ async def generate_knowledge_graph(req: StructureAnalysisRequest, db: Session = 
 
     llm_analysis = structure_results.get("llm_analysis")
     if not llm_analysis or not llm_analysis.get("structureAnalysis"):
-        raise HTTPException(status_code=500, detail="LLM 구조 분석 결과가 비어있습니다")
+        # LLM 분석 실패 시 기본 구조 분석으로 폴백
+        logger.warning("LLM 구조 분석 결과가 없음 - 기본 구조 분석으로 폴백")
+
+        # 기본 구조 분석 수행
+        best_parser = parsing_results.get("summary", {}).get("best_parser")
+        document_text = ""
+        if best_parser and best_parser in parsing_results.get("parsing_results", {}):
+            parser_dir = parser_service.get_output_directory(file_path, directory_path) / best_parser
+            text_file = parser_dir / f"{best_parser}_text.txt"
+            if text_file.exists():
+                document_text = text_file.read_text(encoding='utf-8')
+
+        # 기본 구조 분석 실행
+        basic_structure = analyzer.analyze_document_structure(
+            text=document_text,
+            file_extension=file_path.suffix.lower()
+        )
+
+        # 기본 구조 분석 결과로 계속 진행
+        structure_results.update(basic_structure)
 
     # 3. 결과 저장 및 응답 구성
     output_dir.mkdir(exist_ok=True)
 
     best_parser = parsing_results.get("summary", {}).get("best_parser")
 
-    saved_files = _collect_saved_files(output_dir, parsing_results)
+    saved_files = []
     if structure_result_path.exists():
-        saved_files.insert(0, {
+        saved_files.append({
             "type": "structure_analysis",
             "path": str(structure_result_path),
             "description": "LLM 기반 문서 구조 분석 결과",
         })
+
+    parsing_result_path = parser_service.get_parsing_result_path(file_path, directory_path)
+    if parsing_result_path.exists():
+        saved_files.append({
+            "type": "parsing_summary",
+            "path": str(parsing_result_path),
+            "description": "파싱 결과 종합",
+        })
+
+    if parsing_results.get("parsing_results"):
+        for parser_name, parser_result in parsing_results["parsing_results"].items():
+            if not parser_result.get("success"):
+                continue
+            parser_dir = output_dir / parser_name
+            text_file = parser_dir / f"{parser_name}_text.txt"
+            if text_file.exists():
+                saved_files.append({
+                    "type": "extracted_text",
+                    "parser": parser_name,
+                    "path": str(text_file),
+                    "description": f"{parser_name} 파서로 추출된 텍스트",
+                })
+            metadata_file = parser_dir / f"{parser_name}_metadata.json"
+            if metadata_file.exists():
+                saved_files.append({
+                    "type": "metadata",
+                    "parser": parser_name,
+                    "path": str(metadata_file),
+                    "description": f"{parser_name} 파서 메타데이터",
+                })
+            structure_file = parser_dir / f"{parser_name}_structure.json"
+            if structure_file.exists():
+                saved_files.append({
+                    "type": "parser_structure",
+                    "parser": parser_name,
+                    "path": str(structure_file),
+                    "description": f"{parser_name} 파서 구조 정보",
+                })
 
     api_response = {
         "saved_files": saved_files,
