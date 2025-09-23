@@ -122,6 +122,7 @@ class LocalFileAnalyzer:
                 "text_length": len(text),
                 "truncated_length": len(truncated_text),
             },
+            raw_response=raw_response,
         )
 
         try:

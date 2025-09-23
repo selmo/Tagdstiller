@@ -26,6 +26,7 @@ def log_prompt_and_response(
     base_dir: str = "llm_logs",
     request_data: Optional[Dict[str, Any]] = None,
     response_data: Optional[Dict[str, Any]] = None,
+    raw_response: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Persist LLM I/O to files and optionally log a concise summary.
@@ -101,6 +102,7 @@ def log_prompt_and_response(
         "response_chars": len(response or ""),
         "request_data": request_data,
         "response_data": response_data,
+        "raw_response": raw_response,
         "meta": meta or {}
     }
 
@@ -158,4 +160,3 @@ def log_prompt_and_response(
         "combined_json_file": str(combined_json_file),
         **info,
     }
-
