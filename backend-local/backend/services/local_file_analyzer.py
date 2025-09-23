@@ -189,11 +189,15 @@ class LocalFileAnalyzer:
 
         raw_lines: list[str] = []
         sse_payloads: list[str] = []
+        chunk_counter = 0
+        max_chunks_for_progress = 10
         for line in response.iter_lines(decode_unicode=True):
             if line is None:
                 continue
             raw_lines.append(line)
-
+            chunk_counter += 1
+            if chunk_counter <= max_chunks_for_progress or chunk_counter % 10 == 0:
+                self.logger.info("🔸 Gemini streaming chunk #%d", chunk_counter)
             payload_line = line[5:].strip() if line.startswith("data:") else line.strip()
             if payload_line:
                 sse_payloads.append(payload_line)
@@ -228,13 +232,13 @@ class LocalFileAnalyzer:
                         if isinstance(text_part, str):
                             text_chunks.append(text_part)
                             accumulated.append(text_part)
-                            preview = "".join(accumulated)[-200:].replace("\n", " ")
-                            self.logger.info("🔸 Gemini accumulated text (tail): %s", preview)
+                            break
 
         if not text_chunks:
             raise LLMJsonError("Gemini response contained no text parts", merged_payload)
 
         merged = "".join(text_chunks).strip()
+        self.logger.info("✅ Gemini response merged length: %d characters", len(merged))
         if not merged:
             raise LLMJsonError("Gemini response text is empty", merged_payload)
 
