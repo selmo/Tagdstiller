@@ -203,6 +203,11 @@ class LocalFileAnalyzer:
         raw_response: Optional[str] = None,
     ) -> Dict[str, Any]:
         logging.getLogger(__name__).error(f"❌ LLM 구조 분석 실패: {error_msg}")
+        if raw_response:
+            logging.getLogger(__name__).warning(
+                "⚠️ LLM 원본 응답 (200자): %s",
+                raw_response[:200].replace("\n", " ") if raw_response else "",
+            )
         return {
             "analysis_method": "llm_failed",
             "llm_success": False,
