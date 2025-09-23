@@ -221,18 +221,6 @@ class LocalFileAnalyzer:
         json_text = self._strip_markers(response)
         try:
             return json.loads(json_text)
-        except json.JSONDecodeError:
-            pass
-
-        json_text = self._repair_json(json_text)
-        try:
-            return json.loads(json_text)
-        except json.JSONDecodeError:
-            pass
-
-        json_text = self._aggressive_json_repair(json_text)
-        try:
-            return json.loads(json_text)
         except json.JSONDecodeError as exc:
             raise ValueError(f"Unable to parse JSON from LLM response: {exc}") from exc
 
@@ -245,98 +233,6 @@ class LocalFileAnalyzer:
         if stripped.startswith('\ufeff'):
             stripped = stripped.lstrip('\ufeff')
         return stripped
-
-    def _repair_json(self, json_text: str) -> str:
-        stripped = json_text.lstrip()
-        if stripped.startswith('documentInfo') or stripped.startswith('structureAnalysis'):
-            json_text = '{' + json_text + '}'
-
-        json_text = re.sub(r'([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:', r'\1"\2":', json_text)
-        json_text = re.sub(r',(\s*[}\]])', r'\1', json_text)
-        json_text = re.sub(r',\s*,', ',', json_text)
-        json_text = re.sub(r'([0-9])\s+(})', r'\1\2', json_text)
-        json_text = re.sub(r'"keywords"\s*:\s*\[\s*\]', '"keywords": []', json_text)
-        json_text = re.sub(r'"classificationTags"\s*:\s*\[\s*\]', '"classificationTags": []', json_text)
-
-        def escape_control_chars(value: str) -> str:
-            result = []
-            in_string = False
-            escape_next = False
-            for ch in value:
-                if escape_next:
-                    result.append(ch)
-                    escape_next = False
-                    continue
-                if ch == '\\':
-                    result.append(ch)
-                    escape_next = True
-                    continue
-                if ch == '"':
-                    result.append(ch)
-                    in_string = not in_string
-                    continue
-                if in_string and ord(ch) < 32:
-                    if ch == '\n':
-                        result.append('\\n')
-                    elif ch == '\r':
-                        result.append('\\r')
-                    elif ch == '\t':
-                        result.append('\\t')
-                    else:
-                        result.append(' ')
-                else:
-                    result.append(ch)
-            return ''.join(result)
-
-        json_text = escape_control_chars(json_text)
-        json_text = re.sub(r'(\})(\s*\"[A-Za-z_][A-Za-z0-9_]*\")', r'\1,\2', json_text)
-        json_text = re.sub(r'(\])(\s*\"[A-Za-z_][A-Za-z0-9_]*\")', r'\1,\2', json_text)
-
-        json_text = self._trim_to_balanced_json(json_text)
-        return json_text.strip()
-
-    def _aggressive_json_repair(self, json_text: str) -> str:
-        stripped = json_text.lstrip()
-        if stripped.startswith('documentInfo') or stripped.startswith('structureAnalysis'):
-            json_text = '{' + json_text + '}'
-
-        json_text = re.sub(r'([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:', r'\1"\2":', json_text)
-        json_text = re.sub(r"'([^'\\]*(\\.[^'\\]*)*)'", r'"\1"', json_text)
-        json_text = re.sub(r',(\s*[}\]])', r'\1', json_text)
-        json_text = re.sub(r',\s*,', ',', json_text)
-        json_text = re.sub(r'//.*$', '', json_text, flags=re.MULTILINE)
-        json_text = re.sub(r'/\*.*?\*/', '', json_text, flags=re.DOTALL)
-        json_text = re.sub(r'\s+', ' ', json_text)
-        json_text = self._trim_to_balanced_json(json_text)
-        return json_text.strip()
-
-    @staticmethod
-    def _trim_to_balanced_json(text: str) -> str:
-        brace_count = 0
-        in_string = False
-        escape_next = False
-        end_pos = None
-        for idx, ch in enumerate(text):
-            if escape_next:
-                escape_next = False
-                continue
-            if ch == '\\':
-                escape_next = True
-                continue
-            if ch == '"':
-                in_string = not in_string
-                continue
-            if not in_string:
-                if ch == '{':
-                    brace_count += 1
-                elif ch == '}':
-                    brace_count -= 1
-                    if brace_count == 0:
-                        end_pos = idx + 1
-                        break
-        if end_pos is not None:
-            text = text[:end_pos]
-        return text
 
     def _default_output_dir(self, file_path: str) -> str:
         try:
