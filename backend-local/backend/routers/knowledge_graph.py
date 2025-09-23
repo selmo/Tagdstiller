@@ -110,28 +110,25 @@ async def generate_knowledge_graph(req: StructureAnalysisRequest, db: Session = 
         with structure_result_path.open('r', encoding='utf-8') as f:
             structure_results = json.load(f)
 
-    llm_analysis = structure_results.get("llm_analysis")
-    if not llm_analysis or not llm_analysis.get("structureAnalysis"):
-        # LLM 분석 실패 시 기본 구조 분석으로 폴백
-        logger.warning("LLM 구조 분석 결과가 없음 - 기본 구조 분석으로 폴백")
-
-        # 기본 구조 분석 수행
-        best_parser = parsing_results.get("summary", {}).get("best_parser")
-        document_text = ""
-        if best_parser and best_parser in parsing_results.get("parsing_results", {}):
-            parser_dir = parser_service.get_output_directory(file_path, directory_path) / best_parser
-            text_file = parser_dir / f"{best_parser}_text.txt"
-            if text_file.exists():
-                document_text = text_file.read_text(encoding='utf-8')
-
-        # 기본 구조 분석 실행
-        basic_structure = analyzer.analyze_document_structure(
-            text=document_text,
-            file_extension=file_path.suffix.lower()
+    if not structure_results.get("llm_success"):
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": structure_results.get("llm_error", "LLM 구조 분석 실패"),
+                "raw_response": structure_results.get("llm_raw_response", ""),
+                "analysis_file": str(structure_result_path),
+            },
         )
 
-        # 기본 구조 분석 결과로 계속 진행
-        structure_results.update(basic_structure)
+    llm_analysis = structure_results.get("llm_analysis")
+    if not llm_analysis or not llm_analysis.get("structureAnalysis"):
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": "LLM 구조 분석 결과가 비어 있습니다",
+                "analysis_file": str(structure_result_path),
+            },
+        )
 
     # 3. 결과 저장 및 응답 구성
     output_dir.mkdir(exist_ok=True)
