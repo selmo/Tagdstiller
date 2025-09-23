@@ -191,6 +191,7 @@ class LocalFileAnalyzer:
         sse_payloads: list[str] = []
         chunk_counter = 0
         max_chunks_for_progress = 10
+        last_wait_log = None
         for line in response.iter_lines(decode_unicode=True):
             if line is None:
                 continue
@@ -198,6 +199,10 @@ class LocalFileAnalyzer:
             chunk_counter += 1
             if chunk_counter <= max_chunks_for_progress or chunk_counter % 10 == 0:
                 self.logger.info("🔸 Gemini streaming chunk #%d", chunk_counter)
+                last_wait_log = chunk_counter
+            elif last_wait_log is None or chunk_counter - last_wait_log >= 10:
+                self.logger.info("…waiting for Gemini chunks (%d so far)", chunk_counter)
+                last_wait_log = chunk_counter
             payload_line = line[5:].strip() if line.startswith("data:") else line.strip()
             if payload_line:
                 sse_payloads.append(payload_line)
