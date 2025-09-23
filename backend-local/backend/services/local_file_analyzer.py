@@ -181,75 +181,32 @@ class LocalFileAnalyzer:
             payload["generationConfig"]["responseMimeType"] = conf["response_mime_type"]
 
         response = requests.post(
-            f"{conf.get('base_url', 'https://generativelanguage.googleapis.com')}/v1beta/{conf.get('model', 'models/gemini-1.5-pro')}:streamGenerateContent?key={api_key}",
+            f"{conf.get('base_url', 'https://generativelanguage.googleapis.com')}/v1beta/{conf.get('model', 'models/gemini-1.5-pro')}:generateContent?key={api_key}",
             json=payload,
             timeout=conf.get("timeout", 120),
-            stream=True,
         )
         response.raise_for_status()
+        data = response.json()
 
-        raw_lines: list[str] = []
-        sse_payloads: list[str] = []
-        chunk_counter = 0
-        max_chunks_for_progress = 10
-        last_wait_log_ts = time.monotonic() - 1.0
-        for line in response.iter_lines(decode_unicode=True):
-            if line is None:
-                continue
-            raw_lines.append(line)
-            chunk_counter += 1
-            if chunk_counter <= max_chunks_for_progress:
-                self.logger.info("🔸 Gemini streaming chunk #%d", chunk_counter)
-                last_wait_log_ts = time.monotonic()
-            else:
-                now = time.monotonic()
-                if now - last_wait_log_ts >= 1.0:
-                    self.logger.info("…waiting for Gemini chunks (%d so far)", chunk_counter)
-                    last_wait_log_ts = now
-            payload_line = line[5:].strip() if line.startswith("data:") else line.strip()
-            if payload_line:
-                sse_payloads.append(payload_line)
-
-        raw_text = "\n".join(raw_lines)
-        merged_payload = "\n".join(sse_payloads)
-
-        if not merged_payload:
-            raise LLMJsonError("Gemini API returned no content", raw_text)
-
-        try:
-            parsed = json.loads(merged_payload)
-        except json.JSONDecodeError as exc:
-            raise LLMJsonError(f"Gemini response JSON parse failure: {exc}", merged_payload) from exc
-
-        entries: list[Dict[str, Any]]
-        if isinstance(parsed, dict):
-            entries = [parsed]
-        elif isinstance(parsed, list):
-            entries = [item for item in parsed if isinstance(item, dict)]
-        else:
-            raise LLMJsonError("Unexpected Gemini response format", merged_payload)
-
+        raw_payload = json.dumps(data, ensure_ascii=False)
         text_chunks: list[str] = []
-        accumulated = []
-        for entry in entries:
-            for candidate in entry.get("candidates", []):
-                parts = candidate.get("content", {}).get("parts", [])
-                for part in parts:
-                    if isinstance(part, dict):
-                        text_part = part.get("text")
-                        if isinstance(text_part, str):
-                            text_chunks.append(text_part)
-                            accumulated.append(text_part)
+        for candidate in data.get("candidates", []):
+            parts = candidate.get("content", {}).get("parts", [])
+            for part in parts:
+                if isinstance(part, dict):
+                    text_part = part.get("text")
+                    if isinstance(text_part, str):
+                        text_chunks.append(text_part)
 
         if not text_chunks:
-            raise LLMJsonError("Gemini response contained no text parts", merged_payload)
+            raise LLMJsonError("Gemini response contained no text parts", raw_payload)
 
         merged = "".join(text_chunks).strip()
-        self.logger.info("✅ Gemini response merged length: %d characters", len(merged))
+        self.logger.info("✅ Gemini response length: %d characters", len(merged))
         if not merged:
-            raise LLMJsonError("Gemini response text is empty", merged_payload)
+            raise LLMJsonError("Gemini response text is empty", raw_payload)
 
-        return merged, merged_payload
+        return merged, raw_payload
 
     # ------------------------------------------------------------------
     # JSON helpers
