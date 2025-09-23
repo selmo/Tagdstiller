@@ -186,7 +186,6 @@ async def generate_knowledge_graph(req: StructureAnalysisRequest, db: Session = 
         "output_directory": str(output_dir),
         "generation_timestamp": datetime.now().isoformat(),
         "source_parser": best_parser,
-        "llm_analysis": llm_analysis,
         "statistics": {
             "total_saved_files": len(saved_files),
             "file_types": {},
