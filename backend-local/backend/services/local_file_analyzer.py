@@ -125,10 +125,7 @@ class LocalFileAnalyzer:
             raw_response=raw_response,
         )
 
-        try:
-            json_response = self._extract_json_from_response(response_text)
-        except ValueError as exc:
-            return self._fail_result(str(exc), raw_response)
+        json_response = json.loads(response_text)
 
         return {
             "analysis_method": "llm_only",
@@ -193,13 +190,18 @@ class LocalFileAnalyzer:
         chunks: list[str] = []
         raw_lines: list[str] = []
         for line in response.iter_lines(decode_unicode=True):
-            if not line:
+            if line is None:
                 continue
             raw_lines.append(line)
+            self.logger.info("🔹 Gemini raw chunk: %s", line[:200].replace('\n', ' '))
+            chunk = line[5:].strip() if line.startswith("data:") else line.strip()
+            if not chunk:
+                continue
             try:
-                data = json.loads(line[5:].strip()) if line.startswith("data:") else json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise LLMJsonError(f"Gemini chunk parse failure: {exc}", "\n".join(raw_lines)) from exc
+                data = json.loads(chunk)
+            except json.JSONDecodeError:
+                # 청크 전체를 누적해서 나중에 한꺼번에 파싱
+                continue
 
             candidates = data.get("candidates", [])
             if not candidates:
@@ -209,11 +211,13 @@ class LocalFileAnalyzer:
                 if isinstance(part, dict) and "text" in part:
                     chunks.append(part["text"])
 
-        result = "\n".join(chunks)
+        if not chunks:
+            raw_text = "\n".join(raw_lines)
+            raise LLMJsonError("Gemini API returned no usable chunks", raw_text)
+
+        merged = "".join(chunks).strip()
         raw_text = "\n".join(raw_lines)
-        if not result:
-            raise LLMJsonError("Gemini API returned an empty response", raw_text)
-        return result, raw_text
+        return merged, raw_text
 
     # ------------------------------------------------------------------
     # JSON helpers
