@@ -187,37 +187,58 @@ class LocalFileAnalyzer:
         )
         response.raise_for_status()
 
-        chunks: list[str] = []
         raw_lines: list[str] = []
+        sse_payloads: list[str] = []
         for line in response.iter_lines(decode_unicode=True):
             if line is None:
                 continue
             raw_lines.append(line)
-            self.logger.info("🔹 Gemini raw chunk: %s", line[:200].replace('\n', ' '))
-            chunk = line[5:].strip() if line.startswith("data:") else line.strip()
-            if not chunk:
-                continue
-            try:
-                data = json.loads(chunk)
-            except json.JSONDecodeError:
-                # 청크 전체를 누적해서 나중에 한꺼번에 파싱
-                continue
 
-            candidates = data.get("candidates", [])
-            if not candidates:
-                continue
-            parts = candidates[0].get("content", {}).get("parts", [])
-            for part in parts:
-                if isinstance(part, dict) and "text" in part:
-                    chunks.append(part["text"])
+            payload_line = line[5:].strip() if line.startswith("data:") else line.strip()
+            if payload_line:
+                sse_payloads.append(payload_line)
 
-        if not chunks:
-            raw_text = "\n".join(raw_lines)
-            raise LLMJsonError("Gemini API returned no usable chunks", raw_text)
-
-        merged = "".join(chunks).strip()
         raw_text = "\n".join(raw_lines)
-        return merged, raw_text
+        merged_payload = "\n".join(sse_payloads)
+
+        if not merged_payload:
+            raise LLMJsonError("Gemini API returned no content", raw_text)
+
+        try:
+            parsed = json.loads(merged_payload)
+        except json.JSONDecodeError as exc:
+            raise LLMJsonError(f"Gemini response JSON parse failure: {exc}", merged_payload) from exc
+
+        entries: list[Dict[str, Any]]
+        if isinstance(parsed, dict):
+            entries = [parsed]
+        elif isinstance(parsed, list):
+            entries = [item for item in parsed if isinstance(item, dict)]
+        else:
+            raise LLMJsonError("Unexpected Gemini response format", merged_payload)
+
+        text_chunks: list[str] = []
+        accumulated = []
+        for entry in entries:
+            for candidate in entry.get("candidates", []):
+                parts = candidate.get("content", {}).get("parts", [])
+                for part in parts:
+                    if isinstance(part, dict):
+                        text_part = part.get("text")
+                        if isinstance(text_part, str):
+                            text_chunks.append(text_part)
+                            accumulated.append(text_part)
+                            preview = "".join(accumulated)[-200:].replace("\n", " ")
+                            self.logger.info("🔸 Gemini accumulated text (tail): %s", preview)
+
+        if not text_chunks:
+            raise LLMJsonError("Gemini response contained no text parts", merged_payload)
+
+        merged = "".join(text_chunks).strip()
+        if not merged:
+            raise LLMJsonError("Gemini response text is empty", merged_payload)
+
+        return merged, merged_payload
 
     # ------------------------------------------------------------------
     # JSON helpers
