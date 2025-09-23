@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -191,18 +192,20 @@ class LocalFileAnalyzer:
         sse_payloads: list[str] = []
         chunk_counter = 0
         max_chunks_for_progress = 10
-        last_wait_log = None
+        last_wait_log_ts = time.monotonic() - 1.0
         for line in response.iter_lines(decode_unicode=True):
             if line is None:
                 continue
             raw_lines.append(line)
             chunk_counter += 1
-            if chunk_counter <= max_chunks_for_progress or chunk_counter % 10 == 0:
+            if chunk_counter <= max_chunks_for_progress:
                 self.logger.info("🔸 Gemini streaming chunk #%d", chunk_counter)
-                last_wait_log = chunk_counter
-            elif last_wait_log is None or chunk_counter - last_wait_log >= 10:
-                self.logger.info("…waiting for Gemini chunks (%d so far)", chunk_counter)
-                last_wait_log = chunk_counter
+                last_wait_log_ts = time.monotonic()
+            else:
+                now = time.monotonic()
+                if now - last_wait_log_ts >= 1.0:
+                    self.logger.info("…waiting for Gemini chunks (%d so far)", chunk_counter)
+                    last_wait_log_ts = now
             payload_line = line[5:].strip() if line.startswith("data:") else line.strip()
             if payload_line:
                 sse_payloads.append(payload_line)
