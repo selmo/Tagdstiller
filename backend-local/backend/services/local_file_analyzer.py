@@ -240,7 +240,6 @@ class LocalFileAnalyzer:
                         if isinstance(text_part, str):
                             text_chunks.append(text_part)
                             accumulated.append(text_part)
-                            break
 
         if not text_chunks:
             raise LLMJsonError("Gemini response contained no text parts", merged_payload)
