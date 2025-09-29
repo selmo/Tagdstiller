@@ -42,32 +42,39 @@ class ConfigCache:
     def get(self, key: str, default: Any = None, db_session: Optional[Session] = None) -> Any:
         """
         설정 값을 가져옵니다.
-        
+
         Args:
             key: 설정 키
             default: 기본값
             db_session: DB 세션 (핫 리로드용)
-            
+
         Returns:
             설정 값 또는 기본값
         """
+        import os
+
+        # 환경변수를 먼저 확인 (특히 API 키의 경우)
+        env_value = os.getenv(key)
+        if env_value is not None:
+            return env_value
+
         with self._lock:
             # 캐시가 초기화되지 않은 경우
             if not self._is_initialized and db_session:
                 self.initialize(db_session)
-            
+
             # 캐시에서 값 조회
             if key in self._cache:
                 # TTL 체크
                 if self._should_refresh(key) and db_session:
                     self._refresh_key(key, db_session)
-                
+
                 return self._cache.get(key, default)
-            
+
             # 캐시에 없는 경우 DB에서 직접 조회
             if db_session:
                 return self._fetch_from_db(key, default, db_session)
-            
+
             return default
     
     def set(self, key: str, value: Any, db_session: Session) -> None:

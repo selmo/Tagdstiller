@@ -83,7 +83,15 @@ class LocalFileAnalyzer:
         else:
             return self._fail_result(f"Unsupported provider: {provider}", "")
 
-        truncated_text = text[:15000]
+        # max_tokens 기반으로 문서 크기 계산
+        max_tokens = conf.get("max_tokens", 8000)
+        # 프롬프트 템플릿과 응답을 위한 토큰 예약 (대략 2000 토큰)
+        reserved_tokens = 2000
+        available_tokens = max(max_tokens - reserved_tokens, 1000)  # 최소 1000 토큰 보장
+        # 토큰을 문자 수로 변환 (한국어 기준 약 1.5자/토큰)
+        max_chars = int(available_tokens * 1.5)
+
+        truncated_text = text[:max_chars] if len(text) > max_chars else text
         file_info = {
             "filename": Path(file_path).name,
             "extension": file_extension,
