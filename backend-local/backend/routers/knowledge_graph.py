@@ -16,6 +16,7 @@ from services.document_parser_service import DocumentParserService
 from services.local_file_analyzer import LocalFileAnalyzer
 from services.chunk_analyzer import ChunkAnalyzer
 from services.image_analyzer import ImageAnalyzer
+from services.knowledge_graph_builder import KnowledgeGraphBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -494,3 +495,176 @@ async def get_knowledge_graph(
         extract_images=extract_images
     )
     return await generate_knowledge_graph(request, db)
+
+
+# ============================================================================
+# Full Knowledge Graph API - 문서 전체를 Knowledge Graph로 변환
+# ============================================================================
+
+
+class FullKnowledgeGraphRequest(BaseModel):
+    """전체 Knowledge Graph 생성 요청"""
+    file_path: str
+    directory: Optional[str] = None
+    domain: str = "general"  # general, technical, academic, business, legal
+    force_reparse: bool = False
+    include_structure: bool = True  # 구조 분석 정보 포함 여부
+    save_format: str = "json"  # json, cypher, graphml, all
+    llm: Optional[Dict[str, Any]] = None
+
+
+@router.post("/full-knowledge-graph")
+async def generate_full_knowledge_graph(req: FullKnowledgeGraphRequest, db: Session = Depends(get_db)):
+    """
+    문서 전체를 Knowledge Graph로 변환하는 전용 API
+
+    메타정보가 아닌 문서 내용 전체를 엔티티와 관계로 추출하여 그래프 구조로 변환합니다.
+
+    Features:
+    - 도메인별 맞춤 엔티티/관계 추출 (general, technical, academic, business, legal)
+    - 다양한 출력 형식 지원 (JSON, Cypher, GraphML)
+    - 구조 정보 통합 분석 (선택)
+    - LLM 기반 지능형 추출
+
+    Args:
+        req: Knowledge Graph 생성 요청
+        db: 데이터베이스 세션
+
+    Returns:
+        Knowledge Graph 결과 (nodes, edges, stats, metadata)
+    """
+    try:
+        file_path = _ensure_absolute(Path(req.file_path))
+        _validate_file(file_path)
+
+        directory_path = None
+        if req.directory:
+            directory_path = _ensure_absolute(Path(req.directory))
+            directory_path.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"🔍 Full Knowledge Graph 생성 시작: {file_path.name} (도메인: {req.domain})")
+
+        # 1. 문서 파싱
+        parser_service = DocumentParserService()
+        output_dir = parser_service.get_output_directory(file_path, directory_path)
+
+        parsing_results = None
+        if req.force_reparse or not parser_service.has_parsing_results(file_path, directory_path):
+            parsing_results = parser_service.parse_document_comprehensive(
+                file_path=file_path,
+                force_reparse=req.force_reparse,
+                directory=directory_path,
+            )
+        else:
+            parsing_results = parser_service.load_existing_parsing_results(file_path, directory_path)
+
+        # 2. 최상의 파서 결과에서 텍스트 추출
+        best_parser = parsing_results.get("summary", {}).get("best_parser")
+        document_text = ""
+        if best_parser and best_parser in parsing_results.get("parsing_results", {}):
+            parser_dir = output_dir / best_parser
+            text_file = parser_dir / f"{best_parser}_text.txt"
+            if text_file.exists():
+                document_text = text_file.read_text(encoding='utf-8')
+            else:
+                raise HTTPException(status_code=500, detail=f"파싱된 텍스트 파일을 찾을 수 없습니다: {text_file}")
+        else:
+            raise HTTPException(status_code=500, detail="문서 파싱 결과를 찾을 수 없습니다")
+
+        if not document_text or len(document_text) < 100:
+            raise HTTPException(status_code=400, detail="문서 텍스트가 너무 짧거나 비어있습니다")
+
+        logger.info(f"📄 문서 텍스트 추출 완료: {len(document_text):,}자")
+
+        # 3. 구조 정보 추출 (선택)
+        structure_info = None
+        if req.include_structure:
+            structure_response_path = output_dir / "llm_structure_analysis.json"
+            if structure_response_path.exists():
+                with structure_response_path.open('r', encoding='utf-8') as f:
+                    structure_info = json.load(f)
+                logger.info("📊 기존 구조 분석 정보 로드 완료")
+            else:
+                # 구조 분석이 없으면 간단히 실행
+                analyzer = LocalFileAnalyzer(db)
+                structure_result = analyzer.analyze_document_structure_with_llm(
+                    text=document_text[:50000],  # 구조 분석은 앞부분만
+                    file_path=str(file_path),
+                    file_extension=file_path.suffix,
+                    overrides=req.llm or {}
+                )
+                if structure_result.get("success"):
+                    structure_info = structure_result.get("analysis", {})
+                    logger.info("📊 구조 분석 실행 완료")
+
+        # 4. Knowledge Graph 생성
+        kg_builder = KnowledgeGraphBuilder(db)
+        kg_result = kg_builder.build_knowledge_graph(
+            text=document_text,
+            file_path=str(file_path),
+            domain=req.domain,
+            structure_info=structure_info,
+            llm_config=req.llm or {}
+        )
+
+        if not kg_result.get("success"):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Knowledge Graph 생성 실패: {kg_result.get('error', '알 수 없는 오류')}"
+            )
+
+        # 5. Knowledge Graph 저장
+        saved_files = kg_builder.save_knowledge_graph(
+            kg_result=kg_result,
+            output_dir=output_dir,
+            format=req.save_format
+        )
+
+        # 6. 최종 응답 구성
+        response = {
+            "success": True,
+            "file_path": str(file_path),
+            "domain": req.domain,
+            "graph": kg_result.get("graph", {}),
+            "stats": kg_result.get("stats", {}),
+            "metadata": kg_result.get("metadata", {}),
+            "saved_files": saved_files,
+            "extraction_date": kg_result.get("extraction_date"),
+        }
+
+        logger.info(
+            f"✅ Full Knowledge Graph 생성 완료: "
+            f"{response['stats'].get('entity_count', 0)}개 엔티티, "
+            f"{response['stats'].get('relationship_count', 0)}개 관계"
+        )
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Full Knowledge Graph 생성 중 오류: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Knowledge Graph 생성 실패: {str(e)}")
+
+
+@router.get("/full-knowledge-graph")
+async def get_full_knowledge_graph(
+    file_path: str,
+    directory: Optional[str] = None,
+    domain: str = Query("general", description="문서 도메인 (general/technical/academic/business/legal)"),
+    force_reparse: bool = Query(False, description="강제 재파싱"),
+    include_structure: bool = Query(True, description="구조 분석 정보 포함"),
+    save_format: str = Query("json", description="저장 형식 (json/cypher/graphml/all)"),
+    db: Session = Depends(get_db),
+):
+    """GET 방식으로 전체 Knowledge Graph 생성"""
+
+    request = FullKnowledgeGraphRequest(
+        file_path=file_path,
+        directory=directory,
+        domain=domain,
+        force_reparse=force_reparse,
+        include_structure=include_structure,
+        save_format=save_format
+    )
+    return await generate_full_knowledge_graph(request, db)

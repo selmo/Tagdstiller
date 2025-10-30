@@ -83,6 +83,10 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 - `POST /local-analysis/knowledge-graph` - 완전한 구조 분석 (청킹 + LLM)
 - `GET /local-analysis/knowledge-graph` - 동일 기능 (GET 방식)
 
+### 🔗 Knowledge Graph (NEW)
+- `POST /local-analysis/full-knowledge-graph` - 문서 전체를 Knowledge Graph로 변환
+- `GET /local-analysis/full-knowledge-graph` - 동일 기능 (GET 방식)
+
 ## 📝 사용 예시
 
 ### 기본 분석
@@ -121,6 +125,49 @@ curl -G "http://localhost:8000/local-analysis/knowledge-graph" \
   --data-urlencode "directory=/output/results"
 ```
 
+### Knowledge Graph 생성 (NEW)
+```bash
+# 기본 사용 (일반 문서)
+curl -X POST "http://localhost:8000/local-analysis/full-knowledge-graph" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_path": "/path/to/document.pdf",
+    "directory": "/output/results",
+    "domain": "general"
+  }'
+
+# 기술 문서용 KG
+curl -X POST "http://localhost:8000/local-analysis/full-knowledge-graph" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_path": "/path/to/technical_doc.pdf",
+    "directory": "/output/results",
+    "domain": "technical",
+    "save_format": "all",
+    "llm": {
+      "provider": "gemini",
+      "model": "gemini-2.0-flash-exp",
+      "api_key": "your-api-key"
+    }
+  }'
+
+# 학술 논문용 KG
+curl -X POST "http://localhost:8000/local-analysis/full-knowledge-graph" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_path": "/path/to/research_paper.pdf",
+    "directory": "/output/results",
+    "domain": "academic",
+    "include_structure": true
+  }'
+
+# GET 방식 (간단 호출)
+curl -G "http://localhost:8000/local-analysis/full-knowledge-graph" \
+  --data-urlencode "file_path=/path/to/document.pdf" \
+  --data-urlencode "domain=business" \
+  --data-urlencode "save_format=cypher"
+```
+
 ## 📊 출력 파일 구조
 
 ### 단일 문서 분석
@@ -154,6 +201,66 @@ curl -G "http://localhost:8000/local-analysis/knowledge-graph" \
 │       ├── chunk_2_executions.jsonl
 │       └── ...
 └── saved_files.json              # 생성된 파일 목록
+```
+
+### Knowledge Graph 출력 (NEW)
+```
+/output/results/
+├── knowledge_graph.json           # Knowledge Graph JSON 형식
+├── knowledge_graph.cypher         # Cypher 쿼리 (Neo4j/Memgraph용)
+├── knowledge_graph.graphml        # GraphML XML 형식
+├── parsing_results.json           # 파싱 결과
+├── llm_structure_analysis.json    # 구조 분석 (선택)
+├── docling.md                     # Docling 파서 결과
+└── pymupdf4llm.md                 # PyMuPDF 파서 결과
+```
+
+**knowledge_graph.json 구조:**
+```json
+{
+  "success": true,
+  "file_path": "/path/to/document.pdf",
+  "domain": "technical",
+  "graph": {
+    "nodes": [
+      {
+        "id": "entity_1",
+        "type": "Technology",
+        "properties": {
+          "name": "FastAPI",
+          "category": "framework"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge_1",
+        "source": "entity_1",
+        "target": "entity_2",
+        "type": "DEPENDS_ON",
+        "properties": {
+          "relationship_name": "USES",
+          "context": "API 구현"
+        }
+      }
+    ]
+  },
+  "stats": {
+    "entity_count": 45,
+    "relationship_count": 78,
+    "entity_types": {
+      "Technology": 15,
+      "API": 12,
+      "Function": 18
+    },
+    "relationship_types": {
+      "DEPENDS_ON": 25,
+      "IMPLEMENTS": 20,
+      "USES": 33
+    },
+    "density": 0.0382
+  }
+}
 ```
 
 ## ⚙️ 설정 옵션
@@ -313,6 +420,139 @@ reader = easyocr.Reader(['ko', 'en'], gpu=False)
 
 ### 추가 정보
 상세한 테스트 가이드는 `DOCLING_OCR_TEST_GUIDE.md`를 참조하세요.
+
+## 🔗 Knowledge Graph 시스템 (NEW)
+
+### 개요
+문서 내용 전체를 엔티티와 관계로 추출하여 지식 그래프로 변환하는 시스템입니다.
+
+### 주요 특징
+
+#### 1. 도메인별 맞춤 추출
+시스템이 문서 도메인에 따라 최적화된 엔티티와 관계 타입을 사용합니다:
+
+- **General (일반 문서)**:
+  - 엔티티: Country, Policy, Demographic, Institution, Impact
+  - 관계: ENTERED_PHASE, IMPLEMENTS, CAUSES, PROVIDES
+
+- **Technical (기술 문서)**:
+  - 엔티티: Technology, API, Function, Class, Database, Server
+  - 관계: DEPENDS_ON, IMPLEMENTS, EXTENDS, USES, CALLS
+
+- **Academic (학술 논문)**:
+  - 엔티티: Author, Institution, Research_Method, Theory, Dataset
+  - 관계: AUTHORED_BY, CITES, BUILDS_ON, PROVES, SUPPORTS
+
+- **Business (비즈니스 문서)**:
+  - 엔티티: Company, Product, Market, Stakeholder, Strategy
+  - 관계: COMPETES_WITH, SUPPLIES_TO, PARTNERS_WITH, MANAGES
+
+- **Legal (법률 문서)**:
+  - 엔티티: Law, Regulation, Contract, Party, Obligation
+  - 관계: GOVERNED_BY, SUBJECT_TO, OBLIGATED_TO, CITES_PRECEDENT
+
+#### 2. 다양한 출력 형식
+- **JSON**: 표준 그래프 데이터 형식 (nodes, edges)
+- **Cypher**: Neo4j/Memgraph용 CREATE 쿼리
+- **GraphML**: 범용 XML 그래프 형식
+- **All**: 모든 형식 동시 생성
+
+#### 3. 구조 정보 통합
+문서 구조 분석 정보를 Knowledge Graph 추출 과정에 활용하여 더 정확한 엔티티/관계 추출이 가능합니다.
+
+#### 4. 그래프 통계
+생성된 Knowledge Graph의 다양한 통계 정보 제공:
+- 엔티티 개수 및 타입별 분포
+- 관계 개수 및 타입별 분포
+- 그래프 밀도 (density)
+- 엔티티 타입별 통계
+
+### 사용 방법
+
+#### 기본 사용
+```bash
+curl -X POST "http://localhost:8000/local-analysis/full-knowledge-graph" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_path": "/path/to/document.pdf",
+    "domain": "general"
+  }'
+```
+
+#### 도메인 지정
+```bash
+# 기술 문서
+curl -X POST "http://localhost:8000/local-analysis/full-knowledge-graph" \
+  -d '{"file_path": "/path/to/tech.pdf", "domain": "technical"}'
+
+# 학술 논문
+curl -X POST "http://localhost:8000/local-analysis/full-knowledge-graph" \
+  -d '{"file_path": "/path/to/paper.pdf", "domain": "academic"}'
+```
+
+#### 출력 형식 선택
+```bash
+# Cypher 쿼리 생성
+curl -G "http://localhost:8000/local-analysis/full-knowledge-graph" \
+  --data-urlencode "file_path=/path/to/doc.pdf" \
+  --data-urlencode "save_format=cypher"
+
+# 모든 형식 생성
+curl -G "http://localhost:8000/local-analysis/full-knowledge-graph" \
+  --data-urlencode "file_path=/path/to/doc.pdf" \
+  --data-urlencode "save_format=all"
+```
+
+### 출력 예시
+
+**knowledge_graph.json**:
+```json
+{
+  "success": true,
+  "graph": {
+    "nodes": [
+      {"id": "tech_1", "type": "Technology", "properties": {...}},
+      {"id": "api_1", "type": "API", "properties": {...}}
+    ],
+    "edges": [
+      {"source": "tech_1", "target": "api_1", "type": "PROVIDES", "properties": {...}}
+    ]
+  },
+  "stats": {
+    "entity_count": 45,
+    "relationship_count": 78,
+    "density": 0.0382
+  }
+}
+```
+
+**knowledge_graph.cypher**:
+```cypher
+CREATE (n:Technology {id: 'tech_1', name: 'FastAPI', category: 'framework'});
+CREATE (n:API {id: 'api_1', name: 'REST API', endpoint: '/api/v1'});
+MATCH (a {id: 'tech_1'}), (b {id: 'api_1'})
+CREATE (a)-[r:PROVIDES {context: '웹 API 제공'}]->(b);
+```
+
+### 그래프 데이터베이스 연동
+
+생성된 Cypher 쿼리는 Neo4j 또는 Memgraph에 직접 실행 가능합니다:
+
+```bash
+# Neo4j 연동
+cat knowledge_graph.cypher | cypher-shell -u neo4j -p password
+
+# Memgraph 연동
+cat knowledge_graph.cypher | mgconsole
+```
+
+### 활용 시나리오
+
+1. **문서 네트워크 분석**: 여러 문서의 KG를 통합하여 문서 간 연결 관계 파악
+2. **지식 검색**: 그래프 쿼리를 통한 복잡한 지식 탐색
+3. **추천 시스템**: 엔티티 관계 기반 관련 문서/개념 추천
+4. **시각화**: Cytoscape, Gephi 등으로 지식 그래프 시각화
+5. **온톨로지 구축**: 도메인 특화 지식 온톨로지 자동 생성
 
 ## 🎯 특징 및 장점
 
