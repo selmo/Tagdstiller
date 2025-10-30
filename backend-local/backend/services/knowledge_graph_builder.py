@@ -73,7 +73,9 @@ class KnowledgeGraphBuilder:
                 return self._create_error_result(llm_response.get("error", "LLM 호출 실패"))
 
             # 5. LLM 응답 파싱
-            kg_data = self._parse_kg_response(llm_response.get("response", ""))
+            raw_response = llm_response.get("response", "")
+            self.logger.info(f"🔍 LLM 원시 응답 (처음 500자): {raw_response[:500]}")
+            kg_data = self._parse_kg_response(raw_response)
 
             # 6. 메타데이터 추가
             kg_result = self._enrich_kg_with_metadata(
@@ -317,6 +319,7 @@ class KnowledgeGraphBuilder:
 
         except json.JSONDecodeError as e:
             self.logger.error(f"JSON 파싱 실패: {e}")
+            self.logger.error(f"파싱 실패한 응답 전체:\n{response}")
             # 백업: 응답에서 JSON 블록 추출 시도
             return self._extract_json_from_text(response)
         except Exception as e:
