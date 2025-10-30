@@ -143,29 +143,156 @@ class KnowledgeGraphBuilder:
     def _call_llm_for_kg(self, prompt: str, llm_config: Dict[str, Any]) -> Dict[str, Any]:
         """LLM 호출하여 Knowledge Graph 추출"""
         try:
-            # LocalFileAnalyzer의 LLM 호출 메서드 활용
-            # 임시 텍스트와 파일 정보로 호출
-            result = self.analyzer.analyze_document_structure_with_llm(
-                text=prompt,
-                file_path="kg_extraction.txt",
-                file_extension=".txt",
-                overrides={
-                    **llm_config,
-                    "enabled": True
+            # LLM 설정 추출
+            provider = llm_config.get("provider", "gemini")
+
+            if provider == "gemini":
+                return self._call_gemini_for_kg(prompt, llm_config)
+            elif provider == "openai":
+                return self._call_openai_for_kg(prompt, llm_config)
+            elif provider == "ollama":
+                return self._call_ollama_for_kg(prompt, llm_config)
+            else:
+                return {"success": False, "error": f"지원하지 않는 LLM 프로바이더: {provider}"}
+
+        except Exception as e:
+            self.logger.error(f"LLM 호출 오류: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    def _call_gemini_for_kg(self, prompt: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Gemini API 호출"""
+        try:
+            import requests
+
+            api_key = config.get("api_key")
+            model = config.get("model", "models/gemini-2.0-flash")
+            base_url = config.get("base_url", "https://generativelanguage.googleapis.com")
+            timeout = config.get("timeout", 600)
+
+            if not api_key:
+                return {"success": False, "error": "Gemini API 키가 없습니다"}
+
+            # Gemini API 엔드포인트
+            url = f"{base_url}/v1beta/{model}:generateContent?key={api_key}"
+
+            # 요청 본문
+            payload = {
+                "contents": [{
+                    "parts": [{"text": prompt}]
+                }],
+                "generationConfig": {
+                    "temperature": config.get("temperature", 0.1),
+                    "maxOutputTokens": config.get("max_tokens", 8192),
                 }
-            )
+            }
 
-            if not result.get("success"):
-                return {"success": False, "error": result.get("error", "LLM 호출 실패")}
+            self.logger.info(f"📡 Gemini API 호출 시작... (모델: {model})")
 
-            # LLM 응답 추출
-            analysis = result.get("analysis", {})
-            response_text = json.dumps(analysis) if isinstance(analysis, dict) else str(analysis)
+            response = requests.post(url, json=payload, timeout=timeout)
+            response.raise_for_status()
+
+            result = response.json()
+
+            # 응답 텍스트 추출
+            candidates = result.get("candidates", [])
+            if not candidates:
+                return {"success": False, "error": "Gemini 응답이 비어있습니다"}
+
+            content = candidates[0].get("content", {})
+            parts = content.get("parts", [])
+
+            if not parts:
+                return {"success": False, "error": "Gemini 응답에 텍스트가 없습니다"}
+
+            response_text = parts[0].get("text", "")
+
+            self.logger.info(f"✅ Gemini 응답 수신 완료: {len(response_text):,}자")
+
+            return {"success": True, "response": response_text}
+
+        except requests.exceptions.Timeout:
+            return {"success": False, "error": f"Gemini API 타임아웃 ({timeout}초)"}
+        except requests.exceptions.RequestException as e:
+            return {"success": False, "error": f"Gemini API 오류: {str(e)}"}
+        except Exception as e:
+            self.logger.error(f"Gemini 호출 오류: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    def _call_openai_for_kg(self, prompt: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        """OpenAI API 호출"""
+        try:
+            import requests
+
+            api_key = config.get("api_key")
+            model = config.get("model", "gpt-4")
+            base_url = config.get("base_url", "https://api.openai.com/v1")
+            timeout = config.get("timeout", 600)
+
+            if not api_key:
+                return {"success": False, "error": "OpenAI API 키가 없습니다"}
+
+            url = f"{base_url}/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+
+            payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": config.get("temperature", 0.1),
+                "max_tokens": config.get("max_tokens", 8192),
+            }
+
+            self.logger.info(f"📡 OpenAI API 호출 시작... (모델: {model})")
+
+            response = requests.post(url, headers=headers, json=payload, timeout=timeout)
+            response.raise_for_status()
+
+            result = response.json()
+            response_text = result["choices"][0]["message"]["content"]
+
+            self.logger.info(f"✅ OpenAI 응답 수신 완료: {len(response_text):,}자")
 
             return {"success": True, "response": response_text}
 
         except Exception as e:
-            self.logger.error(f"LLM 호출 오류: {e}", exc_info=True)
+            self.logger.error(f"OpenAI 호출 오류: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    def _call_ollama_for_kg(self, prompt: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Ollama API 호출"""
+        try:
+            import requests
+
+            base_url = config.get("base_url", "http://localhost:11434")
+            model = config.get("model", "llama3.2")
+            timeout = config.get("timeout", 600)
+
+            url = f"{base_url}/api/generate"
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": config.get("temperature", 0.1),
+                }
+            }
+
+            self.logger.info(f"📡 Ollama API 호출 시작... (모델: {model})")
+
+            response = requests.post(url, json=payload, timeout=timeout)
+            response.raise_for_status()
+
+            result = response.json()
+            response_text = result.get("response", "")
+
+            self.logger.info(f"✅ Ollama 응답 수신 완료: {len(response_text):,}자")
+
+            return {"success": True, "response": response_text}
+
+        except Exception as e:
+            self.logger.error(f"Ollama 호출 오류: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     def _parse_kg_response(self, response: str) -> Dict[str, Any]:
