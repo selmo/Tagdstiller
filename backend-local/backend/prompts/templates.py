@@ -919,15 +919,15 @@ You are a knowledge extraction specialist. Your task is to convert text into a s
 
 | Entity Type | Required Properties | Optional Properties | ID Format |
 |------------|-------------------|-------------------|-----------|
-| Country | name, code | current_stats, year | country_{seq} |
-| Policy | name, year, type | description, law_number | policy_{seq} |
-| Demographic | name | age_range, birth_years, population | demo_{seq} |
-| Institution | name, type | role, sector | inst_{seq} |
-| Impact | name, type, severity | description, metrics | impact_{seq} |
-| Strategy | name, type | target, implementation_year | strategy_{seq} |
-| Phase | name, threshold | description, criteria | phase_{seq} |
-| Challenge | name, severity | country, description | challenge_{seq} |
-| FinancialProduct | name, type | provider, target_group | product_{seq} |
+| Country | name, code | current_stats, year | country_{{seq}} |
+| Policy | name, year, type | description, law_number | policy_{{seq}} |
+| Demographic | name | age_range, birth_years, population | demo_{{seq}} |
+| Institution | name, type | role, sector | inst_{{seq}} |
+| Impact | name, type, severity | description, metrics | impact_{{seq}} |
+| Strategy | name, type | target, implementation_year | strategy_{{seq}} |
+| Phase | name, threshold | description, criteria | phase_{{seq}} |
+| Challenge | name, severity | country, description | challenge_{{seq}} |
+| FinancialProduct | name, type | provider, target_group | product_{{seq}} |
 
 ### 2. Relationship Types
 
