@@ -10,6 +10,7 @@ from datetime import datetime
 
 from services.parser.pdf_parser import PdfParser
 from services.parser.docling_parser import DoclingParser
+from services.parser.docling_ocr_parser import DoclingOCRParser
 from services.parser.docx_parser import DocxParser
 from services.parser.txt_parser import TxtParser
 from services.parser.html_parser import HtmlParser
@@ -23,17 +24,23 @@ logger = logging.getLogger(__name__)
 
 class DocumentParserService:
     """문서 파싱 전용 서비스 - 모든 파서를 사용하여 완전한 파싱 수행"""
-    
-    def __init__(self):
+
+    def __init__(self, ocr_engine: str = "auto"):
+        """
+        Args:
+            ocr_engine: OCR 엔진 선택 ("auto", "easyocr", "tesseract")
+        """
+        self.ocr_engine = ocr_engine
         self.parsers = {
             'pdf': [
+                ('docling_ocr', DoclingOCRParser(ocr_engine=ocr_engine)),  # Docling + OCR 통합 파서 (최우선)
                 ('docling', DoclingParser()),
                 ('pdf_parser', PdfParser())
             ],
             'docx': [('docx_parser', DocxParser())],
             'txt': [('txt_parser', TxtParser())],
             'html': [('html_parser', HtmlParser())],
-            'htm': [('html_parser', HtmlParser())], 
+            'htm': [('html_parser', HtmlParser())],
             'md': [('md_parser', MarkdownParser())],
             'zip': [('zip_parser', ZipParser())],
             'hwp': [('hwp_parser', HwpParser())]
@@ -120,22 +127,30 @@ class DocumentParserService:
             }
         }
         
-        # 모든 적용 가능한 파서로 파싱 시도
+        # Docling 우선 전략: docling 계열 파서가 성공하면 다른 파서 사용 안함
         applicable_parsers = self.parsers[extension]
         parsing_results["summary"]["total_parsers"] = len(applicable_parsers)
-        
+
+        docling_success = False  # Docling 파서 성공 여부 추적
+
         for parser_name, parser in applicable_parsers:
+            # Docling 파서가 이미 성공했으면 다른 파서 건너뛰기
+            if docling_success and not parser_name.startswith('docling'):
+                logger.info(f"⏭️ {parser_name} 건너뛰기 (Docling 파서가 이미 성공)")
+                parsing_results["summary"]["total_parsers"] -= 1  # 실제로 시도하지 않은 파서는 총 개수에서 제외
+                continue
+
             try:
                 logger.info(f"🔄 {parser_name} 파서로 파싱 시도")
                 result = parser.parse(file_path)
-                
+
                 if result.success:
                     parsing_results["summary"]["successful_parsers"] += 1
                     parsing_results["parsers_used"].append(parser_name)
-                    
+
                     # 개별 파서 결과를 파일로 저장 (Markdown 파일 이동 포함)
                     self._save_individual_parser_result(output_dir, parser_name, result)
-                    
+
                     # 파싱 결과 저장 (파일 저장 후 업데이트된 경로 사용)
                     parser_result = {
                         "success": True,
@@ -146,25 +161,30 @@ class DocumentParserService:
                         "md_file_path": result.md_file_path,  # 이동 후 업데이트된 경로 사용
                         "parsing_time": getattr(result, 'parsing_time', None)
                     }
-                    
+
                     # 텍스트 품질 점수 계산
                     quality_score = self._calculate_text_quality(result.text)
                     parser_result["quality_score"] = quality_score
-                    
+
                     # 최고 품질 파서 추적
                     if quality_score > parsing_results["summary"]["best_quality_score"]:
                         parsing_results["summary"]["best_quality_score"] = quality_score
                         parsing_results["summary"]["best_parser"] = parser_name
-                    
+
                     # 구조화된 정보 추출 (해당 파서인 경우)
                     structured_info = self._extract_structured_info(result, parser_name)
                     if structured_info:
                         parser_result["structured_info"] = structured_info
-                    
+
                     parsing_results["parsing_results"][parser_name] = parser_result
-                    
+
                     logger.info(f"✅ {parser_name} 파싱 성공 (품질: {quality_score:.2f})")
-                    
+
+                    # Docling 파서 성공 플래그 설정
+                    if parser_name.startswith('docling'):
+                        docling_success = True
+                        logger.info(f"🎯 Docling 파서 성공, 다른 PDF 파서 건너뜀")
+
                 else:
                     parsing_results["summary"]["failed_parsers"] += 1
                     parsing_results["parsing_results"][parser_name] = {
@@ -173,7 +193,7 @@ class DocumentParserService:
                         "parser_name": result.parser_name
                     }
                     logger.warning(f"❌ {parser_name} 파싱 실패: {result.error_message}")
-                    
+
             except Exception as e:
                 parsing_results["summary"]["failed_parsers"] += 1
                 parsing_results["parsing_results"][parser_name] = {

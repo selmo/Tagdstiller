@@ -210,7 +210,7 @@ class ImageAnalyzer:
             self.logger.error(f"❌ PDF 이미지 추출 실패: {e}")
             return []
 
-    def analyze_image_with_llm(self, image_path: Path, context: str = "", llm_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def analyze_image_with_llm(self, image_path: Path, context: str = "", llm_config: Optional[Dict[str, Any]] = None, output_dir: Optional[Path] = None) -> Dict[str, Any]:
         """이미지 내용에 따른 차별화된 분석 수행"""
         if llm_config and llm_config.get("provider"):
             provider = llm_config["provider"]
@@ -235,7 +235,7 @@ class ImageAnalyzer:
         else:
             # 시각적 콘텐츠 -> 멀티모달 LLM으로 내용 분석
             if provider == "gemini":
-                result = self._analyze_with_gemini(image_path, context, llm_config)
+                result = self._analyze_with_gemini(image_path, context, llm_config, output_dir)
             elif provider == "openai":
                 result = self._analyze_with_openai(image_path, context, llm_config)
             else:
@@ -249,7 +249,7 @@ class ImageAnalyzer:
                         f"처리방법={result.get('processing_method')}")
         return result
 
-    def _analyze_with_gemini(self, image_path: Path, context: str, llm_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _analyze_with_gemini(self, image_path: Path, context: str, llm_config: Optional[Dict[str, Any]] = None, output_dir: Optional[Path] = None) -> Dict[str, Any]:
         """Gemini Vision으로 이미지 분석"""
         try:
             # LLM 설정 우선 사용, 없으면 기본 설정 사용
@@ -273,11 +273,14 @@ class ImageAnalyzer:
             with open(image_path, "rb") as image_file:
                 image_data = base64.b64encode(image_file.read()).decode('utf-8')
 
+            # 프롬프트 생성
+            prompt_text = self._get_image_analysis_prompt(context)
+
             # Gemini API 호출용 payload
             payload = {
                 "contents": [{
                     "parts": [
-                        {"text": self._get_image_analysis_prompt(context)},
+                        {"text": prompt_text},
                         {
                             "inline_data": {
                                 "mime_type": "image/png",
@@ -293,14 +296,38 @@ class ImageAnalyzer:
                 }
             }
 
-            response = requests.post(
-                f"https://generativelanguage.googleapis.com/v1beta/{model}:generateContent?key={api_key}",
-                json=payload,
-                timeout=60
-            )
-            response.raise_for_status()
+            # 재시도 로직 (503 에러 대응)
+            import time
+            max_retries = 3
+            retry_delay = 2
+
+            url = f"https://generativelanguage.googleapis.com/v1beta/{model}:generateContent?key={api_key}"
+
+            for attempt in range(max_retries):
+                try:
+                    response = requests.post(url, json=payload, timeout=60)
+                    response.raise_for_status()
+                    break  # 성공하면 루프 종료
+                except requests.exceptions.HTTPError as e:
+                    if e.response.status_code == 503 and attempt < max_retries - 1:
+                        self.logger.warning(f"⚠️ Gemini Vision API 503 에러, {retry_delay}초 후 재시도 ({attempt + 1}/{max_retries})")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # 지수 백오프
+                    else:
+                        raise  # 마지막 시도거나 다른 에러면 예외 발생
 
             data = response.json()
+
+            # 토큰 사용량 추출 및 로깅
+            usage_metadata = data.get("usageMetadata", {})
+            prompt_tokens = usage_metadata.get("promptTokenCount", 0)
+            response_tokens = usage_metadata.get("candidatesTokenCount", 0)
+            total_tokens = usage_metadata.get("totalTokenCount", 0)
+
+            if usage_metadata:
+                self.logger.info(
+                    f"📊 Gemini Vision 토큰 사용량 - 프롬프트: {prompt_tokens}, 응답: {response_tokens}, 총합: {total_tokens}"
+                )
 
             # 응답 텍스트 추출
             text_chunks = []
@@ -315,6 +342,32 @@ class ImageAnalyzer:
 
             # JSON 파싱 시도
             analysis_text = "".join(text_chunks).strip()
+
+            # 프롬프트 및 응답 로깅 (output_dir이 제공된 경우)
+            if output_dir:
+                from utils.llm_logger import log_prompt_and_response
+                log_prompt_and_response(
+                    label=f"image_analysis_{image_path.stem}",
+                    provider="gemini",
+                    model=model,
+                    prompt=prompt_text,
+                    response=analysis_text,
+                    logger=self.logger,
+                    base_dir=str(output_dir),
+                    request_data=payload,
+                    response_data=data,
+                    meta={
+                        "image_file": str(image_path),
+                        "image_size_bytes": image_path.stat().st_size,
+                        "context": context,
+                        "tokens": {
+                            "prompt_tokens": prompt_tokens,
+                            "response_tokens": response_tokens,
+                            "total_tokens": total_tokens
+                        }
+                    }
+                )
+
             try:
                 analysis_json = json.loads(analysis_text)
                 return {
@@ -415,6 +468,8 @@ class ImageAnalyzer:
     def _get_image_analysis_prompt(self, context: str) -> str:
         """시각적 콘텐츠 분석용 프롬프트 생성 (텍스트 추출 제외)"""
         prompt = """
+**중요: 모든 응답은 반드시 한국어로 작성해주세요.**
+
 이 이미지의 시각적 내용을 상세히 분석하여 JSON 형식으로 결과를 반환해주세요.
 (참고: 텍스트 추출은 별도로 처리되므로, 시각적 요소와 내용 분석에 집중해주세요)
 
@@ -458,7 +513,7 @@ JSON 응답 형식:
 
         return prompt
 
-    def analyze_document_with_images(self, file_path: Path, text_content: str, output_dir: Path, llm_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def analyze_document_with_images(self, file_path: Path, text_content: str, output_dir: Path, llm_config: Optional[Dict[str, Any]] = None, filter_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """문서 전체를 텍스트와 이미지를 포함하여 종합 분석"""
         try:
             # 1. PDF 문서 타입 판단 (텍스트 기반 vs 이미지 기반)
@@ -478,7 +533,15 @@ JSON 응답 형식:
                     "document_type_analysis": doc_type_analysis
                 }
 
-            # 2. 각 이미지 분석
+            # 2-1. 이미지 필터링 (설정이 있는 경우)
+            original_count = len(images_info)
+            if filter_config:
+                images_info = self._filter_images(images_info, filter_config)
+                filtered_count = original_count - len(images_info)
+                if filtered_count > 0:
+                    self.logger.info(f"🔍 이미지 필터링: {original_count}개 → {len(images_info)}개 ({filtered_count}개 제외)")
+
+            # 2-2. 각 이미지 분석
             image_analyses = []
             for img_info in images_info:
                 image_path = Path(img_info["path"])
@@ -487,7 +550,7 @@ JSON 응답 형식:
                     page_context = f"문서: {file_path.name}, 페이지: {img_info['page']}"
 
                     self.logger.info(f"🔍 이미지 분석 시작: {img_info['filename']}")
-                    analysis = self.analyze_image_with_llm(image_path, page_context, llm_config)
+                    analysis = self.analyze_image_with_llm(image_path, page_context, llm_config, output_dir)
                     analysis["image_info"] = img_info
                     image_analyses.append(analysis)
 
@@ -666,6 +729,36 @@ JSON 응답 형식:
             "text_extraction_method": "native",
             "recommended_approach": "기본 분석 수행"
         })
+
+    def _filter_images(self, images_info: List[Dict[str, Any]], filter_config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """이미지 필터링 - 작은 로고/아이콘 제외, 중복 크기 이미지 제거"""
+        min_width = filter_config.get("min_width", 100)
+        min_height = filter_config.get("min_height", 100)
+        skip_duplicates = filter_config.get("skip_duplicates", False)
+
+        filtered = []
+        seen_sizes = set()  # 중복 감지용 (width, height)
+
+        for img_info in images_info:
+            width = img_info.get("width", 0)
+            height = img_info.get("height", 0)
+
+            # 1. 최소 크기 필터
+            if width < min_width or height < min_height:
+                self.logger.debug(f"⏭️ 작은 이미지 제외: {img_info['filename']} ({width}x{height})")
+                continue
+
+            # 2. 중복 크기 필터 (같은 크기 이미지는 반복되는 로고/헤더일 가능성 높음)
+            if skip_duplicates:
+                size_key = (width, height)
+                if size_key in seen_sizes:
+                    self.logger.debug(f"⏭️ 중복 크기 이미지 제외: {img_info['filename']} ({width}x{height})")
+                    continue
+                seen_sizes.add(size_key)
+
+            filtered.append(img_info)
+
+        return filtered
 
     def _get_processing_strategy(self, doc_type_analysis: Dict[str, Any], image_analyses: List[Dict[str, Any]]) -> Dict[str, Any]:
         """문서 타입과 이미지 분석 결과를 바탕으로 처리 전략 제안"""

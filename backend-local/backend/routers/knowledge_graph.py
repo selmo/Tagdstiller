@@ -31,7 +31,8 @@ class StructureAnalysisRequest(BaseModel):
     llm: Optional[Dict[str, Any]] = None
 
     # 청크 기반 분석 옵션 추가
-    use_chunking: bool = False
+    use_chunking: bool = False  # 청킹 사용 여부 (기본값: False, 명시적으로 활성화 필요)
+    chunk_threshold: int = 30000  # 청킹 문자 수 임계값 (기본 30,000자)
     max_chunk_size: int = 50000
     extractors: List[str] = ["KeyBERT", "spaCy NER", "LLM"]
     analysis_types: List[str] = ["keywords", "summary", "structure", "knowledge_graph"]
@@ -39,6 +40,9 @@ class StructureAnalysisRequest(BaseModel):
     # 이미지 분석 옵션 추가
     analyze_images: bool = False
     extract_images: bool = True
+
+    # 다단계 대화 옵션 추가 (토큰 제한 회피)
+    use_multistep: bool = False  # 다단계 대화 방식 사용 여부
 
 
 def _ensure_absolute(path: Path) -> Path:
@@ -135,21 +139,16 @@ async def generate_knowledge_graph(req: StructureAnalysisRequest, db: Session = 
             logger.error(f"❌ OCR 처리 중 오류: {ocr_error}", exc_info=True)
             # OCR 실패해도 기존 텍스트로 계속 진행
 
-    # LLM max_tokens와 문서 크기를 비교하여 자동으로 청킹 결정
-    llm_max_tokens = req.llm.get("max_tokens", 4000) if req.llm else 4000  # 기본값 4000
-
-    # 대략적인 토큰-문자 비율 (한국어 기준 약 1:2, 여유를 두어 1:1.5 사용)
-    estimated_tokens = document_size / 1.5
-    should_use_chunking = req.use_chunking or estimated_tokens > (llm_max_tokens * 0.8)  # 80% 여유 두기
-
-    if should_use_chunking:
-        logger.info(f"🧩 문서 크기 ({document_size:,}자, 예상 토큰: {estimated_tokens:,.0f})가 LLM 토큰 제한 ({llm_max_tokens:,} 토큰의 80%)을 초과하여 청크 기반 분석 모드로 전환: {file_path}")
-        # max_chunk_size를 LLM 토큰 제한에 맞춰 동적 설정
-        req.max_chunk_size = int(llm_max_tokens * 0.8 * 1.5)  # 토큰을 문자 수로 변환
-        return await _generate_chunk_based_knowledge_graph(req, db, file_path, directory_path)
+    # 청킹 사용 여부 결정 (명시적 요청 시에만)
+    if req.use_chunking:
+        if document_size > req.chunk_threshold:
+            logger.info(f"🧩 청크 기반 분석 모드 (문서 크기: {document_size:,}자 > 임계값: {req.chunk_threshold:,}자)")
+            return await _generate_chunk_based_knowledge_graph(req, db, file_path, directory_path)
+        else:
+            logger.info(f"ℹ️ 청킹 요청되었으나 문서가 작아 전체 분석 진행 (크기: {document_size:,}자 ≤ 임계값: {req.chunk_threshold:,}자)")
 
     # 기존 방식: 전체 문서 분석
-    logger.info(f"📄 전체 문서 분석 모드로 지식 그래프 생성: {file_path} (문서 크기: {document_size:,}자, 예상 토큰: {estimated_tokens:,.0f}, LLM 제한: {llm_max_tokens:,} 토큰)")
+    logger.info(f"📄 전체 문서 분석 모드로 지식 그래프 생성 (문서 크기: {document_size:,}자)")
 
     # 2. LLM 기반 구조 분석 (기존 결과 재사용 가능)
     structure_result_path = output_dir / "llm_structure_analysis.json"
@@ -162,6 +161,7 @@ async def generate_knowledge_graph(req: StructureAnalysisRequest, db: Session = 
             file_path=str(file_path),
             file_extension=file_path.suffix.lower(),
             overrides=llm_overrides,
+            use_multistep=req.use_multistep,  # 다단계 대화 옵션 전달
         )
 
         structure_results["file_info"] = parsing_results["file_info"]
@@ -203,11 +203,20 @@ async def generate_knowledge_graph(req: StructureAnalysisRequest, db: Session = 
             logger.info(f"🖼️ PDF 이미지 분석 시작: {file_path}")
             # LLM 설정 전달
             llm_config = req.llm.copy() if req.llm else {}
+
+            # 이미지 필터링 설정 추가
+            filter_config = {
+                "min_width": 150,       # 최소 너비 (작은 로고/아이콘 제외)
+                "min_height": 150,      # 최소 높이
+                "skip_duplicates": True # 중복 이미지 스킵 (같은 크기 = 로고일 가능성 높음)
+            }
+
             image_analysis_result = image_analyzer.analyze_document_with_images(
                 file_path=file_path,
                 text_content=document_text,
                 output_dir=output_dir,
-                llm_config=llm_config
+                llm_config=llm_config,
+                filter_config=filter_config
             )
             logger.info(f"✅ 이미지 분석 완료: {image_analysis_result.get('images_count', 0)}개 추출, "
                        f"{image_analysis_result.get('successful_analyses', 0)}개 분석 성공")
@@ -303,12 +312,9 @@ async def generate_knowledge_graph(req: StructureAnalysisRequest, db: Session = 
         "output_directory": str(output_dir),
         "generation_timestamp": datetime.now().isoformat(),
         "source_parser": best_parser,
-        "image_analysis": image_analysis_result if image_analysis_result else None,
         "statistics": {
             "total_saved_files": len(saved_files),
             "file_types": {},
-            "images_count": image_analysis_result.get("images_count", 0) if image_analysis_result else 0,
-            "successful_image_analyses": image_analysis_result.get("successful_analyses", 0) if image_analysis_result else 0,
         },
     }
 

@@ -1,17 +1,29 @@
 # Backend Local Analysis Server
 
-고급 문서 분석을 위한 독립 실행형 FastAPI 서버입니다. **청크 기반 구조 분석**, **다중 파서 지원**, **LLM 통합 분석**을 제공하는 완전한 문서 처리 시스템입니다.
+고급 문서 분석을 위한 독립 실행형 FastAPI 서버입니다. **청크 기반 구조 분석**, **다중 파서 지원**, **LLM 통합 분석**, **고급 OCR 시스템**을 제공하는 완전한 문서 처리 시스템입니다.
+
+## 🎉 최신 업데이트 (2025-10-30)
+- **🔍 스캔 문서 자동 감지**: 텍스트 밀도 기반 자동 OCR 모드 전환
+- **🌏 다국어 OCR 지원**: EasyOCR (한글 최적) + Tesseract (범용)
+- **🖼️ 적응형 이미지 전처리**: 다중 전처리 기법으로 OCR 품질 최적화
+- **⚡ 스마트 엔진 선택**: auto/easyocr/tesseract 자동 폴백
+- **📊 Gemini 안정화**: 비스트리밍 모드로 완전한 응답 보장
 
 ## 🚀 주요 기능
 
 ### 📄 지능형 문서 처리
 - **다중 파서 지원**: PyMuPDF, Docling, python-docx, BeautifulSoup4
+- **OCR 통합 파서 (NEW)**: Docling + EasyOCR/Tesseract 자동 조합
+  - 스캔 문서 자동 감지 및 전체 페이지 OCR
+  - 한글+영문 혼합 텍스트 최적화
+  - 적응형 이미지 전처리 (4가지 기법)
 - **청크 기반 분석**: 대용량 문서를 구조적 단위로 분할하여 처리
 - **자동 청킹**: LLM max_tokens 기반 자동 청킹 결정
 - **구조 인식**: 제목, 섹션, 장(Chapter) 단위 경계 보존
 
 ### 🧠 LLM 통합 분석
 - **다중 LLM 지원**: OpenAI, Gemini, Ollama
+- **Gemini 최적화 (NEW)**: 비스트리밍 모드로 안정성 향상
 - **스마트 토큰 관리**: 동적 문서 크기 조정 및 토큰 최적화
 - **마크다운 지원**: 마크다운 형식 문서 구조 정확한 해석
 - **오류 복구**: LLM 호출 실패 시 자동 폴백
@@ -174,6 +186,133 @@ export GEMINI_API_KEY="your-gemini-key"
 export OFFLINE_MODE=true
 export SKIP_EXTERNAL_CHECKS=true
 ```
+
+## 🔍 OCR 시스템 (NEW)
+
+### 개요
+스캔된 PDF 문서를 자동으로 감지하고 고품질 OCR을 적용하는 지능형 시스템입니다.
+
+### 주요 특징
+
+#### 1. 스캔 문서 자동 감지
+시스템이 텍스트 품질을 자동으로 평가하여 스캔 문서를 감지합니다:
+- **텍스트 밀도**: 페이지당 문자 수 측정
+- **이미지 태그 비율**: Docling 출력의 이미지 플레이스홀더 개수
+- **빈 페이지 감지**: 최소 텍스트만 포함된 페이지 식별
+- **자동 모드 전환**: 스캔 문서로 판단 시 전체 페이지 OCR 자동 실행
+
+#### 2. 듀얼 OCR 엔진
+- **EasyOCR** (한글 최적화, 권장)
+  - 딥러닝 기반 고정밀도 인식
+  - 한글+영문 혼합 텍스트 탁월
+  - GPU 가속 지원
+  - 정확도 높음, 처리 속도 중간
+
+- **Tesseract** (범용, 고속)
+  - 전통적인 OCR 엔진
+  - 빠른 처리 속도
+  - 깨끗한 스캔본에 적합
+  - 폴백 옵션으로 사용
+
+- **Auto 모드** (기본값)
+  - EasyOCR 우선 시도
+  - 실패 시 Tesseract 자동 전환
+  - 최적의 밸런스
+
+#### 3. 적응형 이미지 전처리
+여러 전처리 기법을 자동으로 시도하여 최상의 결과 선택:
+1. **적응형 임계값 처리** (Adaptive Thresholding)
+2. **양방향 필터링** (Bilateral Filtering)
+3. **형태학적 연산** (Morphological Operations)
+4. **선명화 필터** (Sharpening Filter)
+
+### OCR 사용 방법
+
+#### 기본 사용
+```bash
+# 스캔 문서 자동 감지 및 OCR
+curl -X POST "http://localhost:58000/local-analysis/knowledge-graph" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_path": "/path/to/scanned.pdf",
+    "directory": "/output/results",
+    "force_reparse": true
+  }'
+```
+
+#### OCR 엔진 선택
+```bash
+# EasyOCR 전용 (한글 문서 권장)
+export OCR_ENGINE="easyocr"
+
+# Tesseract 전용 (빠른 처리)
+export OCR_ENGINE="tesseract"
+
+# Auto 모드 (기본값)
+export OCR_ENGINE="auto"
+```
+
+### OCR 설치
+
+#### EasyOCR
+```bash
+pip install easyocr
+# 첫 실행 시 모델 자동 다운로드 (~100MB)
+```
+
+#### Tesseract
+```bash
+# macOS
+brew install tesseract tesseract-lang
+
+# Ubuntu/Debian
+apt-get install tesseract-ocr tesseract-ocr-kor tesseract-ocr-eng
+
+# 설치 확인
+tesseract --version
+tesseract --list-langs | grep -E "kor|eng"
+```
+
+### OCR 출력 구조
+```
+/output/results/
+├── docling_ocr/
+│   ├── docling_ocr_text.txt          # 전체 OCR 텍스트
+│   ├── docling_ocr_metadata.json     # OCR 통계 정보
+│   ├── docling_ocr_structure.json    # 문서 구조
+│   └── ocr_pages/                    # 페이지별 OCR 결과
+│       ├── page_1.txt
+│       ├── page_2.txt
+│       └── ...
+└── docling_ocr.md                    # OCR 텍스트 포함 마크다운
+```
+
+### 성능 지표
+- **EasyOCR**: ~3-5초/페이지 (한글+영문)
+- **Tesseract**: ~1-2초/페이지
+- **전처리**: ~0.5-1초/페이지
+- **감지 로직**: <0.1초
+
+### 문제 해결
+
+#### EasyOCR 메모리 오류
+```python
+# GPU 비활성화 (메모리 부족 시)
+reader = easyocr.Reader(['ko', 'en'], gpu=False)
+```
+
+#### 낮은 OCR 품질
+- 이미지 해상도 확인 (300 DPI 권장)
+- 원본 스캔 품질 개선
+- 전처리 알고리즘 튜닝
+
+#### 느린 처리 속도
+- Tesseract 모드 사용 (`OCR_ENGINE=tesseract`)
+- GPU 활성화 (EasyOCR, CUDA 필요)
+- 병렬 처리 설정
+
+### 추가 정보
+상세한 테스트 가이드는 `DOCLING_OCR_TEST_GUIDE.md`를 참조하세요.
 
 ## 🎯 특징 및 장점
 
