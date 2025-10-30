@@ -1018,49 +1018,49 @@ FOR EACH ENTITY:
 ## Output Example
 
 ```json
-{
-  "graph": {
+{{
+  "graph": {{
     "nodes": [
-      {
+      {{
         "id": "country_1",
         "type": "Country",
-        "properties": {
+        "properties": {{
           "name": "일본",
           "code": "JP",
           "aging_rate": 23.3,
           "reference_year": 2011
-        }
-      },
-      {
+        }}
+      }},
+      {{
         "id": "phase_1",
         "type": "Phase",
-        "properties": {
+        "properties": {{
           "name": "고령화사회",
           "threshold": 7.0,
           "description": "65세 이상 인구 7% 이상"
-        }
-      }
+        }}
+      }}
     ],
     "edges": [
-      {
+      {{
         "id": "edge_1",
         "source": "country_1",
         "target": "phase_1",
         "type": "ENTERED_PHASE",
-        "properties": {
+        "properties": {{
           "year": 1970,
           "rate": 7.0
-        }
-      }
+        }}
+      }}
     ]
-  },
-  "metadata": {
+  }},
+  "metadata": {{
     "version": "1.0",
     "node_count": 2,
     "edge_count": 1,
     "extraction_date": "2024-01-01"
-  }
-}
+  }}
+}}
 ```
 
 ## Processing Instructions
