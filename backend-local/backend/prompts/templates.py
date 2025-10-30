@@ -885,32 +885,32 @@ You are a knowledge extraction specialist. Your task is to convert text into a s
 **Output**: Valid JSON following the exact structure below:
 
 ```json
-{
-  "graph": {
+{{
+  "graph": {{
     "nodes": [
-      {
+      {{
         "id": "string",
         "type": "string",
-        "properties": {}
-      }
+        "properties": {{}}
+      }}
     ],
     "edges": [
-      {
+      {{
         "id": "string",
         "source": "string",
         "target": "string",
         "type": "string",
-        "properties": {}
-      }
+        "properties": {{}}
+      }}
     ]
-  },
-  "metadata": {
+  }},
+  "metadata": {{
     "version": "1.0",
     "node_count": 0,
     "edge_count": 0,
     "extraction_date": "YYYY-MM-DD"
-  }
-}
+  }}
+}}
 ```
 
 ## Entity Types and Extraction Rules
