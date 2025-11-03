@@ -52,12 +52,22 @@ class DoclingOCRParser(DocumentParser):
         self.supported_mime_types = ['application/pdf']
         self.ocr_engine = ocr_engine.lower()
 
-        # EasyOCR reader 초기화 (한글+영문)
+        # EasyOCR reader 초기화 (한글+영문) - GPU/MPS 자동 감지
         self.easyocr_reader = None
         if EASYOCR_AVAILABLE and self.ocr_engine in ["auto", "easyocr"]:
             try:
-                self.easyocr_reader = easyocr.Reader(['ko', 'en'], gpu=False)
-                logger.info(f"✅ EasyOCR Reader 초기화 완료 (한글+영문) - 모드: {self.ocr_engine}")
+                # GPU/MPS 사용 가능 여부 자동 감지
+                import torch
+                use_gpu = torch.cuda.is_available() or torch.backends.mps.is_available()
+                device = 'cpu'
+
+                if torch.cuda.is_available():
+                    device = 'cuda'
+                elif torch.backends.mps.is_available():
+                    device = 'mps'
+
+                self.easyocr_reader = easyocr.Reader(['ko', 'en'], gpu=use_gpu)
+                logger.info(f"✅ EasyOCR Reader 초기화 완료 (한글+영문) - 디바이스: {device}, 모드: {self.ocr_engine}")
             except Exception as e:
                 logger.warning(f"⚠️ EasyOCR Reader 초기화 실패: {e}")
                 if self.ocr_engine == "easyocr":

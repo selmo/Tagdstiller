@@ -668,3 +668,189 @@ async def get_full_knowledge_graph(
         save_format=save_format
     )
     return await generate_full_knowledge_graph(request, db)
+
+
+# ========== 청킹 기반 Full KG 엔드포인트 (신규) ==========
+
+class ChunkedKnowledgeGraphRequest(BaseModel):
+    """청킹 기반 완전 KG 추출 요청"""
+    file_path: str
+    directory: Optional[str] = None
+    domain: str = "general"  # general, technical, academic, business, legal
+    force_reparse: bool = False
+    include_structure: bool = True
+    save_format: str = "json"  # json, cypher, graphml, all
+    max_chunk_tokens: int = 8000  # 청크당 최대 토큰 수
+    llm: Optional[Dict[str, Any]] = None
+    extraction_level: str = "standard"  # brief, standard, deep
+
+
+@router.post("/full-knowledge-graph-chunked")
+async def generate_chunked_knowledge_graph(
+    req: ChunkedKnowledgeGraphRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    구조 기반 청킹을 사용한 완전한 Knowledge Graph 생성
+
+    기존 /full-knowledge-graph와 달리 문서를 구조 단위로 청킹하여
+    각 청크에서 상세하게 엔티티와 관계를 추출한 후 병합합니다.
+
+    특징:
+    - 구조 기반 청킹 (Chapter/Section 단위)
+    - 청크당 상세 엔티티 추출 (최소 15-20개)
+    - 의미 있는 관계 타입 (AUTHORED_BY, CAUSES 등)
+    - 중복 엔티티 자동 병합
+    """
+    try:
+        file_path_obj = Path(req.file_path)
+
+        # 절대 경로 변환
+        if not file_path_obj.is_absolute():
+            file_path_obj = (Path.cwd() / file_path_obj).resolve()
+
+        if not file_path_obj.exists():
+            raise HTTPException(status_code=404, detail=f"파일을 찾을 수 없습니다: {req.file_path}")
+
+        logger.info(f"📊 청킹 기반 Full KG 생성 요청: {file_path_obj.name}")
+
+        # 출력 디렉토리 설정
+        if req.directory:
+            output_dir = Path(req.directory)
+        else:
+            output_dir = file_path_obj.parent / file_path_obj.stem
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. 문서 파싱
+        parser_service = DocumentParserService()
+        parse_results = parser_service.parse_document_comprehensive(
+            file_path=file_path_obj,
+            force_reparse=req.force_reparse
+        )
+
+        # 최상의 파싱 결과 선택
+        best_parser_name = parse_results.get("summary", {}).get("best_parser")
+        if not best_parser_name:
+            raise HTTPException(status_code=400, detail="최적 파서를 찾을 수 없습니다")
+
+        best_parser_result = parse_results.get("parsing_results", {}).get(best_parser_name, {})
+
+        # 텍스트는 마크다운 파일에 저장되어 있음
+        md_file_path = best_parser_result.get("md_file_path")
+
+        # md_file_path가 없으면 기본 위치에서 찾기
+        if not md_file_path or not Path(md_file_path).exists():
+            # docling_ocr.md 또는 docling.md 찾기
+            md_candidates = [
+                file_path_obj.parent / file_path_obj.stem / "docling_ocr.md",
+                file_path_obj.parent / file_path_obj.stem / "docling.md"
+            ]
+            for candidate in md_candidates:
+                if candidate.exists():
+                    md_file_path = str(candidate)
+                    break
+
+        if md_file_path and Path(md_file_path).exists():
+            document_text = Path(md_file_path).read_text(encoding='utf-8')
+            logger.info(f"📄 MD 파일에서 텍스트 로드: {md_file_path}")
+        else:
+            # 폴백: text 필드에서 직접 가져오기
+            document_text = best_parser_result.get("text", "")
+            logger.warning(f"⚠️ MD 파일 없음, text 필드 사용 (md_file_path={md_file_path})")
+
+        if not document_text:
+            logger.error(f"❌ 텍스트 추출 실패 - best_parser: {best_parser_name}, md_file_path: {md_file_path}")
+            raise HTTPException(status_code=400, detail="문서 텍스트 추출 실패")
+
+        logger.info(f"📄 문서 텍스트 추출 완료: {len(document_text):,}자")
+
+        # 2. 구조 분석 (선택적)
+        structure_info = None
+        if req.include_structure:
+            try:
+                analyzer = LocalFileAnalyzer(db)
+                structure_response = analyzer.analyze_document_structure_with_llm(
+                    text=document_text,
+                    file_path=str(file_path_obj),
+                    llm_config=req.llm
+                )
+                structure_info = structure_response.get("structured_data")
+                logger.info(f"📊 문서 구조 분석 완료")
+            except Exception as e:
+                logger.warning(f"⚠️ 구조 분석 실패 (계속 진행): {e}")
+
+        # 3. 청킹 기반 Full KG 생성
+        kg_builder = KnowledgeGraphBuilder(db=db)
+        kg_result = kg_builder.build_full_knowledge_graph_with_chunking(
+            text=document_text,
+            file_path=str(file_path_obj),
+            domain=req.domain,
+            structure_info=structure_info,
+            llm_config=req.llm,
+            max_chunk_tokens=req.max_chunk_tokens,
+            output_dir=output_dir,
+            extraction_level=req.extraction_level
+        )
+
+        if not kg_result.get("success"):
+            raise HTTPException(
+                status_code=500,
+                detail=f"KG 생성 실패: {kg_result.get('error', 'Unknown error')}"
+            )
+
+        # 4. 파일 저장
+        saved_files = kg_builder.save_knowledge_graph(
+            kg_result=kg_result,
+            output_dir=output_dir,
+            format=req.save_format
+        )
+
+        logger.info(f"✅ 청킹 기반 Full KG 생성 완료: {kg_result['stats']['entity_count']}개 엔티티, {kg_result['stats']['relationship_count']}개 관계")
+
+        # 5. 응답 구성
+        response = {
+            "success": True,
+            "file_path": str(file_path_obj),
+            "output_directory": str(output_dir),
+            "domain": req.domain,
+            "graph": kg_result.get("graph", {}),
+            "stats": kg_result.get("stats", {}),
+            "metadata": kg_result.get("metadata", {}),
+            "chunking_stats": kg_result.get("chunking_stats", {}),
+            "saved_files": saved_files,
+            "extraction_date": datetime.now().isoformat()
+        }
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 청킹 기반 Full KG 생성 중 오류: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"청킹 기반 KG 생성 실패: {str(e)}")
+
+
+@router.get("/full-knowledge-graph-chunked")
+async def get_chunked_knowledge_graph(
+    file_path: str,
+    directory: Optional[str] = None,
+    domain: str = Query("general", description="문서 도메인"),
+    force_reparse: bool = Query(False, description="강제 재파싱"),
+    include_structure: bool = Query(True, description="구조 분석 포함"),
+    save_format: str = Query("json", description="저장 형식"),
+    max_chunk_tokens: int = Query(8000, description="청크당 최대 토큰 수"),
+    db: Session = Depends(get_db),
+):
+    """GET 방식으로 청킹 기반 Full KG 생성"""
+
+    request = ChunkedKnowledgeGraphRequest(
+        file_path=file_path,
+        directory=directory,
+        domain=domain,
+        force_reparse=force_reparse,
+        include_structure=include_structure,
+        save_format=save_format,
+        max_chunk_tokens=max_chunk_tokens
+    )
+    return await generate_chunked_knowledge_graph(request, db)
