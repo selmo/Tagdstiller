@@ -39,9 +39,24 @@ class DocumentNode:
         return self.number.split('.')[0]
 
     def get_total_content(self) -> str:
-        """자신과 모든 하위 노드의 내용을 합친 텍스트 반환"""
-        content_parts = [self.content] if self.content.strip() else []
+        """자신과 모든 하위 노드의 내용을 합친 텍스트 반환 (제목 포함)"""
+        content_parts = []
 
+        # 제목이 있고 루트가 아니면 제목을 먼저 추가
+        if self.title and self.node_type != "document":
+            # 마크다운 형식으로 제목 추가
+            if self.node_type == "chapter":
+                content_parts.append(f"## {self.title}")
+            elif self.node_type == "section":
+                content_parts.append(f"## {self.title}")
+            elif self.node_type == "subsection":
+                content_parts.append(f"### {self.title}")
+
+        # 본문 내용 추가
+        if self.content.strip():
+            content_parts.append(self.content)
+
+        # 자식 노드 내용 추가
         for child in self.children:
             child_content = child.get_total_content()
             if child_content.strip():

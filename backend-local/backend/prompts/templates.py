@@ -1080,6 +1080,239 @@ FOR EACH ENTITY:
 **OUTPUT JSON:**
 """)
 
+    # 상세 추출용 프롬프트 (청킹 기반)
+    DETAILED_KG_EXTRACTION = PromptTemplate(
+        """You are an expert knowledge graph extraction system. Extract ALL meaningful entities and relationships from the given text chunk.
+
+**EXTRACTION PRINCIPLES:**
+1. **Comprehensive**: Extract EVERY entity mentioned (people, organizations, concepts, data, dates, locations, etc.)
+2. **Detailed**: Include all properties and attributes for each entity
+3. **Precise Relationships**: Create specific, meaningful relationships (avoid generic "RELATED_TO")
+4. **Context Preservation**: Maintain the semantic context of the original text
+
+**ENTITY TYPES TO EXTRACT:**
+- Person: authors, researchers, subjects (name, role, affiliation)
+- Organization: institutions, companies, departments (name, type, location)
+- Concept: theories, methods, technologies (name, definition, category)
+- Data: statistics, measurements, results (value, unit, context)
+- Date: temporal information (date, event, significance)
+- Location: geographical entities (name, type, coordinates if available)
+- Document: papers, reports, publications (title, type, identifier)
+- Event: occurrences, milestones (name, date, description)
+- Finding: research results, conclusions (description, significance)
+- Method: procedures, techniques (name, steps, parameters)
+
+**RELATIONSHIP TYPES (use specific ones, NOT generic "RELATED_TO"):**
+- AUTHORED_BY, AFFILIATED_WITH, CONDUCTED_BY
+- PART_OF, BELONGS_TO, LOCATED_IN
+- USES, APPLIES, IMPLEMENTS, BASED_ON
+- CAUSES, AFFECTS, INFLUENCES, LEADS_TO
+- MEASURES, QUANTIFIES, EVALUATES
+- CITES, REFERENCES, BUILDS_ON
+- OCCURRED_ON, HAPPENED_AT, DURING
+- FOUND, DISCOVERED, DEMONSTRATED
+- HAS_PARAMETER, HAS_VALUE, HAS_PROPERTY
+
+**OUTPUT FORMAT:**
+{{
+  "graph": {{
+    "nodes": [
+      {{
+        "id": "unique_id",
+        "type": "EntityType",
+        "properties": {{
+          "name": "entity name",
+          "key1": "value1",
+          "key2": "value2"
+        }}
+      }}
+    ],
+    "edges": [
+      {{
+        "id": "edge_id",
+        "source": "source_node_id",
+        "target": "target_node_id",
+        "type": "SPECIFIC_RELATIONSHIP_TYPE",
+        "properties": {{
+          "context": "relationship context",
+          "strength": "high/medium/low"
+        }}
+      }}
+    ]
+  }},
+  "metadata": {{
+    "chunk_id": "{chunk_id}",
+    "extraction_completeness": "0.0-1.0"
+  }}
+}}
+
+**CHUNK CONTEXT:**
+- Chunk ID: {chunk_id}
+- Document Structure: {structure_info}
+- Parent Context: {parent_context}
+
+**TEXT TO ANALYZE:**
+{text}
+
+**CRITICAL INSTRUCTIONS:**
+1. Extract key entities (10-20 for short texts, 20-40 for long texts)
+2. 1 relationship per entity average
+3. **ULTRA-SHORT properties**: name only (no definition/category unless critical)
+4. **MINIMAL JSON**: Remove all optional fields
+5. Wrap in ```json ... ``` code block
+
+**STRICT EFFICIENCY:**
+- Entity: {{"id": "n1", "type": "Type", "properties": {{"name": "Short name"}}}}
+- Edge: {{"id": "e1", "source": "n1", "target": "n2", "type": "TYPE"}}
+- NO long descriptions, NO redundant properties
+- MUST fit in 8192 tokens
+
+Extract now:
+""")
+
+    # 2-Phase 추출: Phase 1 - 엔티티만 추출 (3가지 레벨)
+
+    # 레벨 1: 간략 (BRIEF) - 핵심 엔티티만
+    PHASE1_ENTITY_BRIEF = PromptTemplate(
+        """Extract ONLY the most important entities from this text. Focus on key entities, NO relationships.
+
+**DOCUMENT TITLE:**
+{document_title}
+
+**TEXT:**
+{text}
+
+**ENTITY TYPES:**
+- Person, Organization, Location, Date, Concept, Document
+
+**OUTPUT FORMAT:**
+```json
+{{
+  "entities": [
+    {{"id": "n1", "type": "Person", "properties": {{"name": "Name"}}}},
+    {{"id": "n2", "type": "Concept", "properties": {{"name": "Short name"}}}}
+  ]
+}}
+```
+
+**RULES:**
+1. Extract 10-20 KEY entities only
+2. ULTRA-SHORT properties (name only)
+3. Focus on main subjects, avoid minor details
+4. Consider the document title for context
+5. Use sequential IDs (n1, n2, n3...)
+
+Extract key entities now:
+""")
+
+    # 레벨 2: 기본 (STANDARD) - 균형잡힌 추출
+    PHASE1_ENTITY_STANDARD = PromptTemplate(
+        """Extract meaningful entities from this text. Focus ONLY on entities, NO relationships.
+
+**DOCUMENT TITLE:**
+{document_title}
+
+**TEXT:**
+{text}
+
+**ENTITY TYPES:**
+- Person, Organization, Location, Date, Concept, Method, Data, Document, Event
+
+**OUTPUT FORMAT:**
+```json
+{{
+  "entities": [
+    {{"id": "n1", "type": "Person", "properties": {{"name": "Name"}}}},
+    {{"id": "n2", "type": "Concept", "properties": {{"name": "Short name"}}}}
+  ]
+}}
+```
+
+**RULES:**
+1. Extract 30-50 entities (balanced coverage)
+2. ULTRA-SHORT properties (name only)
+3. Include main entities and important supporting entities
+4. Consider the document title for context
+5. Use sequential IDs (n1, n2, n3...)
+
+Extract entities now:
+""")
+
+    # 레벨 3: 심층 (DEEP) - 모든 엔티티 추출
+    PHASE1_ENTITY_DEEP = PromptTemplate(
+        """Extract ALL entities from this text comprehensively and exhaustively. Focus ONLY on entities, NO relationships.
+
+**DOCUMENT TITLE:**
+{document_title}
+
+**TEXT:**
+{text}
+
+**ENTITY TYPES:**
+- Person, Organization, Location, Date, Concept, Method, Data, Document, Event, Finding, Tool, Technology
+
+**OUTPUT FORMAT:**
+```json
+{{
+  "entities": [
+    {{"id": "n1", "type": "Person", "properties": {{"name": "Name"}}}},
+    {{"id": "n2", "type": "Concept", "properties": {{"name": "Short name"}}}}
+  ]
+}}
+```
+
+**RULES:**
+1. Extract AS MANY entities as possible - aim for 100-300+ entities for comprehensive coverage
+2. ULTRA-SHORT properties (name only)
+3. Include ALL entities: major concepts, minor details, all supporting information
+4. Include ALL specific data values, ALL dates, ALL locations, ALL numerical values
+5. Include ALL technical terms, ALL proper nouns, ALL measurements
+6. Consider the document title for context
+7. Use sequential IDs (n1, n2, n3...)
+8. Do NOT stop at arbitrary limits - extract EVERYTHING meaningful
+
+Extract ALL entities exhaustively now:
+""")
+
+    # 기본값 (하위 호환성)
+    PHASE1_ENTITY_ONLY = PHASE1_ENTITY_STANDARD
+
+    # 2-Phase 추출: Phase 2 - 관계만 추출
+    PHASE2_RELATION_ONLY = PromptTemplate(
+        """Given these extracted entities, identify relationships between them based on the original text.
+
+**EXTRACTED ENTITIES:**
+{entities_json}
+
+**ORIGINAL TEXT:**
+{text}
+
+**OUTPUT FORMAT:**
+```json
+{{
+  "relationships": [
+    {{"id": "e1", "source": "n1", "target": "n2", "type": "RELATIONSHIP_TYPE"}},
+    {{"id": "e2", "source": "n3", "target": "n4", "type": "AUTHORED_BY"}}
+  ]
+}}
+```
+
+**RELATIONSHIP TYPES:**
+- AUTHORED_BY, AFFILIATED_WITH, PUBLISHED_IN
+- PART_OF, LOCATED_IN, OCCURRED_ON
+- CAUSES, AFFECTS, USES, IMPLEMENTS
+- MEASURES, ANALYZES, TREATS, STUDIES
+- CITES, REFERENCES, BUILDS_ON
+
+**RULES:**
+1. Create 1-2 relationships per entity average
+2. Use ONLY entity IDs from the list above
+3. Use specific relationship types (not "RELATED_TO")
+4. Source and target must exist in entity list
+
+Extract relationships now:
+""")
+
 
 class PromptTemplateManager:
     """프롬프트 템플릿 관리자"""
