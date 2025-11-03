@@ -1101,6 +1101,10 @@ FOR EACH ENTITY:
 - Event: occurrences, milestones (name, date, description)
 - Finding: research results, conclusions (description, significance)
 - Method: procedures, techniques (name, steps, parameters)
+- **Table: structured data tables (title, description, row_count, column_count)**
+- **TableRow: individual table rows (row_index, data)**
+- **TableColumn: table columns (column_name, data_type)**
+- **TableCell: table cells (row_index, column_index, value)**
 
 **RELATIONSHIP TYPES (use specific ones, NOT generic "RELATED_TO"):**
 - AUTHORED_BY, AFFILIATED_WITH, CONDUCTED_BY
@@ -1112,6 +1116,8 @@ FOR EACH ENTITY:
 - OCCURRED_ON, HAPPENED_AT, DURING
 - FOUND, DISCOVERED, DEMONSTRATED
 - HAS_PARAMETER, HAS_VALUE, HAS_PROPERTY
+- **HAS_ROW, HAS_COLUMN, HAS_CELL** (for table structure)
+- **CONTAINS_VALUE, IN_ROW, IN_COLUMN** (for table data)
 
 **OUTPUT FORMAT:**
 {{
@@ -1184,19 +1190,22 @@ Extract now:
 
 **ENTITY TYPES:**
 - Person, Organization, Location, Date, Concept, Document
+- **Table, TableRow, TableColumn** (for structured data tables)
 
 **OUTPUT FORMAT:**
 ```json
 {{
   "entities": [
     {{"id": "n1", "type": "Person", "properties": {{"name": "Name"}}}},
-    {{"id": "n2", "type": "Concept", "properties": {{"name": "Short name"}}}}
+    {{"id": "n2", "type": "Concept", "properties": {{"name": "Short name"}}}},
+    {{"id": "t1", "type": "Table", "properties": {{"name": "Table title", "row_count": 5, "column_count": 3}}}}
   ]
 }}
 ```
 
 **RULES:**
 1. Extract 10-20 KEY entities only
+2. **If you see a markdown table (|...|...|), extract it as Table entity with HAS_ROW/HAS_COLUMN relationships**
 2. ULTRA-SHORT properties (name only)
 3. Focus on main subjects, avoid minor details
 4. Consider the document title for context
@@ -1217,23 +1226,26 @@ Extract key entities now:
 
 **ENTITY TYPES:**
 - Person, Organization, Location, Date, Concept, Method, Data, Document, Event
+- **Table, TableRow, TableColumn** (for structured data tables)
 
 **OUTPUT FORMAT:**
 ```json
 {{
   "entities": [
     {{"id": "n1", "type": "Person", "properties": {{"name": "Name"}}}},
-    {{"id": "n2", "type": "Concept", "properties": {{"name": "Short name"}}}}
+    {{"id": "n2", "type": "Concept", "properties": {{"name": "Short name"}}}},
+    {{"id": "t1", "type": "Table", "properties": {{"name": "Table title", "row_count": 5}}}}
   ]
 }}
 ```
 
 **RULES:**
 1. Extract 30-50 entities (balanced coverage)
-2. ULTRA-SHORT properties (name only)
-3. Include main entities and important supporting entities
-4. Consider the document title for context
-5. Use sequential IDs (n1, n2, n3...)
+2. **If you see a markdown table (|...|...|), create Table entity + TableRow entities for each data row**
+3. ULTRA-SHORT properties (name only)
+4. Include main entities and important supporting entities
+5. Consider the document title for context
+6. Use sequential IDs (n1, n2, n3...)
 
 Extract entities now:
 """)
@@ -1250,26 +1262,38 @@ Extract entities now:
 
 **ENTITY TYPES:**
 - Person, Organization, Location, Date, Concept, Method, Data, Document, Event, Finding, Tool, Technology
+- **Table, TableRow, TableColumn, TableCell** (for structured data tables)
 
 **OUTPUT FORMAT:**
 ```json
 {{
   "entities": [
     {{"id": "n1", "type": "Person", "properties": {{"name": "Name"}}}},
-    {{"id": "n2", "type": "Concept", "properties": {{"name": "Short name"}}}}
+    {{"id": "n2", "type": "Concept", "properties": {{"name": "Short name"}}}},
+    {{"id": "t1", "type": "Table", "properties": {{"name": "Table title", "row_count": 10, "column_count": 6}}}},
+    {{"id": "tr1", "type": "TableRow", "properties": {{"row_index": 0, "values": ["col1", "col2", "col3"]}}}},
+    {{"id": "tc1", "type": "TableColumn", "properties": {{"column_name": "Column Header", "column_index": 0}}}}
   ]
 }}
 ```
 
-**RULES:**
-1. Extract AS MANY entities as possible - aim for 100-300+ entities for comprehensive coverage
-2. ULTRA-SHORT properties (name only)
-3. Include ALL entities: major concepts, minor details, all supporting information
-4. Include ALL specific data values, ALL dates, ALL locations, ALL numerical values
-5. Include ALL technical terms, ALL proper nouns, ALL measurements
-6. Consider the document title for context
-7. Use sequential IDs (n1, n2, n3...)
-8. Do NOT stop at arbitrary limits - extract EVERYTHING meaningful
+**CRITICAL TABLE EXTRACTION RULES:**
+1. **WHEN YOU SEE A MARKDOWN TABLE** (lines with |...|...|):
+   - Create ONE Table entity with table title/description
+   - Create TableColumn entities for EACH column header
+   - Create TableRow entities for EACH data row (NOT header row)
+   - Store actual data values in row's "values" property as array
+   - Example: Table "온습도 조건" has 6 columns × 10 data rows = 1 Table + 6 TableColumn + 10 TableRow entities
+
+**GENERAL EXTRACTION RULES:**
+2. Extract AS MANY entities as possible - aim for 100-300+ entities for comprehensive coverage
+3. ULTRA-SHORT properties (name only), except for TableRow which needs "values" array
+4. Include ALL entities: major concepts, minor details, all supporting information
+5. Include ALL specific data values, ALL dates, ALL locations, ALL numerical values
+6. Include ALL technical terms, ALL proper nouns, ALL measurements
+7. Consider the document title for context
+8. Use sequential IDs (n1, n2, n3..., t1, tr1, tc1...)
+9. Do NOT stop at arbitrary limits - extract EVERYTHING meaningful
 
 Extract ALL entities exhaustively now:
 """)
@@ -1303,12 +1327,22 @@ Extract ALL entities exhaustively now:
 - CAUSES, AFFECTS, USES, IMPLEMENTS
 - MEASURES, ANALYZES, TREATS, STUDIES
 - CITES, REFERENCES, BUILDS_ON
+- **HAS_ROW, HAS_COLUMN, CONTAINS_VALUE** (for table structures)
+- **IN_TABLE, IN_ROW, IN_COLUMN** (for table data relationships)
 
 **RULES:**
 1. Create 1-2 relationships per entity average
-2. Use ONLY entity IDs from the list above
-3. Use specific relationship types (not "RELATED_TO")
-4. Source and target must exist in entity list
+2. **For Table entities**: Create HAS_ROW relationships to all TableRow entities, HAS_COLUMN to all TableColumn entities
+3. **For TableRow entities**: Create CONTAINS_VALUE to relevant Data/Location entities found in that row
+4. Use ONLY entity IDs from the list above
+5. Use specific relationship types (not "RELATED_TO")
+6. Source and target must exist in entity list
+
+**TABLE RELATIONSHIP EXAMPLE:**
+If Table t1 has rows tr1, tr2 and columns tc1, tc2:
+- {{"id": "e1", "source": "t1", "target": "tr1", "type": "HAS_ROW"}}
+- {{"id": "e2", "source": "t1", "target": "tc1", "type": "HAS_COLUMN"}}
+- {{"id": "e3", "source": "tr1", "target": "n5", "type": "CONTAINS_VALUE"}} (if n5 is a Data entity in that row)
 
 Extract relationships now:
 """)
