@@ -3,12 +3,18 @@
 ## 프로젝트 개요 ✅ 완성됨 (2025.08.29)
 이 프로젝트는 문서를 프로젝트 단위로 업로드하고 키워드를 추출하여 관리하는 **완전한 풀스택 시스템**입니다. 
 
-### 핵심 기능 (최종 업데이트 2025.08.30)
+### 핵심 기능 (최종 업데이트 2025.11.04)
 - **🚀 완전 파싱 시스템**: 모든 파서를 동시 사용하여 최상의 결과 보장
 - **📊 단계적 문서 처리**: 파싱→키워드추출→구조분석→KG생성 자동 연계
-- **🔥 Memgraph Knowledge Graph**: 도메인별 지식 그래프 자동 생성 및 그래프 DB 저장 **NEW!**
-- **🎯 도메인 특화 KG**: 기술/학술/비즈니스/법률 문서별 최적화된 엔티티/관계 **NEW!**
-- **🔗 구체적 관계 추론**: RELATED_TO → IMPLEMENTS/CITES/COMPETES_WITH 등 **NEW!**
+- **🧠 3-Level KG 추출**: Brief(10-20)/Standard(30-50)/Deep(100-300+) 추출 깊이 선택 **UPDATED!**
+- **🔄 2-Phase KG 추출**: 엔티티/관계 분리 추출로 43% 성능 향상 **NEW!**
+- **📊 구조화된 테이블 추출**: 마크다운 테이블을 Table/Row/Column 엔티티로 변환 **NEW!**
+- **⚙️ KG → Cypher 변환**: Neo4j/Memgraph용 자동 Cypher 스크립트 생성 **NEW!**
+- **🛡️ JSON 자동 복구**: LLM 응답 잘림 자동 수정으로 데이터 손실 방지 **NEW!**
+- **🔄 자동 재시도**: Rate limit 초과 시 exponential backoff 재시도 **NEW!**
+- **🔥 Memgraph Knowledge Graph**: 도메인별 지식 그래프 자동 생성 및 그래프 DB 저장
+- **🎯 도메인 특화 KG**: 기술/학술/비즈니스/법률 문서별 최적화된 엔티티/관계
+- **🔗 구체적 관계 추론**: RELATED_TO → IMPLEMENTS/CITES/COMPETES_WITH 등
 - **🏗️ 문서 구조 분석**: 헤더, 테이블, 이미지 등 구조 요소 완전 분석
 - **💾 완전한 파일 저장 시스템**: 파서별 개별 결과 + 종합 결과 모두 저장
 - **다중 파일 형식 지원**: PDF, DOCX, HTML, Markdown, TXT, ZIP 자동 추출
@@ -76,10 +82,11 @@
 - `GET /local-analysis/parse/status` - 파싱 상태 확인
 - `GET /local-analysis/parse/results` - 파싱 결과 조회
 
-#### 고급 문서 분석 (2025.08.31 업데이트)
+#### 고급 문서 분석 (2025.11.04 업데이트)
 - `POST /local-analysis/structure-analysis` - 문서 구조 분석 (directory, use_llm 파라미터 지원)
 - `GET /local-analysis/structure-analysis` - 구조 분석 (GET 방식)
 - `POST /local-analysis/knowledge-graph` - Knowledge Graph 생성 (directory, use_llm 파라미터 지원)
+- `POST /local-analysis/full-knowledge-graph-chunked` - **NEW** 청킹 기반 완전 KG 추출 (extraction_level, max_chunk_tokens 지원)
 - `GET /local-analysis/knowledge-graph` - KG 조회 (GET 방식)
 - `GET /local-analysis/metadata` - 메타데이터 추출 (directory, use_llm 파라미터 지원)
 - `POST /local-analysis/metadata` - 메타데이터 추출 (POST 방식)
@@ -552,7 +559,7 @@ curl -X POST "http://localhost:58000/local-analysis/analyze" \
 - 라우터: `backend/routers/kg.py`
 - 서비스: `backend/services/kg_builder.py`
 
-## 로컬 분석 API 시스템 <!-- SPEC: local_analysis_api --> 📊 신규 완성됨 (2025.08.29)
+## 로컬 분석 API 시스템 <!-- SPEC: local_analysis_api --> 📊 업데이트됨 (2025.11.04)
 
 ### 개요
 프로젝트 생성 없이 로컬 파일 시스템의 문서를 직접 분석할 수 있는 독립적인 API 시스템입니다.
@@ -563,9 +570,14 @@ curl -X POST "http://localhost:58000/local-analysis/analyze" \
 - **실시간 분석**: 즉시 키워드 추출 결과 제공
 - **메타데이터 전용 추출**: 키워드 추출 없이 메타데이터만 빠르게 확인
 - **다중 추출기 지원**: 여러 키워드 추출기 동시 사용
-- **🆕 디렉토리 파라미터**: 모든 결과 파일을 사용자 지정 디렉토리에 생성 (2025.08.31)
-- **🆕 파일 경로 추적**: saved_files 응답으로 생성된 모든 파일 경로 제공
-- **🆕 마크다운 파일 관리**: docling.md, pymupdf4llm.md를 지정된 위치에 정확히 생성
+- **디렉토리 파라미터**: 모든 결과 파일을 사용자 지정 디렉토리에 생성
+- **파일 경로 추적**: saved_files 응답으로 생성된 모든 파일 경로 제공
+- **마크다운 파일 관리**: docling.md, pymupdf4llm.md를 지정된 위치에 정확히 생성
+- **🆕 3-Level KG 추출**: Brief/Standard/Deep 추출 깊이 선택 (2025.11.04)
+- **🆕 청킹 기반 완전 KG**: 대용량 문서의 구조 기반 청킹 및 계층적 병합 (2025.11.04)
+- **🆕 2-Phase 추출**: 엔티티/관계 분리로 43% 성능 향상 (2025.11.04)
+- **🆕 구조화된 테이블 추출**: 마크다운 테이블을 그래프 엔티티로 변환 (2025.11.04)
+- **🆕 KG → Cypher 변환**: Neo4j/Memgraph용 자동 스크립트 생성 (2025.11.04)
 
 ### 핵심 API
 ```bash
@@ -587,6 +599,93 @@ curl -G "http://localhost:58000/local-analysis/metadata" \
   --data-urlencode "file_path=document.pdf" \
   --data-urlencode "directory=/results/output" \
   --data-urlencode "use_llm=true"
+
+# 청킹 기반 완전 KG 추출 (NEW - 2025.11.04)
+curl -X POST "http://localhost:58000/local-analysis/full-knowledge-graph-chunked" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_path": "/path/to/document.pdf",
+    "extraction_level": "deep",
+    "max_chunk_tokens": 8000,
+    "directory": "/results/output"
+  }'
+```
+
+### 청킹 기반 완전 KG 추출 (NEW - 2025.11.04)
+
+**엔드포인트**: `POST /local-analysis/full-knowledge-graph-chunked`
+
+**주요 특징**:
+- **3-Level 추출 깊이**: Brief (10-20개) / Standard (30-50개) / Deep (100-300+개)
+- **2-Phase 추출**: Phase 1 (엔티티) + Phase 2 (관계) 분리로 43% 성능 향상
+- **구조 기반 청킹**: 문서 섹션 (##) 보존하며 자동 청킹
+- **구조화된 테이블**: 마크다운 테이블을 Table/Row/Column 엔티티로 변환
+- **JSON 자동 복구**: LLM 응답 잘림 시 자동 수정
+- **자동 재시도**: Rate limit 초과 시 exponential backoff
+
+**요청 파라미터**:
+```json
+{
+  "file_path": "/path/to/document.pdf",
+  "extraction_level": "deep",        // "brief" | "standard" | "deep"
+  "max_chunk_tokens": 8000,          // 청크당 토큰 제한
+  "domain": "general",               // 문서 도메인
+  "force_reparse": true,             // 강제 재파싱
+  "include_structure": true,         // 구조 분석 포함
+  "save_format": "json",             // 저장 형식
+  "directory": "/results/output"     // 결과 저장 디렉토리
+}
+```
+
+**응답 예시**:
+```json
+{
+  "graph": {
+    "nodes": [
+      {"id": "n1", "type": "Document", "properties": {"name": "example.pdf"}},
+      {"id": "n2", "type": "Table", "properties": {"name": "온습도 조건", "row_count": 10}},
+      {"id": "n3", "type": "TableColumn", "properties": {"column_name": "인천", "column_index": 2}}
+    ],
+    "edges": [
+      {"id": "e1", "source": "n2", "target": "n3", "type": "HAS_COLUMN"}
+    ]
+  },
+  "statistics": {
+    "total_entities": 274,
+    "total_relationships": 187,
+    "chunks_processed": 5,
+    "extraction_level": "deep"
+  },
+  "saved_files": [
+    "/results/output/knowledge_graph.json",
+    "/results/output/knowledge_graph.cypher"
+  ]
+}
+```
+
+### KG → Cypher 변환 (NEW - 2025.11.04)
+
+추출된 Knowledge Graph를 Neo4j/Memgraph용 Cypher 스크립트로 자동 변환:
+
+```bash
+# 변환 실행
+cd backend-local/backend
+python -m utils.kg_to_cypher /path/to/knowledge_graph.json output.cypher
+
+# DB 초기화 옵션
+python -m utils.kg_to_cypher input.json output.cypher --clear-db
+
+# Bash 래퍼 스크립트
+./scripts/kg_json_to_cypher.sh /path/to/knowledge_graph.json
+```
+
+**변환 결과**:
+- 모든 노드를 `CREATE` 문으로 변환
+- 모든 관계를 `MATCH` + `CREATE` 문으로 변환
+- 성능을 위한 인덱스 자동 생성
+- 선택적 데이터베이스 초기화 (`--clear-db`)
+
+자세한 내용은 `backend-local/KG_CYPHER_CONVERTER.md` 참조.
 ```
 
 ### 구현 위치
