@@ -11,6 +11,7 @@ from datetime import datetime
 from services.parser.pdf_parser import PdfParser
 from services.parser.docling_parser import DoclingParser
 from services.parser.docling_ocr_parser import DoclingOCRParser
+from services.parser.docling_hybrid_parser import DoclingHybridParser
 from services.parser.docx_parser import DocxParser
 from services.parser.txt_parser import TxtParser
 from services.parser.html_parser import HtmlParser
@@ -33,7 +34,8 @@ class DocumentParserService:
         self.ocr_engine = ocr_engine
         self.parsers = {
             'pdf': [
-                ('docling_ocr', DoclingOCRParser(ocr_engine=ocr_engine)),  # Docling + OCR 통합 파서 (최우선)
+                ('docling_hybrid', DoclingHybridParser(ocr_engine=ocr_engine)),  # 블록 단위 하이브리드 파서 (CID 자동 수정, 최우선)
+                ('docling_ocr', DoclingOCRParser(ocr_engine=ocr_engine)),  # Docling + OCR 통합 파서
                 ('docling', DoclingParser()),
                 ('pdf_parser', PdfParser())
             ],
@@ -47,9 +49,16 @@ class DocumentParserService:
         }
         
     def get_output_directory(self, file_path: Path, directory: Optional[Path] = None) -> Path:
-        """파일별 출력 디렉토리 경로 반환"""
+        """파일별 출력 디렉토리 경로 반환
+
+        Args:
+            file_path: 파싱할 파일 경로
+            directory: 출력 디렉토리 (지정 시 그대로 사용, 미지정 시 file_path.parent/file_stem)
+        """
         if directory:
-            return directory / file_path.stem
+            # 사용자 지정 디렉토리는 그대로 사용 (중복 방지)
+            return Path(directory)
+        # 디렉토리 미지정 시 기본 위치 사용
         return file_path.parent / file_path.stem
         
     def get_parsing_result_path(self, file_path: Path, directory: Optional[Path] = None) -> Path:
@@ -127,16 +136,16 @@ class DocumentParserService:
             }
         }
         
-        # Docling 우선 전략: docling 계열 파서가 성공하면 다른 파서 사용 안함
+        # Docling 우선 전략: docling 계열 파서가 고품질로 성공하면 다른 파서 사용 안함
         applicable_parsers = self.parsers[extension]
         parsing_results["summary"]["total_parsers"] = len(applicable_parsers)
 
-        docling_success = False  # Docling 파서 성공 여부 추적
+        docling_high_quality = False  # Docling 파서 고품질 성공 여부 추적 (품질 0.5 이상)
 
         for parser_name, parser in applicable_parsers:
-            # Docling 파서가 이미 성공했으면 다른 파서 건너뛰기
-            if docling_success and not parser_name.startswith('docling'):
-                logger.info(f"⏭️ {parser_name} 건너뛰기 (Docling 파서가 이미 성공)")
+            # Docling 파서가 고품질로 성공했으면 다른 파서 건너뛰기
+            if docling_high_quality and not parser_name.startswith('docling'):
+                logger.info(f"⏭️ {parser_name} 건너뛰기 (Docling 파서가 이미 고품질로 성공)")
                 parsing_results["summary"]["total_parsers"] -= 1  # 실제로 시도하지 않은 파서는 총 개수에서 제외
                 continue
 
@@ -180,10 +189,12 @@ class DocumentParserService:
 
                     logger.info(f"✅ {parser_name} 파싱 성공 (품질: {quality_score:.2f})")
 
-                    # Docling 파서 성공 플래그 설정
-                    if parser_name.startswith('docling'):
-                        docling_success = True
-                        logger.info(f"🎯 Docling 파서 성공, 다른 PDF 파서 건너뜀")
+                    # Docling 파서 고품질 성공 플래그 설정 (품질 0.5 이상일 때만)
+                    if parser_name.startswith('docling') and quality_score >= 0.5:
+                        docling_high_quality = True
+                        logger.info(f"🎯 Docling 파서 고품질 성공 (품질: {quality_score:.2f}), 다른 PDF 파서 건너뜀")
+                    elif parser_name.startswith('docling') and quality_score < 0.5:
+                        logger.warning(f"⚠️ Docling 파서 저품질 (품질: {quality_score:.2f}), 다른 PDF 파서 계속 시도")
 
                 else:
                     parsing_results["summary"]["failed_parsers"] += 1
@@ -227,13 +238,25 @@ class DocumentParserService:
         return result
         
     def _calculate_text_quality(self, text: str) -> float:
-        """텍스트 품질 점수 계산"""
+        """텍스트 품질 점수 계산 (CID 폰트 문제 감지 포함)"""
         if not text:
             return 0.0
-            
+
+        # CID 패턴 감지 (/_숫자 형태)
+        import re
+        cid_pattern = re.compile(r'/_\d+')
+        cid_matches = cid_pattern.findall(text)
+
+        # CID 패턴이 전체 텍스트의 5% 이상이면 폰트 문제로 판단
+        if len(cid_matches) > 0:
+            cid_ratio = len(cid_matches) / max(len(text.split()), 1)
+            if cid_ratio > 0.05:  # 5% 이상이면 심각한 문제
+                logger.warning(f"⚠️ CID 폰트 문제 감지: {len(cid_matches)}개 CID 패턴, 비율: {cid_ratio:.2%}")
+                return 0.01  # 거의 0점 처리
+
         # 기본 품질 지표들
         length_score = min(len(text) / 1000, 1.0) * 0.3  # 길이 점수 (최대 30%)
-        
+
         # 단어 다양성 점수
         words = text.split()
         if words:
@@ -241,18 +264,18 @@ class DocumentParserService:
             diversity_score = min(len(unique_words) / len(words), 1.0) * 0.3  # 다양성 점수 (최대 30%)
         else:
             diversity_score = 0
-        
+
         # 문장 구조 점수 (마침표, 쉼표 등의 존재)
         punctuation_count = sum(1 for c in text if c in '.!?,:;')
         structure_score = min(punctuation_count / len(text) * 100, 1.0) * 0.2  # 구조 점수 (최대 20%)
-        
+
         # 한글/영어 문자 비율 (의미 있는 텍스트 여부)
         meaningful_chars = sum(1 for c in text if c.isalnum() or c.isspace())
         if len(text) > 0:
             meaning_score = (meaningful_chars / len(text)) * 0.2  # 의미 점수 (최대 20%)
         else:
             meaning_score = 0
-            
+
         total_score = length_score + diversity_score + structure_score + meaning_score
         return min(total_score, 1.0)
         
