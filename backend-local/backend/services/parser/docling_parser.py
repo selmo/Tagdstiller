@@ -23,7 +23,43 @@ class DoclingParser(DocumentParser):
         super().__init__("pdf_parser_docling")
         self.supported_extensions = ['.pdf']
         self.supported_mime_types = ['application/pdf']
-        
+
+    def _clean_markdown_for_llm(self, markdown_text: str) -> str:
+        """LLM 처리를 위한 마크다운 정제
+
+        - 특수 문자 이스케이프
+        - 복잡한 테이블 단순화
+        - HTML 주석 제거
+        - 중복 공백 정리
+        """
+        import re
+
+        # 1. HTML 주석 제거
+        markdown_text = re.sub(r'<!--.*?-->', '', markdown_text, flags=re.DOTALL)
+
+        # 2. 이미지 마커 제거
+        markdown_text = re.sub(r'!\[.*?\]\(.*?\)', '[이미지]', markdown_text)
+
+        # 3. 중괄호가 포함된 특수 패턴 정리 (LLM JSON 생성 시 혼란 방지)
+        # 예: {변수명} → [변수명]
+        markdown_text = re.sub(r'\{([^}]+)\}', r'[\1]', markdown_text)
+
+        # 4. 연속된 공백을 하나로
+        markdown_text = re.sub(r' +', ' ', markdown_text)
+
+        # 5. 연속된 줄바꿈을 최대 2개로 제한
+        markdown_text = re.sub(r'\n{3,}', '\n\n', markdown_text)
+
+        # 6. 테이블의 복잡한 정렬 마커 제거
+        # |:---|:---:| → |---|---|
+        markdown_text = re.sub(r'\|:?-+:?', '|---', markdown_text)
+
+        # 7. 백슬래시 이스케이프 문제 방지
+        # 단, 이미 이스케이프된 문자는 유지
+        markdown_text = re.sub(r'\\(?![nrt"\\])', '', markdown_text)
+
+        return markdown_text.strip()
+
     def parse(self, file_path: Path) -> ParseResult:
         """PDFDocling을 사용하여 PDF 파싱"""
         try:
@@ -54,6 +90,10 @@ class DoclingParser(DocumentParser):
             except:
                 # fallback to text export
                 markdown_text = result.document.export_to_text()
+
+            # LLM 처리를 위한 마크다운 정제
+            markdown_text = self._clean_markdown_for_llm(markdown_text)
+            logger.debug(f"🧹 마크다운 정제 완료")
             
             # 테이블 정보 추출
             tables = []

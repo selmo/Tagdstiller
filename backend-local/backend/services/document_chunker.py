@@ -44,13 +44,13 @@ class DocumentNode:
 
         # 제목이 있고 루트가 아니면 제목을 먼저 추가
         if self.title and self.node_type != "document":
-            # 마크다운 형식으로 제목 추가
+            # 마크다운 형식으로 제목 추가 (레벨 구분)
             if self.node_type == "chapter":
-                content_parts.append(f"## {self.title}")
+                content_parts.append(f"# {self.title}")      # H1: Chapter
             elif self.node_type == "section":
-                content_parts.append(f"## {self.title}")
+                content_parts.append(f"## {self.title}")     # H2: Section
             elif self.node_type == "subsection":
-                content_parts.append(f"### {self.title}")
+                content_parts.append(f"### {self.title}")    # H3: Subsection
 
         # 본문 내용 추가
         if self.content.strip():
@@ -150,6 +150,8 @@ class DocumentStructureAnalyzer:
 
     def analyze_structure(self, text: str) -> DocumentNode:
         """문서 구조 분석"""
+        import time
+        structure_start = time.time()
         logger.info(f"📊 문서 구조 분석 시작 - 텍스트 길이: {len(text)} 문자")
 
         # 루트 문서 노드 생성
@@ -292,7 +294,9 @@ class DocumentStructureAnalyzer:
                 root.content += content_text
 
         # 구조 분석 결과 로그
+        structure_duration = time.time() - structure_start
         self._log_structure_summary(root)
+        logger.info(f"⏱️ 구조 분석 소요시간: {structure_duration:.2f}초")
 
         return root
 
@@ -402,28 +406,44 @@ class StructuralChunker:
 
         logger.info(f"📏 청킹 레벨 결정 - 문서크기: {doc_size}, Chapter: {chapter_count}, Section: {section_count}")
 
-        if doc_size < 20000:    # 20K 이하: 전체 문서
+        # LLM 처리를 위해 청크 크기를 더 작게 조정 (10K 이하 권장)
+        if doc_size < 8000:     # 8K 이하: 전체 문서
             level = "document"
-        elif doc_size < 100000: # 100K 이하: Chapter 단위 우선
+        elif doc_size < 50000:  # 50K 이하: 구조 기반 분할
             if chapter_count >= 3:
                 level = "chapter"
-            elif section_count >= 5:
+            elif section_count >= 3:  # 5 → 3으로 낮춤
                 level = "section"
+            elif chapter_count >= 2:  # Chapter가 2개 이상이면 분할
+                level = "chapter"
             else:
                 level = "document"
-        else:                   # 100K 이상: 적응적 결정
+        else:                   # 50K 이상: 적극적 분할
             avg_chapter_size = doc_size / max(chapter_count, 1)
-            if avg_chapter_size > 30000:  # Chapter가 너무 크면 Section 단위
+            if avg_chapter_size > 15000:  # 30K → 15K로 낮춤
                 level = "section" if section_count >= chapter_count * 2 else "chapter"
             else:
                 level = "chapter"
 
-        logger.info(f"🎯 선택된 청킹 레벨: {level}")
+        logger.info(f"🎯 선택된 청킹 레벨: {level} (LLM 최적화: 8K 이하 선호)")
         return level
 
-    def create_chunks(self, structure: DocumentNode, chunk_level: str) -> List[ChunkGroup]:
-        """구조 기반 청크 그룹 생성"""
-        logger.info(f"✂️ 청크 생성 시작 - 레벨: {chunk_level}")
+    def create_chunks(
+        self,
+        structure: DocumentNode,
+        chunk_level: str,
+        max_chunk_tokens: int = 16000  # 기본값 증가: 청크 수 감소
+    ) -> List[ChunkGroup]:
+        """구조 기반 청크 그룹 생성
+
+        Args:
+            structure: 문서 구조 트리
+            chunk_level: 청킹 레벨 ("document", "chapter", "section")
+            max_chunk_tokens: 청크당 최대 토큰 수 (기본값: 16000)
+        """
+        import time
+        chunking_start = time.time()
+        logger.info(f"✂️ 청크 생성 시작 - 레벨: {chunk_level}, 최대 토큰: {max_chunk_tokens}")
 
         chunks = []
 
@@ -450,18 +470,16 @@ class StructuralChunker:
                 chunks.append(chunk)
 
         elif chunk_level == "section":
-            # Section 단위로 그룹핑 (같은 Chapter 내에서만)
+            # Section 단위로 그룹핑하되, 토큰 크기 기반으로 병합
             for chapter in structure.children:
                 if chapter.children:  # Section이 있는 경우
-                    for section in chapter.children:
-                        chunk = ChunkGroup(
-                            chunk_id=f"section_{section.number}",
-                            level="section",
-                            nodes=[section],
-                            parent_context=f"Chapter {chapter.number}: {chapter.title}",
-                            boundary_rule="section_boundary"
-                        )
-                        chunks.append(chunk)
+                    # 토큰 크기 기반으로 섹션들을 병합
+                    merged_chunks = self._merge_sections_by_token_size(
+                        chapter.children,
+                        max_tokens=max_chunk_tokens,  # 파라미터로 전달받은 값 사용
+                        parent_context=f"Chapter {chapter.number}: {chapter.title}"
+                    )
+                    chunks.extend(merged_chunks)
                 else:  # Section이 없으면 Chapter 전체
                     chunk = ChunkGroup(
                         chunk_id=f"chapter_{chapter.number}",
@@ -475,10 +493,74 @@ class StructuralChunker:
         # 청크 경계 검증
         chunks = self._validate_chunk_boundaries(chunks)
 
-        logger.info(f"✅ 청크 생성 완료 - 총 {len(chunks)}개 청크")
+        chunking_duration = time.time() - chunking_start
+        logger.info(f"✅ 청크 생성 완료 - 총 {len(chunks)}개 청크 (소요시간: {chunking_duration:.2f}초)")
         for chunk in chunks:
             logger.debug(f"  🧩 {chunk.chunk_id}: {chunk.get_content_length()} 문자")
 
+        return chunks
+
+    def _merge_sections_by_token_size(
+        self,
+        sections: List[DocumentNode],
+        max_tokens: int = 8000,
+        parent_context: str = ""
+    ) -> List[ChunkGroup]:
+        """토큰 크기 기반으로 섹션들을 병합하여 청크 생성
+
+        Args:
+            sections: 병합할 섹션 노드 리스트
+            max_tokens: 청크당 최대 토큰 수
+            parent_context: 부모 컨텍스트 (Chapter 정보 등)
+
+        Returns:
+            병합된 청크 그룹 리스트
+        """
+        chunks = []
+        current_nodes = []
+        current_tokens = 0
+
+        for section in sections:
+            # 섹션의 토큰 수 추정 (문자 수 / 4)
+            section_content = section.get_total_content()
+            section_tokens = len(section_content) // 4
+
+            # 현재 청크에 추가했을 때 max_tokens를 초과하는지 확인
+            if current_nodes and (current_tokens + section_tokens > max_tokens):
+                # 현재 청크 저장
+                chunk_id = f"merged_{sections[0].number}_to_{current_nodes[-1].number}"
+                chunk = ChunkGroup(
+                    chunk_id=chunk_id,
+                    level="section",
+                    nodes=current_nodes.copy(),
+                    parent_context=parent_context,
+                    boundary_rule="token_based_merge"
+                )
+                chunks.append(chunk)
+                logger.debug(f"  📦 병합 청크 생성: {len(current_nodes)}개 섹션, ~{current_tokens} 토큰")
+
+                # 새 청크 시작
+                current_nodes = [section]
+                current_tokens = section_tokens
+            else:
+                # 현재 청크에 추가
+                current_nodes.append(section)
+                current_tokens += section_tokens
+
+        # 마지막 청크 추가
+        if current_nodes:
+            chunk_id = f"merged_{current_nodes[0].number}_to_{current_nodes[-1].number}"
+            chunk = ChunkGroup(
+                chunk_id=chunk_id,
+                level="section",
+                nodes=current_nodes,
+                parent_context=parent_context,
+                boundary_rule="token_based_merge"
+            )
+            chunks.append(chunk)
+            logger.debug(f"  📦 병합 청크 생성: {len(current_nodes)}개 섹션, ~{current_tokens} 토큰")
+
+        logger.info(f"✅ 섹션 병합 완료: {len(sections)}개 섹션 → {len(chunks)}개 청크")
         return chunks
 
     def _validate_chunk_boundaries(self, chunks: List[ChunkGroup]) -> List[ChunkGroup]:
@@ -486,6 +568,11 @@ class StructuralChunker:
         validated_chunks = []
 
         for chunk in chunks:
+            # 토큰 기반 병합된 청크는 검증 건너뛰기
+            if chunk.boundary_rule == "token_based_merge":
+                validated_chunks.append(chunk)
+                continue
+
             # 규칙: 서로 다른 Chapter의 내용이 같은 청크에 있으면 안됨
             chapter_numbers = set()
             for node in chunk.nodes:

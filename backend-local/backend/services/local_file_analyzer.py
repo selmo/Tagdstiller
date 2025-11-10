@@ -45,8 +45,22 @@ class LocalFileAnalyzer:
         overrides: Optional[Dict[str, Any]] = None,
         use_multistep: bool = False,  # 다단계 대화 방식 사용 여부
     ) -> Dict[str, Any]:
+        print(f"\n\n=== DEBUG: analyze_document_structure_with_llm ===")
+        print(f"overrides 원본: {overrides}")
+        print(f"overrides 타입: {type(overrides)}")
+        if overrides:
+            print(f"overrides keys: {list(overrides.keys())}")
+            print(f"api_key in overrides: {'api_key' in overrides}")
+            if 'api_key' in overrides:
+                print(f"api_key 길이: {len(overrides['api_key'])}")
+
+        self.logger.info(f"🔍 analyze_document_structure_with_llm 호출")
+        self.logger.info(f"🔍 overrides 원본: {overrides}")
         overrides = overrides or {}
+        self.logger.info(f"🔍 overrides 처리 후: {overrides}")
+        self.logger.info(f"🔍 overrides에 api_key 존재: {'api_key' in overrides}")
         provider = overrides.get("provider") or ConfigService.get_config_value(self.db, "LLM_PROVIDER", "ollama")
+        self.logger.info(f"🔍 provider: {provider}")
         if not overrides.get("enabled") and not ConfigService.get_bool_config(self.db, "ENABLE_LLM_EXTRACTION", False):
             return self._fail_result("LLM extraction disabled", "")
 
@@ -59,11 +73,23 @@ class LocalFileAnalyzer:
             base_url = overrides.get("base_url") or ConfigService.get_config_value(self.db, "OLLAMA_BASE_URL", "http://localhost:11434")
             model_name = overrides.get("model") or ConfigService.get_config_value(self.db, "OLLAMA_MODEL", "llama3.2")
             timeout = timeout_override or ollama_timeout_default
+            # Ollama conf for consistency with other providers
+            conf = {
+                "base_url": base_url,
+                "model": model_name,
+                "timeout": timeout,
+                "max_tokens": overrides.get("max_tokens", 8000),
+                **overrides
+            }
             fetch = lambda prompt: self._call_ollama(prompt, base_url, model_name, timeout)
             base_dir_provider = "ollama"
             base_url_meta = base_url
         elif provider == "openai":
-            conf = {**ConfigService.get_openai_config(self.db), **overrides}
+            config_from_db = ConfigService.get_openai_config(self.db)
+            self.logger.info(f"🔍 ConfigService.get_openai_config 결과: {config_from_db}")
+            conf = {**config_from_db, **overrides}
+            self.logger.info(f"🔍 병합 후 conf: {conf}")
+            self.logger.info(f"🔍 conf['api_key'] 길이: {len(conf.get('api_key', ''))}")
             if timeout_override is not None:
                 conf["timeout"] = timeout_override
             conf.setdefault("timeout", 120)
@@ -319,7 +345,7 @@ class LocalFileAnalyzer:
 
         self.logger.info("📡 Gemini 스트리밍 API 호출 시작...")
 
-        # 재시도 로직
+        # 재시도 로직 (429/503 에러 대응)
         max_retries = 3
         retry_delay = 2
 
@@ -334,8 +360,10 @@ class LocalFileAnalyzer:
                 response.raise_for_status()
                 break
             except requests.exceptions.HTTPError as e:
-                if e.response.status_code == 503 and attempt < max_retries - 1:
-                    self.logger.warning(f"⚠️ Gemini Stream API 503 에러, {retry_delay}초 후 재시도 ({attempt + 1}/{max_retries})")
+                # 429 (Rate Limit) 또는 503 (Service Unavailable) 에러인 경우 재시도
+                if e.response.status_code in [429, 503] and attempt < max_retries - 1:
+                    error_name = "Rate Limit" if e.response.status_code == 429 else "Service Unavailable"
+                    self.logger.warning(f"⏳ Gemini Stream API {e.response.status_code} {error_name} 에러, {retry_delay}초 후 재시도 ({attempt + 1}/{max_retries})")
                     time.sleep(retry_delay)
                     retry_delay *= 2
                 else:
@@ -412,25 +440,91 @@ class LocalFileAnalyzer:
         return response, response
 
     def _call_openai_chat(self, prompt: str, conf: Dict[str, Any]) -> Tuple[str, str]:
+        """OpenAI API 호출 (새로운 /v1/responses API 자동 감지)"""
+        self.logger.info(f"🔍 _call_openai_chat 호출 - conf keys: {list(conf.keys())}")
+        self.logger.info(f"🔍 api_key 존재 여부: {'api_key' in conf}, 값: {conf.get('api_key', 'NOT_FOUND')[:20] if conf.get('api_key') else 'EMPTY'}")
+
         api_key = conf.get("api_key")
         if not api_key:
+            self.logger.error(f"❌ API 키 누락! conf 전체: {conf}")
             raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다")
 
-        payload = {
-            "model": conf.get("model", "gpt-3.5-turbo"),
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": conf.get("max_tokens", 8000),
-            "temperature": conf.get("temperature", 0.2),
-        }
+        model = conf.get("model", "gpt-3.5-turbo")
+        base_url = conf.get('base_url', 'https://api.openai.com/v1')
+
+        # GPT-5 모델은 새로운 /v1/responses 엔드포인트 사용
+        use_responses_api = "gpt-5" in model.lower()
+
+        if use_responses_api:
+            # 새로운 /v1/responses API
+            url = f"{base_url}/responses"
+            payload = {
+                "model": model,
+                "input": prompt,
+                "reasoning": {
+                    "effort": conf.get("reasoning_effort", "minimal")
+                }
+            }
+            self.logger.info(f"📡 OpenAI /v1/responses API 호출 (모델: {model}, reasoning: {payload['reasoning']['effort']})")
+        else:
+            # 기존 /v1/chat/completions API
+            url = f"{base_url}/chat/completions"
+            payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": conf.get("max_tokens", 8000),
+                "temperature": conf.get("temperature", 0.2),
+            }
+            self.logger.info(f"📡 OpenAI /v1/chat/completions API 호출 (모델: {model})")
+
         response = requests.post(
-            f"{conf.get('base_url', 'https://api.openai.com/v1')}/chat/completions",
+            url,
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json=payload,
             timeout=conf.get("timeout", 120),
         )
         response.raise_for_status()
-        text = response.json()["choices"][0]["message"]["content"]
-        return text, text
+        result = response.json()
+
+        # 응답 파싱 (API 형식에 따라 다름)
+        if use_responses_api:
+            # /v1/responses API 응답 구조
+            # 응답은 배열 형식: [reasoning_object, message_object]
+            # message_object.content는 배열이며, text 필드를 포함
+            self.logger.info(f"🔍 /v1/responses API 파싱 시작, result 타입: {type(result)}")
+
+            # GPT-5 API 응답 구조: {"output": [reasoning, message], ...}
+            if isinstance(result, dict) and "output" in result:
+                output_array = result["output"]
+                self.logger.info(f"🔍 result['output'] 배열 길이: {len(output_array)}")
+
+                # output 배열에서 'message' 타입 찾기
+                message_obj = None
+                for idx, item in enumerate(output_array):
+                    if item.get('type') == 'message':
+                        message_obj = item
+                        self.logger.info(f"✅ message 객체 발견 (인덱스: {idx})")
+                        break
+
+                if message_obj and 'content' in message_obj:
+                    content_list = message_obj['content']
+                    # content 배열에서 텍스트 추출
+                    for content_item in content_list:
+                        if content_item.get('type') == 'output_text':
+                            text = content_item.get('text', '')
+                            self.logger.info(f"✅ /v1/responses API 응답 파싱 성공: {len(text)}자")
+                            return text, text
+
+                self.logger.error(f"❌ output_text를 찾지 못함")
+                raise RuntimeError(f"OpenAI /v1/responses API: message 객체에서 output_text를 찾을 수 없음")
+            else:
+                # 예상하지 못한 응답 형식
+                self.logger.error(f"❌ 예상하지 못한 응답 형식: {type(result)}, keys: {list(result.keys()) if isinstance(result, dict) else 'N/A'}")
+                raise RuntimeError(f"OpenAI /v1/responses API 응답 형식 오류")
+        else:
+            # 기존 chat/completions API
+            text = result["choices"][0]["message"]["content"]
+            return text, text
 
     def _call_gemini_generate(self, prompt: str, conf: Dict[str, Any]) -> Tuple[str, str]:
         """
@@ -473,7 +567,7 @@ class LocalFileAnalyzer:
         # 일반 API (non-streaming)
         url = f"{base_url}/v1beta/{model}:generateContent?key={api_key}"
 
-        # 재시도 로직 (503 에러 대응)
+        # 재시도 로직 (429/503 에러 대응)
         max_retries = 3
         retry_delay = 2  # 초
 
@@ -483,8 +577,10 @@ class LocalFileAnalyzer:
                 response.raise_for_status()
                 break  # 성공하면 루프 종료
             except requests.exceptions.HTTPError as e:
-                if e.response.status_code == 503 and attempt < max_retries - 1:
-                    self.logger.warning(f"⚠️ Gemini API 503 에러, {retry_delay}초 후 재시도 ({attempt + 1}/{max_retries})")
+                # 429 (Rate Limit) 또는 503 (Service Unavailable) 에러인 경우 재시도
+                if e.response.status_code in [429, 503] and attempt < max_retries - 1:
+                    error_name = "Rate Limit" if e.response.status_code == 429 else "Service Unavailable"
+                    self.logger.warning(f"⏳ Gemini API {e.response.status_code} {error_name} 에러, {retry_delay}초 후 재시도 ({attempt + 1}/{max_retries})")
                     time.sleep(retry_delay)
                     retry_delay *= 2  # 지수 백오프
                 else:
@@ -624,13 +720,493 @@ class LocalFileAnalyzer:
     def _fail_result(self, message: str, raw_response: str) -> Dict[str, Any]:
         self.logger.error("❌ LLM 구조 분석 실패: %s", message)
         if raw_response:
-            self.logger.warning("⚠️ LLM 원본 응답 (200자): %s", raw_response[:200].replace("\n", " "))
+            # 타입 안전성: raw_response가 문자열이 아닐 경우 처리
+            if isinstance(raw_response, str):
+                self.logger.warning("⚠️ LLM 원본 응답 (200자): %s", raw_response[:200].replace("\n", " "))
+            else:
+                self.logger.warning("⚠️ LLM 원본 응답 타입: %s, 값: %s", type(raw_response), str(raw_response)[:200])
         return {
             "analysis_method": "llm_failed",
             "llm_success": False,
             "llm_error": message,
-            "llm_raw_response": raw_response,
+            "llm_raw_response": str(raw_response) if raw_response else "",
         }
+
+    # ========== 3-Phase 구조 분석 시스템 ==========
+
+    def analyze_document_structure_3phase(
+        self,
+        text: str,
+        file_path: str,
+        file_extension: str,
+        overrides: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        3-Phase 문서 구조 분석
+
+        Phase 1: 구조 추출 (Structure Skeleton)
+        Phase 2: 키워드/태그 추출 (Keyword Extraction)
+        Phase 3: 메타데이터 상세화 (Metadata Enhancement)
+
+        Args:
+            text: 문서 텍스트
+            file_path: 파일 경로
+            file_extension: 파일 확장자
+            overrides: LLM 설정 오버라이드
+
+        Returns:
+            완전한 구조 분석 결과 (keywords, classificationTags의 desc/readme 포함)
+        """
+        import time
+        start_time = time.time()
+
+        self.logger.info("🔧 3-Phase 구조 분석 시작")
+
+        try:
+            # Phase 1: 구조 추출
+            phase1_result = self._phase1_extract_structure(text, file_path, file_extension, overrides)
+            if not phase1_result.get("llm_success"):
+                return phase1_result
+
+            structure = phase1_result.get("llm_analysis", {}).get("structureAnalysis", [])
+            if not structure:
+                return self._fail_result("Phase 1에서 구조를 추출하지 못했습니다", "")
+
+            self.logger.info(f"✅ Phase 1 완료: {len(structure)}개 최상위 구조 추출")
+
+            # Phase 2: 키워드/태그 추출 (모든 구조 항목에 대해)
+            phase2_result = self._phase2_extract_keywords(structure, text, overrides)
+            self.logger.info(f"✅ Phase 2 완료: {phase2_result['total_items']}개 항목에 키워드/태그 추가")
+
+            # Phase 3: 메타데이터 상세화
+            phase3_result = self._phase3_enhance_metadata(phase2_result['structure'], text, overrides)
+            self.logger.info(f"✅ Phase 3 완료: {phase3_result['enhanced_count']}개 항목 메타데이터 상세화")
+
+            # 최종 결과 구성
+            final_result = phase1_result.copy()
+            final_result["llm_analysis"]["structureAnalysis"] = phase3_result['structure']
+            final_result["phase_statistics"] = {
+                "total_duration_seconds": time.time() - start_time,
+                "phase1_duration": phase2_result.get('phase1_duration', 0),
+                "phase2_duration": phase2_result.get('phase2_duration', 0),
+                "phase3_duration": phase3_result.get('phase3_duration', 0),
+                "total_items_processed": phase2_result['total_items'],
+                "items_with_keywords": phase2_result['items_with_keywords'],
+                "items_enhanced": phase3_result['enhanced_count'],
+            }
+
+            self.logger.info(f"🎉 3-Phase 구조 분석 완료 (소요시간: {time.time() - start_time:.2f}초)")
+
+            return final_result
+
+        except Exception as e:
+            self.logger.error(f"❌ 3-Phase 구조 분석 실패: {e}", exc_info=True)
+            return self._fail_result(f"3-Phase 분석 중 오류: {str(e)}", "")
+
+    def _phase1_extract_structure(
+        self,
+        text: str,
+        file_path: str,
+        file_extension: str,
+        overrides: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Phase 1: 문서 구조 추출 (keywords/classificationTags는 빈 배열)"""
+        import time
+        phase1_start = time.time()
+
+        self.logger.info("📝 Phase 1: 구조 추출 시작")
+
+        # 기존 analyze_document_structure_with_llm와 유사하지만 Phase 1 프롬프트 사용
+        overrides = overrides or {}
+        provider = overrides.get("provider") or ConfigService.get_config_value(self.db, "LLM_PROVIDER", "ollama")
+
+        # DEBUG: 프로바이더 선택 로깅
+        self.logger.info(f"🔍 [Phase 1] LLM Provider 선택: {provider}")
+        self.logger.info(f"🔍 [Phase 1] Overrides: {overrides}")
+
+        if not overrides.get("enabled") and not ConfigService.get_bool_config(self.db, "ENABLE_LLM_EXTRACTION", False):
+            return self._fail_result("LLM extraction disabled", "")
+
+        # LLM 호출 설정
+        if provider == "gemini":
+            conf = {**ConfigService.get_gemini_config(self.db), **overrides}
+            conf.setdefault("timeout", 120)
+            conf.setdefault("response_mime_type", "application/json")
+            fetch = lambda prompt: self._call_gemini_generate(prompt, conf)
+        elif provider == "openai":
+            conf = {**ConfigService.get_openai_config(self.db), **overrides}
+            conf.setdefault("timeout", 120)
+            fetch = lambda prompt: self._call_openai_chat(prompt, conf)
+        elif provider == "ollama":
+            if OllamaLLM is None:
+                return self._fail_result("langchain_ollama is not installed", "")
+            base_url = overrides.get("base_url") or ConfigService.get_config_value(self.db, "OLLAMA_BASE_URL", "http://localhost:11434")
+            model_name = overrides.get("model") or ConfigService.get_config_value(self.db, "OLLAMA_MODEL", "llama3.2")
+            timeout = overrides.get("timeout", 120)
+            fetch = lambda prompt: self._call_ollama(prompt, base_url, model_name, timeout)
+        else:
+            return self._fail_result(f"Unsupported provider for 3-Phase: {provider}", "")
+
+        # Phase 1 프롬프트 생성
+        from prompts.templates import DocumentStructurePrompts
+        prompt_text = DocumentStructurePrompts.STRUCTURE_EXTRACTION_PHASE1.format(text=text[:40000])
+
+        # LLM 호출 with Retry (429 Rate Limit 대응)
+        import time
+        max_retries = 3
+        retry_delays = [2, 4, 8]  # exponential backoff
+
+        result_tuple = None
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                result_tuple = fetch(prompt_text)
+                break  # 성공하면 루프 탈출
+            except Exception as e:
+                last_error = e
+                error_msg = str(e)
+
+                # 429 에러인 경우에만 재시도
+                if "429" in error_msg or "Too Many Requests" in error_msg:
+                    if attempt < max_retries - 1:
+                        delay = retry_delays[attempt]
+                        self.logger.warning(f"⏳ Rate limit 발생, {delay}초 후 재시도 ({attempt + 1}/{max_retries})...")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        self.logger.error(f"❌ 최대 재시도 횟수 초과: {error_msg}")
+                        return self._fail_result(f"Phase 1 재시도 실패: {error_msg}", "")
+                else:
+                    # 429가 아닌 다른 에러는 즉시 실패
+                    self.logger.error(f"❌ Phase 1 LLM 호출 실패: {error_msg}")
+                    return self._fail_result(f"Phase 1 LLM 호출 실패: {error_msg}", "")
+
+        if result_tuple is None:
+            return self._fail_result(f"Phase 1 LLM 호출 실패: {last_error}", "")
+
+        # tuple을 unpacking
+        if isinstance(result_tuple, tuple) and len(result_tuple) == 2:
+            merged_text, raw_text = result_tuple
+            response_text = merged_text
+        else:
+            return self._fail_result("Phase 1 LLM 호출 실패: 예상치 못한 반환 형식", str(result_tuple))
+
+        try:
+            parsed_json = self._extract_json_from_response(response_text)
+
+            # 기본 검증
+            if "structureAnalysis" not in parsed_json:
+                raise ValueError("structureAnalysis 필드 없음")
+
+            phase1_duration = time.time() - phase1_start
+            self.logger.info(f"✅ Phase 1 완료 (소요시간: {phase1_duration:.2f}초)")
+
+            return {
+                "analysis_method": "3phase_llm",
+                "llm_success": True,
+                "llm_analysis": parsed_json,
+                "llm_raw_response": response_text[:500],
+                "phase1_duration": phase1_duration,
+            }
+
+        except Exception as e:
+            self.logger.error(f"❌ Phase 1 JSON 파싱 실패: {e}")
+            return self._fail_result(f"Phase 1 JSON 파싱 오류: {str(e)}", response_text[:500])
+
+    def _phase2_extract_keywords(
+        self,
+        structure: list,
+        full_text: str,
+        overrides: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Phase 2: 모든 구조 항목에 대한 키워드/태그 추출"""
+        import time
+        phase2_start = time.time()
+
+        self.logger.info("🔑 Phase 2: 키워드/태그 추출 시작")
+
+        # 구조를 평탄화하여 모든 항목 수집
+        all_items = []
+        self._collect_structure_items(structure, all_items, "")
+
+        self.logger.info(f"📊 총 {len(all_items)}개 구조 항목 발견")
+
+        # LLM 설정
+        provider = overrides.get("provider") or ConfigService.get_config_value(self.db, "LLM_PROVIDER", "ollama")
+
+        # DEBUG: 프로바이더 선택 로깅
+        self.logger.info(f"🔍 [Phase 2] LLM Provider 선택: {provider}")
+        self.logger.info(f"🔍 [Phase 2] Overrides: {overrides}")
+
+        if provider == "gemini":
+            conf = {**ConfigService.get_gemini_config(self.db), **overrides}
+            conf.setdefault("timeout", 120)
+            fetch = lambda prompt: self._call_gemini_generate(prompt, conf)
+        elif provider == "openai":
+            conf = {**ConfigService.get_openai_config(self.db), **overrides}
+            conf.setdefault("timeout", 120)
+            fetch = lambda prompt: self._call_openai_chat(prompt, conf)
+        elif provider == "ollama":
+            if OllamaLLM is None:
+                return {"structure": structure, "total_items": 0, "items_with_keywords": 0}
+            base_url = overrides.get("base_url") or ConfigService.get_config_value(self.db, "OLLAMA_BASE_URL", "http://localhost:11434")
+            model_name = overrides.get("model") or ConfigService.get_config_value(self.db, "OLLAMA_MODEL", "llama3.2")
+            timeout = overrides.get("timeout", 120)
+            fetch = lambda prompt: self._call_ollama(prompt, base_url, model_name, timeout)
+        else:
+            return {"structure": structure, "total_items": 0, "items_with_keywords": 0}
+
+        from prompts.templates import DocumentStructurePrompts
+
+        items_processed = 0
+        for item_info in all_items:
+            item = item_info['item']
+            path = item_info['path']
+
+            # 섹션 텍스트 추출 (간단한 휴리스틱: 제목 기반 검색)
+            section_text = self._extract_section_text(full_text, item.get('title', ''), item.get('mainContent', ''))
+
+            # Phase 2 프롬프트
+            prompt = DocumentStructurePrompts.KEYWORD_EXTRACTION_PHASE2.format(
+                path=path,
+                unit=item.get('unit', ''),
+                title=item.get('title', ''),
+                page_range=item.get('pageRange', ''),
+                main_content=item.get('mainContent', ''),
+                content=section_text[:3000]  # 최대 3000자
+            )
+
+            # LLM 호출 with Retry (429 Rate Limit 대응)
+            import time as time_module
+            max_retries = 3
+            retry_delays = [2, 4, 8]  # exponential backoff
+
+            result_tuple = None
+            last_error = None
+
+            for attempt in range(max_retries):
+                try:
+                    result_tuple = fetch(prompt)
+                    break  # 성공하면 루프 탈출
+                except Exception as e:
+                    last_error = e
+                    error_msg = str(e)
+
+                    # 429 에러인 경우에만 재시도
+                    if "429" in error_msg or "Too Many Requests" in error_msg:
+                        if attempt < max_retries - 1:
+                            delay = retry_delays[attempt]
+                            self.logger.warning(f"⏳ [Phase 2] Rate limit 발생 (경로: {path}), {delay}초 후 재시도 ({attempt + 1}/{max_retries})...")
+                            time_module.sleep(delay)
+                            continue
+                        else:
+                            self.logger.error(f"❌ [Phase 2] 최대 재시도 횟수 초과 (경로: {path}): {error_msg}")
+                            break
+                    else:
+                        # 429가 아닌 다른 에러는 즉시 실패
+                        self.logger.warning(f"⚠️ Phase 2 실패 (경로: {path}): {error_msg}")
+                        break
+
+            # 재시도 후 여전히 실패한 경우 스킵
+            if result_tuple is None:
+                continue
+
+            try:
+                # tuple을 unpacking
+                if isinstance(result_tuple, tuple) and len(result_tuple) == 2:
+                    merged_text, raw_text = result_tuple
+                    response_text = merged_text
+
+                    result = self._extract_json_from_response(response_text)
+
+                    # 키워드/태그 추가 (아직 name만 있음)
+                    if "keywords" in result and result["keywords"]:
+                        item["keywords"] = result["keywords"]
+                        items_processed += 1
+                    if "classificationTags" in result and result["classificationTags"]:
+                        item["classificationTags"] = result["classificationTags"]
+                else:
+                    self.logger.warning(f"⚠️ Phase 2 예상치 못한 반환 형식 (경로: {path})")
+                    continue
+
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 2 JSON 처리 실패 (경로: {path}): {e}")
+                continue
+
+        phase2_duration = time.time() - phase2_start
+        self.logger.info(f"✅ Phase 2 완료: {items_processed}/{len(all_items)}개 항목 처리 (소요시간: {phase2_duration:.2f}초)")
+
+        return {
+            "structure": structure,
+            "total_items": len(all_items),
+            "items_with_keywords": items_processed,
+            "phase2_duration": phase2_duration,
+        }
+
+    def _phase3_enhance_metadata(
+        self,
+        structure: list,
+        full_text: str,
+        overrides: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Phase 3: 키워드/태그에 desc/readme 추가"""
+        import time
+        phase3_start = time.time()
+
+        self.logger.info("✨ Phase 3: 메타데이터 상세화 시작")
+
+        # 구조를 평탄화
+        all_items = []
+        self._collect_structure_items(structure, all_items, "")
+
+        # LLM 설정
+        provider = overrides.get("provider") or ConfigService.get_config_value(self.db, "LLM_PROVIDER", "ollama")
+
+        # DEBUG: 프로바이더 선택 로깅
+        self.logger.info(f"🔍 [Phase 3] LLM Provider 선택: {provider}")
+        self.logger.info(f"🔍 [Phase 3] Overrides: {overrides}")
+
+        if provider == "gemini":
+            conf = {**ConfigService.get_gemini_config(self.db), **overrides}
+            conf.setdefault("timeout", 120)
+            fetch = lambda prompt: self._call_gemini_generate(prompt, conf)
+        elif provider == "openai":
+            conf = {**ConfigService.get_openai_config(self.db), **overrides}
+            conf.setdefault("timeout", 120)
+            fetch = lambda prompt: self._call_openai_chat(prompt, conf)
+        elif provider == "ollama":
+            if OllamaLLM is None:
+                return {"structure": structure, "enhanced_count": 0}
+            base_url = overrides.get("base_url") or ConfigService.get_config_value(self.db, "OLLAMA_BASE_URL", "http://localhost:11434")
+            model_name = overrides.get("model") or ConfigService.get_config_value(self.db, "OLLAMA_MODEL", "llama3.2")
+            timeout = overrides.get("timeout", 120)
+            fetch = lambda prompt: self._call_ollama(prompt, base_url, model_name, timeout)
+        else:
+            return {"structure": structure, "enhanced_count": 0}
+
+        from prompts.templates import DocumentStructurePrompts
+
+        enhanced_count = 0
+        for item_info in all_items:
+            item = item_info['item']
+            path = item_info['path']
+
+            # 키워드/태그가 없으면 스킵
+            keywords = item.get("keywords", [])
+            tags = item.get("classificationTags", [])
+
+            if not keywords and not tags:
+                continue
+
+            # 문자열 리스트를 name만 있는 것으로 간주
+            if keywords and isinstance(keywords[0], str):
+                keywords = [kw for kw in keywords]
+            if tags and isinstance(tags[0], str):
+                tags = [tag for tag in tags]
+
+            # 섹션 컨텍스트
+            context = self._extract_section_text(full_text, item.get('title', ''), item.get('mainContent', ''))
+
+            # Phase 3 프롬프트
+            prompt = DocumentStructurePrompts.METADATA_ENHANCEMENT_PHASE3.format(
+                path=path,
+                title=item.get('title', ''),
+                context=context[:4000],
+                keywords=json.dumps(keywords, ensure_ascii=False),
+                tags=json.dumps(tags, ensure_ascii=False)
+            )
+
+            # LLM 호출 with Retry (429 Rate Limit 대응)
+            import time as time_module
+            max_retries = 3
+            retry_delays = [2, 4, 8]  # exponential backoff
+
+            result_tuple = None
+            last_error = None
+
+            for attempt in range(max_retries):
+                try:
+                    result_tuple = fetch(prompt)
+                    break  # 성공하면 루프 탈출
+                except Exception as e:
+                    last_error = e
+                    error_msg = str(e)
+
+                    # 429 에러인 경우에만 재시도
+                    if "429" in error_msg or "Too Many Requests" in error_msg:
+                        if attempt < max_retries - 1:
+                            delay = retry_delays[attempt]
+                            self.logger.warning(f"⏳ [Phase 3] Rate limit 발생 (경로: {path}), {delay}초 후 재시도 ({attempt + 1}/{max_retries})...")
+                            time_module.sleep(delay)
+                            continue
+                        else:
+                            self.logger.error(f"❌ [Phase 3] 최대 재시도 횟수 초과 (경로: {path}): {error_msg}")
+                            break
+                    else:
+                        # 429가 아닌 다른 에러는 즉시 실패
+                        self.logger.warning(f"⚠️ Phase 3 실패 (경로: {path}): {error_msg}")
+                        break
+
+            # 재시도 후 여전히 실패한 경우 스킵
+            if result_tuple is None:
+                continue
+
+            try:
+                # tuple을 unpacking
+                if isinstance(result_tuple, tuple) and len(result_tuple) == 2:
+                    merged_text, raw_text = result_tuple
+                    response_text = merged_text
+
+                    result = self._extract_json_from_response(response_text)
+
+                    # 상세 메타데이터 업데이트
+                    if "keywords" in result:
+                        item["keywords"] = result["keywords"]
+                        enhanced_count += 1
+                    if "classificationTags" in result:
+                        item["classificationTags"] = result["classificationTags"]
+                else:
+                    self.logger.warning(f"⚠️ Phase 3 예상치 못한 반환 형식 (경로: {path})")
+                    continue
+
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 3 JSON 처리 실패 (경로: {path}): {e}")
+                continue
+
+        phase3_duration = time.time() - phase3_start
+        self.logger.info(f"✅ Phase 3 완료: {enhanced_count}개 항목 상세화 (소요시간: {phase3_duration:.2f}초)")
+
+        return {
+            "structure": structure,
+            "enhanced_count": enhanced_count,
+            "phase3_duration": phase3_duration,
+        }
+
+    def _collect_structure_items(self, structure: list, result: list, parent_path: str):
+        """구조를 재귀적으로 순회하여 모든 항목 수집"""
+        for idx, item in enumerate(structure):
+            current_path = f"{parent_path}.{idx+1}" if parent_path else str(idx+1)
+            result.append({"item": item, "path": current_path})
+
+            if "subStructure" in item and item["subStructure"]:
+                self._collect_structure_items(item["subStructure"], result, current_path)
+
+    def _extract_section_text(self, full_text: str, title: str, main_content: str, max_length: int = 5000) -> str:
+        """문서에서 특정 섹션의 텍스트 추출"""
+        # 간단한 휴리스틱: 제목을 찾아서 다음 제목까지의 텍스트 추출
+        if not title:
+            return main_content[:max_length]
+
+        # 제목 위치 찾기
+        title_pos = full_text.find(title)
+        if title_pos == -1:
+            return main_content[:max_length]
+
+        # 제목부터 일정 길이만큼 추출
+        section_text = full_text[title_pos:title_pos + max_length]
+
+        return section_text
 
 
 __all__ = ["LocalFileAnalyzer", "LLMJsonError"]

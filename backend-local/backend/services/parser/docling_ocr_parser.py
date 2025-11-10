@@ -58,6 +58,7 @@ class DoclingOCRParser(DocumentParser):
             try:
                 # GPU/MPS 사용 가능 여부 자동 감지
                 import torch
+                import warnings
                 use_gpu = torch.cuda.is_available() or torch.backends.mps.is_available()
                 device = 'cpu'
 
@@ -65,6 +66,9 @@ class DoclingOCRParser(DocumentParser):
                     device = 'cuda'
                 elif torch.backends.mps.is_available():
                     device = 'mps'
+                    # MPS에서 pin_memory 경고 억제
+                    warnings.filterwarnings('ignore', category=UserWarning,
+                                          message=".*pin_memory.*not supported on MPS.*")
 
                 self.easyocr_reader = easyocr.Reader(['ko', 'en'], gpu=use_gpu)
                 logger.info(f"✅ EasyOCR Reader 초기화 완료 (한글+영문) - 디바이스: {device}, 모드: {self.ocr_engine}")

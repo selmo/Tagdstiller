@@ -123,8 +123,8 @@ class KGToCypherConverter:
         return "\n".join(cypher_lines)
 
     def _generate_indexes(self, kg_data: Dict[str, Any]) -> List[str]:
-        """인덱스 생성 쿼리 생성"""
-        queries = ["// Create indexes for performance"]
+        """인덱스 생성 쿼리 생성 (Memgraph 호환)"""
+        queries = ["// Create indexes for performance (Memgraph syntax)"]
 
         # 엔티티 타입별 인덱스 생성
         graph = kg_data.get("graph", kg_data)
@@ -136,9 +136,14 @@ class KGToCypherConverter:
             entity_types.add(node_type)
 
         for entity_type in sorted(entity_types):
-            # Neo4j/Memgraph 스타일 인덱스
-            queries.append(f"CREATE INDEX IF NOT EXISTS FOR (n:{entity_type}) ON (n.id);")
-            queries.append(f"CREATE INDEX IF NOT EXISTS FOR (n:{entity_type}) ON (n.name);")
+            # Memgraph 스타일 인덱스 (IF NOT EXISTS 미지원)
+            # 주석: 이미 존재하는 인덱스는 수동으로 제거해야 함
+            queries.append(f"CREATE INDEX ON :{entity_type}(id);")
+            queries.append(f"CREATE INDEX ON :{entity_type}(name);")
+
+        queries.append("")
+        queries.append("// Note: If indexes already exist, drop them first with:")
+        queries.append("// DROP INDEX ON :EntityType(property);")
 
         return queries
 

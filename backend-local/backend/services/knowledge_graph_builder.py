@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 import logging
+import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -170,7 +172,8 @@ class KnowledgeGraphBuilder:
         model = config.get("model", "models/gemini-2.0-flash")
         base_url = config.get("base_url", "https://generativelanguage.googleapis.com")
         timeout = config.get("timeout", 600)
-        max_retries = config.get("max_retries", 3)
+        max_retries = config.get("max_retries", 5)  # 3 → 5로 증가
+        base_delay = config.get("base_delay", 15)  # 기본 15초: 모든 요청 전 대기
 
         if not api_key:
             return {"success": False, "error": "Gemini API 키가 없습니다"}
@@ -189,20 +192,27 @@ class KnowledgeGraphBuilder:
             }
         }
 
-        # 재시도 로직 (exponential backoff)
+        # 재시도 로직 (exponential backoff with longer waits + base delay)
         for attempt in range(max_retries):
             try:
-                if attempt > 0:
-                    wait_time = (2 ** attempt) * 2  # 2, 4, 8초
+                # 모든 요청 전 기본 대기 (rate limit 회피)
+                if attempt == 0 and base_delay > 0:
+                    self.logger.info(f"⏳ Rate limit 회피 대기... {base_delay}초")
+                    time.sleep(base_delay)
+                elif attempt > 0:
+                    # 재시도 시 exponential backoff
+                    wait_time = (2 ** attempt) * 5  # 5, 10, 20, 40, 80초
                     self.logger.warning(f"⏳ Rate limit 대기 중... {wait_time}초 ({attempt + 1}/{max_retries})")
                     time.sleep(wait_time)
 
+                api_call_start = time.time()
                 self.logger.info(f"📡 Gemini API 호출 시작... (모델: {model}, 시도: {attempt + 1}/{max_retries})")
 
                 response = requests.post(url, json=payload, timeout=timeout)
                 response.raise_for_status()
 
                 result = response.json()
+                api_call_duration = time.time() - api_call_start
 
                 # 응답 텍스트 추출
                 candidates = result.get("candidates", [])
@@ -217,9 +227,28 @@ class KnowledgeGraphBuilder:
 
                 response_text = parts[0].get("text", "")
 
-                self.logger.info(f"✅ Gemini 응답 수신 완료: {len(response_text):,}자")
+                # 토큰 사용량 추출 (Gemini API는 usageMetadata에 토큰 정보 포함)
+                usage_metadata = result.get("usageMetadata", {})
+                input_tokens = usage_metadata.get("promptTokenCount", 0)
+                output_tokens = usage_metadata.get("candidatesTokenCount", 0)
+                total_tokens = usage_metadata.get("totalTokenCount", 0)
 
-                return {"success": True, "response": response_text}
+                self.logger.info(
+                    f"✅ Gemini 응답 수신 완료: {len(response_text):,}자 "
+                    f"(소요시간: {api_call_duration:.2f}초, "
+                    f"토큰: 입력 {input_tokens:,} + 출력 {output_tokens:,} = 총 {total_tokens:,})"
+                )
+
+                return {
+                    "success": True,
+                    "response": response_text,
+                    "duration": api_call_duration,
+                    "tokens": {
+                        "input": input_tokens,
+                        "output": output_tokens,
+                        "total": total_tokens
+                    }
+                }
 
             except requests.exceptions.Timeout:
                 return {"success": False, "error": f"Gemini API 타임아웃 ({timeout}초)"}
@@ -240,7 +269,7 @@ class KnowledgeGraphBuilder:
         return {"success": False, "error": f"Gemini API rate limit 초과 - {max_retries}회 재시도 모두 실패"}
 
     def _call_openai_for_kg(self, prompt: str, config: Dict[str, Any]) -> Dict[str, Any]:
-        """OpenAI API 호출"""
+        """OpenAI API 호출 (새로운 /v1/responses API 사용)"""
         try:
             import requests
 
@@ -252,31 +281,136 @@ class KnowledgeGraphBuilder:
             if not api_key:
                 return {"success": False, "error": "OpenAI API 키가 없습니다"}
 
-            url = f"{base_url}/chat/completions"
+            # GPT-5 모델은 새로운 /v1/responses 엔드포인트 사용
+            use_responses_api = "gpt-5" in model.lower()
+
+            if use_responses_api:
+                url = f"{base_url}/responses"
+            else:
+                url = f"{base_url}/chat/completions"
+
             headers = {
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json"
             }
 
-            payload = {
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": config.get("temperature", 0.1),
-                "max_tokens": config.get("max_tokens", 8192),
-            }
+            # GPT-5 모델의 경우 새로운 API 형식 사용
+            if use_responses_api:
+                payload = {
+                    "model": model,
+                    "input": prompt,
+                    "reasoning": {
+                        "effort": config.get("reasoning_effort", "minimal")  # minimal, medium, high
+                    }
+                }
+                self.logger.info(f"📡 OpenAI /v1/responses API 호출 (모델: {model}, reasoning: {payload['reasoning']['effort']})")
+            else:
+                # 기존 chat/completions API 형식
+                max_output = config.get("max_tokens", config.get("max_completion_tokens", 8192))
 
-            self.logger.info(f"📡 OpenAI API 호출 시작... (모델: {model})")
+                payload = {
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": config.get("temperature", 0.1),
+                }
 
+                # 모델에 따라 적절한 파라미터 사용
+                if "o1" in model.lower() or "gpt-4o" in model.lower():
+                    payload["max_completion_tokens"] = max_output
+                else:
+                    payload["max_tokens"] = max_output
+
+                self.logger.info(f"📡 OpenAI /v1/chat/completions API 호출 (모델: {model})")
+
+            api_call_start = time.time()
             response = requests.post(url, headers=headers, json=payload, timeout=timeout)
+
+            # 400 오류 시 상세 에러 메시지 로깅
+            if response.status_code == 400:
+                try:
+                    error_detail = response.json()
+                    self.logger.error(f"❌ OpenAI 400 Bad Request 상세:")
+                    self.logger.error(f"   - 오류 메시지: {error_detail.get('error', {}).get('message', 'Unknown')}")
+                    self.logger.error(f"   - 요청 모델: {model}")
+                    self.logger.error(f"   - API 엔드포인트: {url}")
+                    self.logger.error(f"   - 프롬프트 길이: {len(prompt)} 문자")
+                except:
+                    pass
+
             response.raise_for_status()
 
             result = response.json()
-            response_text = result["choices"][0]["message"]["content"]
 
-            self.logger.info(f"✅ OpenAI 응답 수신 완료: {len(response_text):,}자")
+            # 응답 파싱 (API 형식에 따라 다름)
+            if use_responses_api:
+                # GPT-5 API 응답 구조: {"output": [reasoning, message], ...}
+                if isinstance(result, dict) and "output" in result:
+                    output_array = result["output"]
 
-            return {"success": True, "response": response_text}
+                    # output 배열에서 'message' 타입 찾기
+                    message_obj = None
+                    for item in output_array:
+                        if item.get('type') == 'message':
+                            message_obj = item
+                            break
 
+                    if message_obj and 'content' in message_obj:
+                        content_list = message_obj['content']
+                        for content_item in content_list:
+                            if content_item.get('type') == 'output_text':
+                                response_text = content_item.get('text', '')
+                                self.logger.info(f"✅ /v1/responses API 응답 파싱 성공: {len(response_text)}자")
+                                break
+                        else:
+                            # output_text를 찾지 못함
+                            self.logger.error(f"❌ /v1/responses API: output_text를 찾지 못함")
+                            raise RuntimeError("OpenAI /v1/responses API: output_text를 찾을 수 없음")
+                    else:
+                        self.logger.error(f"❌ /v1/responses API: message 객체를 찾지 못함")
+                        raise RuntimeError("OpenAI /v1/responses API: message 객체를 찾을 수 없음")
+                else:
+                    self.logger.error(f"❌ 예상하지 못한 응답 형식")
+                    raise RuntimeError(f"OpenAI /v1/responses API 응답 형식 오류")
+            else:
+                # 기존 chat/completions API
+                response_text = result["choices"][0]["message"]["content"]
+
+            # 토큰 사용량 추출 (OpenAI API는 usage 필드에 토큰 정보 포함)
+            usage = result.get("usage", {})
+            input_tokens = usage.get("prompt_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0)
+            total_tokens = usage.get("total_tokens", 0)
+
+            # 응답 시간 계산
+            api_call_duration = time.time() - api_call_start if 'api_call_start' in locals() else 0
+
+            self.logger.info(
+                f"✅ OpenAI 응답 수신 완료: {len(response_text):,}자 "
+                f"(토큰: 입력 {input_tokens:,} + 출력 {output_tokens:,} = 총 {total_tokens:,})"
+            )
+
+            return {
+                "success": True,
+                "response": response_text,
+                "duration": api_call_duration,
+                "tokens": {
+                    "input": input_tokens,
+                    "output": output_tokens,
+                    "total": total_tokens
+                }
+            }
+
+        except requests.exceptions.HTTPError as e:
+            # HTTP 오류 상세 로깅
+            error_msg = str(e)
+            if e.response is not None:
+                try:
+                    error_detail = e.response.json()
+                    error_msg = f"{e} | Detail: {error_detail.get('error', {}).get('message', error_detail)}"
+                except:
+                    pass
+            self.logger.error(f"OpenAI HTTP 오류: {error_msg}", exc_info=True)
+            return {"success": False, "error": str(e)}
         except Exception as e:
             self.logger.error(f"OpenAI 호출 오류: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
@@ -286,9 +420,12 @@ class KnowledgeGraphBuilder:
         try:
             import requests
 
-            base_url = config.get("base_url", "http://localhost:11434")
-            model = config.get("model", "llama3.2")
-            timeout = config.get("timeout", 600)
+            # config 중첩 구조 처리: {"provider": "ollama", "config": {...}}
+            ollama_config = config.get("config", config)  # config 안의 config를 사용, 없으면 전체 사용
+
+            base_url = ollama_config.get("base_url", "http://localhost:11434")
+            model = ollama_config.get("model", "llama3.2")
+            timeout = ollama_config.get("timeout", 600)
 
             url = f"{base_url}/api/generate"
             payload = {
@@ -296,21 +433,55 @@ class KnowledgeGraphBuilder:
                 "prompt": prompt,
                 "stream": False,
                 "options": {
-                    "temperature": config.get("temperature", 0.1),
+                    "temperature": ollama_config.get("temperature", 0.1),
                 }
             }
 
-            self.logger.info(f"📡 Ollama API 호출 시작... (모델: {model})")
+            self.logger.info(f"📡 Ollama API 호출 시작... (모델: {model}, URL: {base_url})")
 
-            response = requests.post(url, json=payload, timeout=timeout)
-            response.raise_for_status()
+            # Retry logic for server errors (500, 502, 503, 504)
+            max_retries = 3
+            retry_delays = [3, 6, 12]  # seconds
 
-            result = response.json()
-            response_text = result.get("response", "")
+            for attempt in range(max_retries):
+                try:
+                    response = requests.post(url, json=payload, timeout=timeout)
+                    response.raise_for_status()
 
-            self.logger.info(f"✅ Ollama 응답 수신 완료: {len(response_text):,}자")
+                    result = response.json()
+                    response_text = result.get("response", "")
 
-            return {"success": True, "response": response_text}
+                    self.logger.info(f"✅ Ollama 응답 수신 완료: {len(response_text):,}자")
+
+                    return {"success": True, "response": response_text}
+
+                except requests.exceptions.HTTPError as e:
+                    if e.response.status_code in [500, 502, 503, 504]:
+                        if attempt < max_retries - 1:
+                            delay = retry_delays[attempt]
+                            self.logger.warning(
+                                f"⚠️ Ollama 서버 오류 {e.response.status_code}, "
+                                f"{delay}초 후 재시도 ({attempt + 1}/{max_retries})"
+                            )
+                            time.sleep(delay)
+                            continue
+                        else:
+                            self.logger.error(f"❌ Ollama 서버 오류 (최대 재시도 횟수 도달): {e}")
+                            return {"success": False, "error": str(e)}
+                    else:
+                        # Other HTTP errors (4xx) - don't retry
+                        self.logger.error(f"Ollama HTTP 오류: {e}", exc_info=True)
+                        return {"success": False, "error": str(e)}
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        delay = retry_delays[attempt]
+                        self.logger.warning(
+                            f"⚠️ Ollama 호출 오류, {delay}초 후 재시도 ({attempt + 1}/{max_retries}): {e}"
+                        )
+                        time.sleep(delay)
+                        continue
+                    else:
+                        raise
 
         except Exception as e:
             self.logger.error(f"Ollama 호출 오류: {e}", exc_info=True)
@@ -398,43 +569,478 @@ class KnowledgeGraphBuilder:
                     except json.JSONDecodeError as e2:
                         self.logger.error(f"❌ JSON 복구 실패: {e2}")
 
+                        # 디버그: 실패한 JSON을 파일로 저장
+                        try:
+                            debug_dir = Path("/tmp/kg_json_debug")
+                            debug_dir.mkdir(exist_ok=True)
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+                            original_file = debug_dir / f"original_{timestamp}.txt"
+                            repaired_file = debug_dir / f"repaired_{timestamp}.txt"
+                            error_file = debug_dir / f"error_{timestamp}.txt"
+
+                            with open(original_file, 'w', encoding='utf-8') as f:
+                                f.write(json_str)
+                            with open(repaired_file, 'w', encoding='utf-8') as f:
+                                f.write(repaired)
+                            with open(error_file, 'w', encoding='utf-8') as f:
+                                f.write(f"Original error: {e}\n")
+                                f.write(f"Repair error: {e2}\n")
+                                f.write(f"Error position: line {e2.lineno if hasattr(e2, 'lineno') else '?'}, col {e2.colno if hasattr(e2, 'colno') else '?'}\n")
+
+                            self.logger.warning(f"🐛 JSON 디버그 파일 저장: {debug_dir}")
+                        except Exception as save_error:
+                            self.logger.debug(f"디버그 파일 저장 실패: {save_error}")
+
+                        # 로그에도 샘플 출력
+                        self.logger.debug(f"원본 JSON (처음 500자): {json_str[:500]}")
+                        self.logger.debug(f"원본 JSON (마지막 500자): {json_str[-500:]}")
+
         self.logger.warning("JSON 추출 실패, 빈 그래프 반환")
         return {"nodes": [], "edges": []}
 
     def _repair_incomplete_json(self, json_str: str) -> Optional[str]:
         """불완전한 JSON을 수정 (LLM 응답이 잘렸을 때)"""
         try:
-            # 잘린 JSON의 일반적인 패턴 수정
-            # 1. 마지막 객체가 불완전한 경우 제거
-            # 2. 배열과 객체 닫기
+            import re
 
-            # 마지막 쉼표 뒤에 불완전한 항목이 있는지 확인
-            last_comma_pos = json_str.rfind(',')
-            if last_comma_pos > 0:
-                # 마지막 쉼표 이후 내용 확인
-                after_comma = json_str[last_comma_pos+1:].strip()
-                # 완전한 객체인지 확인 (닫는 중괄호가 있는지)
-                if after_comma and not after_comma.endswith('}'):
-                    # 불완전한 객체 제거
-                    json_str = json_str[:last_comma_pos]
-                    self.logger.info(f"🔧 불완전한 마지막 객체 제거")
+            # 0-0. JSON 주석 제거 (LLM이 잘못 생성한 주석)
+            # 패턴 1: // 주석 (한 줄 주석)
+            # 패턴 2: /* */ 주석 (블록 주석)
+            before_comment = json_str.count('//')
+            # 문자열 외부의 // 주석만 제거 (문자열 내부 // 는 유지)
+            json_str = re.sub(r',\s*//[^\n]*', ',', json_str)  # ", // comment" → ","
+            json_str = re.sub(r'\}\s*,\s*//[^\n]*', '},', json_str)  # "}, // comment" → "},"
+            json_str = re.sub(r'//[^\n]*\n', '\n', json_str)  # 독립 주석 라인 제거
+            after_comment = json_str.count('//')
+            if before_comment > after_comment:
+                self.logger.info(f"🔧 JSON 주석 제거 완료 ({before_comment - after_comment}개)")
 
-            # 필요한 닫는 괄호 추가
+            # 블록 주석 제거
+            before_block = json_str.count('/*')
+            json_str = re.sub(r'/\*.*?\*/', '', json_str, flags=re.DOTALL)
+            after_block = json_str.count('/*')
+            if before_block > after_block:
+                self.logger.info(f"🔧 JSON 블록 주석 제거 완료 ({before_block - after_block}개)")
+
+            # 0-0-1. 배열이 너무 일찍 닫힌 경우 수정
+            # 패턴 1: ...}]}\n{"id": ... → ...}},\n{"id": ... (entities 배열 조기 종료)
+            # 패턴 2: ...}}],\n{"id": ... → ...}},\n{"id": ... (중간 배열 닫힘)
+            early_close_pattern1 = r'(\}\})\s*\]\s*\}\s*,?\s*\n(\s*\{\s*"id":)'
+            matches1 = list(re.finditer(early_close_pattern1, json_str))
+            if matches1:
+                for match in reversed(matches1):
+                    json_str = json_str[:match.start()] + match.group(1) + ',\n' + match.group(2) + json_str[match.end():]
+                self.logger.info(f"🔧 배열 조기 종료 수정 (패턴1: ]}}): {len(matches1)}개")
+
+            # 패턴 2: 중간에 배열이 닫힌 경우
+            early_close_pattern2 = r'(\}\})\s*\]\s*,\s*\n(\s*\{\s*"id":)'
+            matches2 = list(re.finditer(early_close_pattern2, json_str))
+            if matches2:
+                for match in reversed(matches2):
+                    json_str = json_str[:match.start()] + match.group(1) + ',\n' + match.group(2) + json_str[match.end():]
+                self.logger.info(f"🔧 배열 조기 종료 수정 (패턴2: ]],): {len(matches2)}개")
+
+            # 패턴 3: 엔티티 뒤에 추가 닫는 중괄호와 줄바꿈
+            # ...}}\n    },\n\n    {"id": ... → ...}},\n\n    {"id": ...
+            # 이 패턴은 TableRow 같은 엔티티 뒤에 잘못된 중첩 닫기가 있을 때 발생
+            extra_closing_pattern = r'(\}\})\s*\n\s+\}\s*,\s*\n+(\s*\{\s*"id":)'
+            matches3 = list(re.finditer(extra_closing_pattern, json_str))
+            if matches3:
+                for match in reversed(matches3):
+                    # 다음 엔티티의 들여쓰기 보존
+                    next_indent = match.group(2)
+                    json_str = json_str[:match.start()] + match.group(1) + ',\n' + next_indent + json_str[match.end():]
+                self.logger.info(f"🔧 엔티티 뒤 추가 닫는 중괄호 제거 (패턴3): {len(matches3)}개")
+
+            # 패턴 4: 문자열 값 내부의 잘못된 중괄호 (특히 notes 필드)
+            # "notes": "Contextual} placeholder" → "notes": "Contextual placeholder"
+            # 문자열 내부의 단독 } 또는 { 제거
+            string_brace_pattern = r'("\w+"\s*:\s*"[^"]*?)(\}|\{)([^"]*")'
+            before_str_fix = json_str.count('"}')
+
+            def fix_string_braces(match):
+                """문자열 값 내부의 단독 중괄호 제거"""
+                prefix = match.group(1)  # "field": "text before
+                brace = match.group(2)    # } or {
+                suffix = match.group(3)   # text after"
+
+                # 중괄호가 문자열 중간에 있으면 제거
+                # 단, JSON 구조가 아닌 일반 텍스트로 판단되는 경우만
+                if brace in '{}' and not suffix.startswith('}}'):  # 실제 JSON 종료가 아닌 경우
+                    return prefix + suffix  # 중괄호 제거
+                return match.group(0)  # 변경 없음
+
+            json_str = re.sub(string_brace_pattern, fix_string_braces, json_str)
+            after_str_fix = json_str.count('"}')
+            if before_str_fix != after_str_fix:
+                self.logger.info(f"🔧 문자열 값 내부 잘못된 중괄호 제거 (패턴4): {abs(before_str_fix - after_str_fix)}개")
+
+            # 0. 여분의 닫는 중괄호 제거 (특히 }}}+ 패턴)
+            # 패턴 1: properties 내부 여분 괄호 - "name": "value"}}} → "name": "value"}}
+            # 패턴 2: 배열 항목 여분 괄호 - {...}}}}, → {...}},
+
+            # 특정 패턴 수정: properties 끝에 여분 중괄호
+            # "name": "value"}}}, → "name": "value"}},
+            before_fix = json_str.count('}}}')
+            json_str = re.sub(r'("\s*:\s*"[^"]*")\}\}\}', r'\1}}', json_str)
+            after_fix = json_str.count('}}}')
+            if before_fix > after_fix:
+                self.logger.info(f"🔧 properties 값 뒤 여분 중괄호 제거 ({before_fix - after_fix}개)")
+
+            # 여전히 }}} 패턴이 남아있으면 일괄 수정
+            remaining_triple = json_str.count('}}}')
+            if remaining_triple > 0:
+                json_str = re.sub(r'\}\}\}', '}}', json_str)
+                self.logger.info(f"🔧 남은 3개 연속 닫는 중괄호 수정 완료 ({remaining_triple}개)")
+
+            # 배열 아이템 뒤 여분 괄호: }}}, → }},
+            json_str = re.sub(r'\}\}\},', '}},', json_str)
+
+            # 이중 닫는 괄호 패턴 정리
+            double_closing_pattern = r'(\{[^}]*\})\s*\}\s*\}'
+            before_count = json_str.count('}}')
+            json_str = re.sub(r'(\})\s+\}\s*\}', r'\1}', json_str)
+            after_count = json_str.count('}}')
+            if before_count != after_count:
+                self.logger.info(f"🔧 이중 닫는 괄호 수정 완료 ({before_count - after_count}개)")
+
+            # 0-1. 잘못된 엔티티 형식 수정
+            # {"id": "n156", "type": "LegalRegulation", "name": "..."}
+            # → {"id": "n156", "type": "LegalRegulation", "properties": {"name": "..."}}
+            malformed_entity_pattern = r'\{"id":\s*"([^"]+)",\s*"type":\s*"([^"]+)",\s*("name"|"text"|"value"):\s*"([^"]*)"(\s*,\s*"[^"]+"\s*:\s*"[^"]*")*\s*\}'
+
+            def fix_malformed_entity(match):
+                entity_id = match.group(1)
+                entity_type = match.group(2)
+                field_name = match.group(3).strip('"')  # "name" → name
+                field_value = match.group(4)
+
+                # 추가 필드가 있는지 확인
+                extra_fields = match.group(5) or ""
+
+                # properties 형식으로 변환
+                properties_content = f'"{field_name}": "{field_value}"'
+
+                # 추가 필드가 있으면 properties 안에 포함
+                if extra_fields:
+                    # 쉼표로 시작하는 추가 필드를 properties 안에 넣기
+                    properties_content += extra_fields
+
+                result = f'{{"id": "{entity_id}", "type": "{entity_type}", "properties": {{{properties_content}}}}}'
+                return result
+
+            fixed_entities_count = 0
+            matches = list(re.finditer(malformed_entity_pattern, json_str))
+            for match in reversed(matches):  # 뒤에서부터 수정하여 인덱스 유지
+                fixed = fix_malformed_entity(match)
+                json_str = json_str[:match.start()] + fixed + json_str[match.end():]
+                fixed_entities_count += 1
+
+            if fixed_entities_count > 0:
+                self.logger.info(f"🔧 잘못된 엔티티 형식 {fixed_entities_count}개 수정 완료 (properties 추가)")
+
+            # 0-2. properties 뒤에 추가 필드가 있는 경우 수정
+            # {"properties": {...},"row_count": 17, "column_count": 3}
+            # → {"properties": {..., "row_count": 17, "column_count": 3}}
+            properties_with_external_fields = r'("properties"\s*:\s*\{[^}]+\})\s*,\s*("([^"]+)"\s*:\s*([^,}\s]+)(?:\s*,\s*"([^"]+)"\s*:\s*([^,}\s]+))*)'
+
+            def fix_properties_external_fields(match):
+                """properties 외부의 필드를 내부로 이동"""
+                properties_part = match.group(1)  # "properties": {...}
+                external_fields = match.group(2)  # "field": value, "field2": value2
+
+                # properties 내용 추출 (마지막 } 제거)
+                if properties_part.endswith('}'):
+                    properties_content = properties_part[:-1]  # "properties": {...
+                else:
+                    return match.group(0)  # 변경 없음
+
+                # 외부 필드를 properties 안으로 이동
+                result = properties_content + ", " + external_fields + "}"
+                return result
+
+            json_str_before = json_str
+            json_str = re.sub(properties_with_external_fields, fix_properties_external_fields, json_str)
+            if json_str != json_str_before:
+                self.logger.info(f"🔧 properties 외부 필드를 내부로 이동 완료")
+
+            # 1. 제어 문자 이스케이프 처리 (JSON 파싱 오류 방지)
+            def escape_control_chars(match):
+                """JSON 문자열 내 제어 문자를 이스케이프"""
+                s = match.group(0)
+                # 제어 문자를 이스케이프된 형태로 변환
+                s = s.replace('\n', '\\n')
+                s = s.replace('\r', '\\r')
+                s = s.replace('\t', '\\t')
+                s = s.replace('\b', '\\b')
+                s = s.replace('\f', '\\f')
+                # 기타 제어 문자 (ASCII 0-31) 제거
+                s = ''.join(char if ord(char) >= 32 or char in '\n\r\t\b\f' else '' for char in s)
+                return s
+
+            json_str = re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"', escape_control_chars, json_str)
+            self.logger.info(f"🔧 제어 문자 이스케이프 처리 완료")
+
+            # 2. 잘못된 백슬래시 이스케이프 처리
+            def fix_escapes_in_strings(match):
+                """문자열 내부의 잘못된 이스케이프 수정
+
+                유효한 JSON 이스케이프: " \\ / b f n r t u
+                잘못된 이스케이프 (예: \_ \() 는 백슬래시를 제거
+                """
+                s = match.group(0)
+                # 잘못된 이스케이프: 백슬래시 뒤에 유효하지 않은 문자가 오는 경우
+                # 해결: 백슬래시를 제거 (예: /\_ -> /_, /\( -> /()
+                s = re.sub(r'\\(?!["\\/bfnrtu])', '', s)
+                return s
+
+            json_str = re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"', fix_escapes_in_strings, json_str)
+            self.logger.info(f"🔧 백슬래시 이스케이프 수정 완료 (잘못된 이스케이프 제거)")
+
+            # 2. LLM이 생성한 잘못된 JSON 패턴 수정
+            # 패턴: {"properties": {...}},\n    "name": "..."}}, → {"properties": {...}}},
+            # 이는 LLM이 properties 닫은 후 외부에 중복 필드를 추가한 경우
+            # 예: {"properties": {"name": "A"}}, "name": "A"}}
+            malformed_pattern = r'("properties"\s*:\s*\{[^}]+\})\s*\}\s*,\s*("[^"]+"\s*:\s*"[^"]*")(\s*\}\s*\})'
+            def fix_malformed_properties(match):
+                properties_part = match.group(1)  # "properties": {...}
+                external_field = match.group(2)   # "name": "값"
+                closing = match.group(3)           # }}
+
+                # 외부 필드 파싱
+                field_match = re.match(r'"(\w+)"\s*:\s*"([^"]*)"', external_field)
+                if field_match:
+                    field_name = field_match.group(1)
+                    field_value = field_match.group(2)
+
+                    # 외부 필드가 이미 properties 안에 있는지 확인
+                    if f'"{field_name}"' in properties_part:
+                        # 중복이므로 외부 필드 제거하고 properties만 유지
+                        self.logger.debug(f"🔧 중복 필드 '{field_name}' 제거 (properties 내부에 이미 존재)")
+                        return properties_part + "}" + closing
+                    else:
+                        # properties 안에 없으면 추가
+                        self.logger.debug(f"🔧 외부 필드 '{field_name}'를 properties 안으로 이동")
+                        return properties_part[:-1] + f', "{field_name}": "{field_value}"' + "}}" + closing
+                else:
+                    # 파싱 실패 시 원본 유지
+                    return match.group(0)
+
+            json_str = re.sub(malformed_pattern, fix_malformed_properties, json_str, flags=re.DOTALL)
+            fixed_count = len(re.findall(malformed_pattern, json_str, flags=re.DOTALL))
+            if fixed_count > 0:
+                self.logger.info(f"🔧 잘못된 JSON 패턴 {fixed_count}개 수정 완료 (중복 필드 처리)")
+
+            # 3. 불완전한 JSON 객체/배열 찾아서 제거
+            # 전략: 마지막 완전한 객체/배열까지만 유지
+
+            # 2-1. 닫는 괄호가 부족한 경우 먼저 처리
             open_braces = json_str.count('{') - json_str.count('}')
             open_brackets = json_str.count('[') - json_str.count(']')
 
-            if open_brackets > 0:
-                json_str += '\n  ]' * open_brackets
-                self.logger.info(f"🔧 닫는 배열 괄호 {open_brackets}개 추가")
+            # 2-2. 배열 내에서 불완전한 마지막 항목 제거
+            # "entities": [ {...}, {...}, {불완전 <- 여기를 제거
+            # 전략: 마지막 쉼표 이후가 완전한 객체가 아니면 마지막 쉼표부터 제거
+            if '"entities"' in json_str or '"nodes"' in json_str:
+                # 마지막 쉼표 위치 찾기 (문자열 내부 제외)
+                last_comma = -1
+                in_string = False
+                escape_next = False
 
-            if open_braces > 0:
-                json_str += '\n}' * open_braces
-                self.logger.info(f"🔧 닫는 객체 괄호 {open_braces}개 추가")
+                for i, char in enumerate(json_str):
+                    if escape_next:
+                        escape_next = False
+                        continue
+                    if char == '\\':
+                        escape_next = True
+                        continue
+                    if char == '"' and not escape_next:
+                        in_string = not in_string
+                        continue
+                    if in_string:
+                        continue
+
+                    if char == ',':
+                        # 배열 내부의 쉼표인지 확인 (depth 체크는 복잡하니 단순화)
+                        last_comma = i
+
+                # 마지막 쉼표 이후 첫 번째 객체가 완전한지 확인
+                if last_comma > 0:
+                    after_comma = json_str[last_comma+1:]
+
+                    # 쉼표 이후 첫 번째 객체의 괄호 균형 확인
+                    first_obj_brace_count = 0
+                    in_string = False
+                    escape_next = False
+                    obj_started = False
+                    obj_ended = False
+
+                    for char in after_comma:
+                        if escape_next:
+                            escape_next = False
+                            continue
+                        if char == '\\':
+                            escape_next = True
+                            continue
+                        if char == '"' and not escape_next:
+                            in_string = not in_string
+                            continue
+                        if in_string:
+                            continue
+
+                        if char == '{':
+                            first_obj_brace_count += 1
+                            obj_started = True
+                        elif char == '}':
+                            first_obj_brace_count -= 1
+                            if obj_started and first_obj_brace_count == 0:
+                                obj_ended = True
+                                break  # 첫 번째 객체 끝
+                        elif char in ('[', ']') and not obj_started:
+                            # 객체 시작 전에 배열 괄호 나옴 → 이미 배열 닫혔음
+                            break
+
+                    # 첫 번째 객체가 불완전하면 (시작했지만 안 닫힘)
+                    if obj_started and not obj_ended:
+                        json_str = json_str[:last_comma].strip()
+                        self.logger.info(f"🔧 불완전한 마지막 항목 제거 (괄호 불균형: {first_obj_brace_count})")
+
+                        # 적절한 닫기 추가
+                        if not json_str.rstrip().endswith(']'):
+                            json_str = json_str.rstrip() + '\n  ]\n}'
+                            self.logger.debug(f"🔧 배열 및 객체 닫기 추가")
+
+            # 3. Trailing comma 제거 (,] 또는 ,} 형태)
+            json_str = re.sub(r',\s*]', ']', json_str)
+            json_str = re.sub(r',\s*}', '}', json_str)
+            self.logger.debug(f"🔧 Trailing comma 제거 완료")
+
+            # 4. 빈 값 처리 (: , 또는 : } 또는 : ] 형태)
+            json_str = re.sub(r':\s*,', ': null,', json_str)
+            json_str = re.sub(r':\s*}', ': null}', json_str)
+            json_str = re.sub(r':\s*]', ': null]', json_str)
+            self.logger.debug(f"🔧 빈 값을 null로 대체 완료")
+
+            # 5. 필요한 닫는 괄호 재계산 및 추가
+            # 먼저 현재 상태 파악 (문자열 내부 제외)
+            brace_count = 0
+            bracket_count = 0
+            in_string = False
+            escape_next = False
+
+            for char in json_str:
+                if escape_next:
+                    escape_next = False
+                    continue
+                if char == '\\':
+                    escape_next = True
+                    continue
+                if char == '"' and not escape_next:
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                elif char == '[':
+                    bracket_count += 1
+                elif char == ']':
+                    bracket_count -= 1
+
+            # 필요한 닫는 괄호 추가
+            if bracket_count > 0:
+                json_str += '\n]' * bracket_count
+                self.logger.info(f"🔧 닫는 배열 괄호 {bracket_count}개 추가")
+
+            if brace_count > 0:
+                json_str += '\n}' * brace_count
+                self.logger.info(f"🔧 닫는 객체 괄호 {brace_count}개 추가")
 
             return json_str
         except Exception as e:
             self.logger.error(f"JSON 복구 중 오류: {e}")
             return None
+
+    def _save_checkpoint(
+        self,
+        checkpoint_file: Path,
+        chunk_graphs: list,
+        last_completed_idx: int
+    ):
+        """체크포인트 저장 (JSON 직렬화 가능한 데이터만 저장)"""
+        try:
+            import json
+
+            # chunk_graphs를 JSON 직렬화 가능한 형태로 변환
+            serializable_graphs = []
+            for graph in chunk_graphs:
+                if isinstance(graph, dict):
+                    # 이미 dict이면 그대로 사용
+                    serializable_graphs.append(graph)
+                elif hasattr(graph, '__dict__'):
+                    # 객체면 __dict__ 사용 (주의: 재귀적으로 변환 필요할 수 있음)
+                    # 하지만 체크포인트는 나중에 병합할 수 있는 graph 형태만 저장하면 됨
+                    # graph 구조: {"nodes": [...], "edges": [...]}
+                    if hasattr(graph, 'get'):
+                        serializable_graphs.append(graph)
+                    else:
+                        self.logger.debug(f"⚠️ 직렬화 불가능한 객체 건너뛰기: {type(graph)}")
+                        continue
+
+            checkpoint = {
+                "last_completed_idx": last_completed_idx,
+                "chunk_graphs": serializable_graphs,
+                "timestamp": datetime.now().isoformat()
+            }
+
+            with open(checkpoint_file, 'w', encoding='utf-8') as f:
+                json.dump(checkpoint, f, ensure_ascii=False, indent=2, default=str)
+
+            self.logger.debug(f"💾 체크포인트 저장: {last_completed_idx + 1}개 청크 완료 ({len(serializable_graphs)}개 그래프)")
+        except Exception as e:
+            self.logger.warning(f"⚠️ 체크포인트 저장 실패: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+
+    def _assign_uuids_to_graph(self, kg_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Knowledge Graph의 모든 노드와 엣지에 UUID 할당
+
+        LLM이 생성한 ID(n1, n2, e1 등)를 UUID로 변환하여 전역 고유성 보장
+        """
+        nodes = kg_data.get("nodes", [])
+        edges = kg_data.get("edges", [])
+
+        # 원본 ID → UUID 매핑
+        id_mapping = {}
+
+        # 1. 노드에 UUID 할당
+        for node in nodes:
+            old_id = node.get("id", "")
+            new_id = str(uuid.uuid4())
+            node["id"] = new_id
+            id_mapping[old_id] = new_id
+
+        # 2. 엣지에 UUID 할당 및 source/target 업데이트
+        for edge in edges:
+            # 엣지 ID를 UUID로 변경
+            edge["id"] = str(uuid.uuid4())
+
+            # source/target을 UUID로 매핑
+            old_source = edge.get("source", "")
+            old_target = edge.get("target", "")
+
+            edge["source"] = id_mapping.get(old_source, str(uuid.uuid4()))
+            edge["target"] = id_mapping.get(old_target, str(uuid.uuid4()))
+
+        return {
+            "nodes": nodes,
+            "edges": edges
+        }
 
     def _enrich_kg_with_metadata(
         self,
@@ -444,6 +1050,9 @@ class KnowledgeGraphBuilder:
         structure_info: Optional[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Knowledge Graph에 메타데이터 추가"""
+        # UUID 할당 먼저 수행
+        kg_data = self._assign_uuids_to_graph(kg_data)
+
         nodes = kg_data.get("nodes", [])
         edges = kg_data.get("edges", [])
 
@@ -515,7 +1124,8 @@ class KnowledgeGraphBuilder:
         self,
         kg_result: Dict[str, Any],
         output_dir: Path,
-        format: str = "json"
+        format: str = "json",
+        target_db: str = "memgraph"
     ) -> Dict[str, str]:
         """
         Knowledge Graph를 파일로 저장
@@ -523,7 +1133,8 @@ class KnowledgeGraphBuilder:
         Args:
             kg_result: Knowledge Graph 결과
             output_dir: 출력 디렉토리
-            format: 저장 형식 (json, cypher, graphml)
+            format: 저장 형식 (json, cypher, graphml, all)
+            target_db: Cypher 대상 DB (memgraph, neo4j)
 
         Returns:
             저장된 파일 경로 딕셔너리
@@ -545,11 +1156,11 @@ class KnowledgeGraphBuilder:
             if format == "cypher" or format == "all":
                 # Cypher 쿼리 형식 저장
                 cypher_path = output_dir / "knowledge_graph.cypher"
-                cypher_content = self._generate_cypher_queries(kg_result)
+                cypher_content = self._generate_cypher_queries(kg_result, target_db=target_db)
                 with cypher_path.open('w', encoding='utf-8') as f:
                     f.write(cypher_content)
                 saved_files["cypher"] = str(cypher_path)
-                self.logger.info(f"📝 Knowledge Graph Cypher 저장: {cypher_path}")
+                self.logger.info(f"📝 Knowledge Graph Cypher 저장 (대상: {target_db}): {cypher_path}")
 
             if format == "graphml" or format == "all":
                 # GraphML 형식 저장
@@ -566,11 +1177,22 @@ class KnowledgeGraphBuilder:
             self.logger.error(f"❌ Knowledge Graph 저장 실패: {e}", exc_info=True)
             return saved_files
 
-    def _generate_cypher_queries(self, kg_result: Dict[str, Any]) -> str:
-        """Cypher CREATE 쿼리 생성 (Neo4j/Memgraph 호환)"""
+    def _generate_cypher_queries(self, kg_result: Dict[str, Any], target_db: str = "memgraph") -> str:
+        """Cypher CREATE 쿼리 생성 (Neo4j/Memgraph 호환)
+
+        Args:
+            kg_result: Knowledge Graph 결과
+            target_db: 대상 DB (memgraph, neo4j)
+
+        Returns:
+            Cypher 쿼리 문자열
+        """
         queries = []
         queries.append("// Knowledge Graph Cypher Queries")
-        queries.append(f"// Generated: {datetime.now().isoformat()}\n")
+        queries.append(f"// Target Database: {target_db.upper()}")
+        queries.append(f"// Generated: {datetime.now().isoformat()}")
+        queries.append(f"// Total Nodes: {len(kg_result.get('graph', {}).get('nodes', []))}")
+        queries.append(f"// Total Edges: {len(kg_result.get('graph', {}).get('edges', []))}\n")
 
         # 노드 생성 쿼리
         queries.append("// Create Nodes")
@@ -687,9 +1309,11 @@ class KnowledgeGraphBuilder:
         domain: str = "general",
         structure_info: Optional[Dict[str, Any]] = None,
         llm_config: Optional[Dict[str, Any]] = None,
-        max_chunk_tokens: int = 8000,
+        max_chunk_tokens: int = 16000,  # 기본값 증가: 청크 수 감소
         output_dir: Optional[Path] = None,
-        extraction_level: str = "standard"
+        extraction_level: str = "standard",
+        fail_fast: bool = False,
+        force_restart: bool = False  # 변경: resume → force_restart (기본값은 체크포인트 재개)
     ) -> Dict[str, Any]:
         """
         구조 기반 청킹을 사용한 완전한 Knowledge Graph 생성
@@ -702,28 +1326,39 @@ class KnowledgeGraphBuilder:
             structure_info: 문서 구조 정보
             llm_config: LLM 설정
             max_chunk_tokens: 청크당 최대 토큰 수
+            fail_fast: 청크 오류 시 즉시 중단 (True: 개발/테스트 모드, False: 운용 모드)
+            force_restart: 체크포인트 무시하고 처음부터 시작 (True: 무시, False: 재개 - 기본값)
 
         Returns:
             병합된 완전한 Knowledge Graph
         """
         try:
+            total_start = time.time()
+
             # 파일명에서 문서 제목 추출
             document_title = Path(file_path).stem  # 확장자 제외한 파일명
             self.logger.info(f"🔍 청킹 기반 Full KG 생성 시작: {document_title}")
 
             # 1. 문서 청킹
+            chunking_start = time.time()
             from .document_chunker import StructuralChunker
             chunker = StructuralChunker()
 
             # 문서 구조 분석 및 청킹
             document_tree = chunker.analyzer.analyze_structure(text)
             chunker_level = chunker.determine_chunking_level(len(text), document_tree)
-            chunks = chunker.create_chunks(document_tree, chunk_level=chunker_level)
+            chunks = chunker.create_chunks(
+                document_tree,
+                chunk_level=chunker_level,
+                max_chunk_tokens=max_chunk_tokens  # API 파라미터 전달
+            )
 
-            self.logger.info(f"📄 문서를 {len(chunks)}개 청크로 분할 완료")
+            chunking_duration = time.time() - chunking_start
+            self.logger.info(f"📄 문서를 {len(chunks)}개 청크로 분할 완료 (소요시간: {chunking_duration:.2f}초)")
 
             # 2. 각 청크에서 KG 추출
             chunk_graphs = []
+            total_tokens_used = {"input": 0, "output": 0, "total": 0}  # 전체 토큰 사용량 누적
 
             # 청크 디버그 디렉토리 생성
             if output_dir:
@@ -732,38 +1367,141 @@ class KnowledgeGraphBuilder:
             else:
                 chunk_debug_dir = None
 
+            # 체크포인트 파일 경로
+            checkpoint_file = None
+            start_idx = 0
+
+            if chunk_debug_dir:
+                checkpoint_file = chunk_debug_dir / "checkpoint.json"
+
+                # force_restart=False이고 체크포인트가 있으면 재개 (기본 동작)
+                if not force_restart and checkpoint_file.exists():
+                    try:
+                        import json
+                        with open(checkpoint_file, 'r', encoding='utf-8') as f:
+                            checkpoint = json.load(f)
+
+                        # 이전 청크 결과 로드
+                        chunk_graphs = checkpoint.get('chunk_graphs', [])
+                        start_idx = checkpoint.get('last_completed_idx', 0) + 1
+
+                        self.logger.info(f"🔄 체크포인트에서 재개: {start_idx}/{len(chunks)} 청크부터 시작 ({len(chunk_graphs)}개 청크 이미 완료)")
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ 체크포인트 로드 실패: {e}, 처음부터 시작")
+                        start_idx = 0
+                        chunk_graphs = []
+                elif force_restart and checkpoint_file.exists():
+                    # force_restart=True인 경우 기존 체크포인트 삭제
+                    try:
+                        checkpoint_file.unlink()
+                        self.logger.info(f"🗑️ force_restart=True: 기존 체크포인트 삭제, 처음부터 시작")
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ 체크포인트 삭제 실패: {e}")
+
             for idx, chunk_group in enumerate(chunks):
                 chunk_id = f"chunk_{idx+1:03d}"
+
+                # 이미 처리된 청크는 건너뛰기
+                if idx < start_idx:
+                    self.logger.info(f"⏩ 청크 {idx+1}/{len(chunks)} 건너뛰기 (이미 완료)")
+                    continue
+
                 chunk_text = chunk_group.get_total_content()
                 parent_context = chunk_group.parent_context or "문서 루트"
 
                 self.logger.info(f"🔍 청크 {idx+1}/{len(chunks)} KG 추출 중... ({len(chunk_text):,}자)")
 
-                # 2-Phase 추출 사용 (엔티티 먼저, 관계 나중)
-                kg_data = self._extract_kg_from_chunk_2phase(
-                    chunk_text=chunk_text,
-                    chunk_id=chunk_id,
-                    parent_context=parent_context,
-                    structure_info=structure_info,
-                    llm_config=llm_config or {},
-                    debug_dir=chunk_debug_dir,
-                    extraction_level=extraction_level,
-                    document_title=document_title
-                )
+                try:
+                    # 2-Phase 추출 사용 (엔티티 먼저, 관계 나중)
+                    kg_data = self._extract_kg_from_chunk_2phase(
+                        chunk_text=chunk_text,
+                        chunk_id=chunk_id,
+                        parent_context=parent_context,
+                        structure_info=structure_info,
+                        llm_config=llm_config or {},
+                        debug_dir=chunk_debug_dir,
+                        extraction_level=extraction_level,
+                        document_title=document_title
+                    )
 
-                # kg_data가 None이면 이미 예외가 발생했을 것이므로 여기까지 오지 않음
-                chunk_graphs.append({
-                    "chunk_id": chunk_id,
-                    "graph": kg_data,
-                    "level": chunk_group.level,
-                    "nodes_in_chunk": chunk_group.nodes
-                })
+                    # 토큰 사용량 누적
+                    chunk_tokens = kg_data.get("tokens", {})
+                    total_tokens_used["input"] += chunk_tokens.get("input", 0)
+                    total_tokens_used["output"] += chunk_tokens.get("output", 0)
+                    total_tokens_used["total"] += chunk_tokens.get("total", 0)
 
-            # 3. 청크별 KG 병합
+                    # kg_data가 None이면 이미 예외가 발생했을 것이므로 여기까지 오지 않음
+                    chunk_graphs.append({
+                        "chunk_id": chunk_id,
+                        "graph": kg_data,
+                        "level": chunk_group.level,
+                        "nodes_in_chunk": chunk_group.nodes
+                    })
+
+                    # 체크포인트 저장 (성공한 경우에만)
+                    if checkpoint_file:
+                        self._save_checkpoint(checkpoint_file, chunk_graphs, idx)
+
+                except Exception as e:
+                    if fail_fast:
+                        # 개발/테스트 모드: 체크포인트 저장 후 즉시 중단
+                        if checkpoint_file:
+                            self._save_checkpoint(checkpoint_file, chunk_graphs, idx - 1)
+                        self.logger.error(f"❌ {chunk_id} KG 추출 실패 (fail_fast=True, 즉시 중단)")
+                        self.logger.info(f"💾 체크포인트 저장됨: 같은 옵션으로 재실행하면 자동 재개됨 (force_restart=true로 처음부터 시작 가능)")
+                        raise
+                    else:
+                        # 운용 모드: 건너뛰고 계속 (기본값)
+                        self.logger.error(f"⚠️ {chunk_id} KG 추출 실패: {e}")
+                        self.logger.warning(f"⏭️ {chunk_id} 건너뛰고 다음 청크 처리 계속... (fail_fast=False)")
+                        # 실패한 청크는 빈 그래프로 추가
+                        chunk_graphs.append({
+                            "chunk_id": chunk_id,
+                            "graph": {"nodes": [], "edges": []},
+                            "level": chunk_group.level,
+                            "nodes_in_chunk": chunk_group.nodes,
+                            "error": str(e)
+                        })
+
+                        # 체크포인트 저장 (실패한 경우에도)
+                        if checkpoint_file:
+                            self._save_checkpoint(checkpoint_file, chunk_graphs, idx)
+
+            # 3. 성공한 청크 확인 (운용 모드에서만)
+            if not fail_fast:
+                successful_chunks = [cg for cg in chunk_graphs if not cg.get("error")]
+                failed_chunks = [cg for cg in chunk_graphs if cg.get("error")]
+
+                if failed_chunks:
+                    self.logger.warning(f"⚠️ {len(failed_chunks)}개 청크 처리 실패")
+                    for fc in failed_chunks:
+                        self.logger.warning(f"  - {fc['chunk_id']}: {fc.get('error', 'Unknown error')}")
+
+                if not successful_chunks:
+                    raise ValueError(f"모든 청크 처리 실패 ({len(chunks)}개 청크 중 0개 성공)")
+
+                self.logger.info(f"✅ {len(successful_chunks)}/{len(chunks)} 청크 성공적으로 처리됨")
+            else:
+                # 개발/테스트 모드에서는 모든 청크가 성공했다고 가정 (실패 시 위에서 이미 raise)
+                successful_chunks = chunk_graphs
+                failed_chunks = []
+
+            # 4. 모든 청크 완료 시 체크포인트 삭제
+            if checkpoint_file and checkpoint_file.exists():
+                try:
+                    checkpoint_file.unlink()
+                    self.logger.info(f"🗑️ 모든 청크 완료: 체크포인트 삭제")
+                except Exception as e:
+                    self.logger.warning(f"⚠️ 체크포인트 삭제 실패: {e}")
+
+            # 5. 청크별 KG 병합
+            merge_start = time.time()
             self.logger.info(f"🔗 {len(chunk_graphs)}개 청크 KG 병합 중...")
             merged_kg = self._merge_chunk_graphs(chunk_graphs)
+            merge_duration = time.time() - merge_start
+            self.logger.info(f"✅ 청크 병합 완료 (소요시간: {merge_duration:.2f}초)")
 
-            # 4. 메타데이터 추가
+            # 6. 메타데이터 추가
             result = self._enrich_kg_with_metadata(
                 merged_kg,
                 file_path,
@@ -771,18 +1509,31 @@ class KnowledgeGraphBuilder:
                 structure_info
             )
 
-            # 청킹 정보 추가
+            # 청킹 정보 및 시간 정보 추가
+            total_duration = time.time() - total_start
             result["chunking_stats"] = {
                 "total_chunks": len(chunks),
-                "successful_extractions": len(chunk_graphs),
+                "successful_extractions": len(successful_chunks),
+                "failed_extractions": len(failed_chunks),
                 "max_chunk_tokens": max_chunk_tokens
+            }
+
+            result["performance_metrics"] = {
+                "total_duration": total_duration,
+                "chunking_duration": chunking_duration,
+                "extraction_duration": total_duration - chunking_duration - merge_duration,
+                "merge_duration": merge_duration,
+                "average_chunk_duration": (total_duration - chunking_duration - merge_duration) / len(chunks) if chunks else 0,
+                "total_tokens_used": total_tokens_used
             }
 
             self.logger.info(
                 f"✅ Full KG 생성 완료: "
                 f"{result['stats']['entity_count']}개 엔티티, "
                 f"{result['stats']['relationship_count']}개 관계 "
-                f"(from {len(chunks)} chunks)"
+                f"(총 소요시간: {total_duration:.2f}초, "
+                f"청크당 평균: {result['performance_metrics']['average_chunk_duration']:.2f}초, "
+                f"총 토큰: 입력 {total_tokens_used['input']:,} + 출력 {total_tokens_used['output']:,} = {total_tokens_used['total']:,})"
             )
 
             return result
@@ -812,7 +1563,11 @@ class KnowledgeGraphBuilder:
             from prompts.templates import KnowledgeGraphPrompts
             import json
 
+            chunk_total_start = time.time()
+
             # === Phase 1: 엔티티만 추출 ===
+            phase1_start = time.time()
+
             # 추출 레벨에 따라 프롬프트 선택
             level_prompts = {
                 "brief": KnowledgeGraphPrompts.PHASE1_ENTITY_BRIEF,
@@ -822,7 +1577,7 @@ class KnowledgeGraphBuilder:
 
             entity_template = level_prompts.get(extraction_level.lower(), level_prompts["standard"])
 
-            self.logger.info(f"🔍 {chunk_id} Phase 1: 엔티티 추출 중... (레벨: {extraction_level}, 문서: {document_title})")
+            self.logger.info(f"🔍 {chunk_id} Phase 1: 엔티티 추출 시작... (레벨: {extraction_level}, 문서: {document_title})")
 
             entity_prompt = entity_template.format(text=chunk_text, document_title=document_title)
 
@@ -831,7 +1586,9 @@ class KnowledgeGraphBuilder:
                 (debug_dir / f"{chunk_id}_phase1_prompt.txt").write_text(entity_prompt, encoding='utf-8')
 
             # Phase 1 LLM 호출
+            llm_call_start = time.time()
             phase1_response = self._call_llm_for_kg(entity_prompt, llm_config)
+            llm_call_duration = time.time() - llm_call_start
 
             if not phase1_response.get("success"):
                 error_msg = f"{chunk_id} Phase 1 LLM 호출 실패: {phase1_response.get('error')}"
@@ -841,14 +1598,17 @@ class KnowledgeGraphBuilder:
                 raise ValueError(error_msg)
 
             phase1_raw = phase1_response.get("response", "")
+            phase1_tokens = phase1_response.get("tokens", {})
 
             # 디버그: Phase 1 응답 저장
             if debug_dir:
                 (debug_dir / f"{chunk_id}_phase1_response.txt").write_text(phase1_raw, encoding='utf-8')
 
             # Phase 1 파싱
+            parse_start = time.time()
             entities_data = self._parse_kg_response(phase1_raw)
             entities = entities_data.get('entities', entities_data.get('nodes', []))
+            parse_duration = time.time() - parse_start
 
             if not entities:
                 error_msg = f"{chunk_id} Phase 1 실패: 엔티티가 추출되지 않았습니다"
@@ -859,10 +1619,16 @@ class KnowledgeGraphBuilder:
                     )
                 raise ValueError(error_msg)
 
-            self.logger.info(f"✅ {chunk_id} Phase 1 완료: {len(entities)}개 엔티티 추출")
+            phase1_duration = time.time() - phase1_start
+            self.logger.info(
+                f"✅ {chunk_id} Phase 1 완료: {len(entities)}개 엔티티 추출 "
+                f"(LLM: {llm_call_duration:.2f}초, 파싱: {parse_duration:.2f}초, 전체: {phase1_duration:.2f}초, "
+                f"토큰: 입력 {phase1_tokens.get('input', 0):,} + 출력 {phase1_tokens.get('output', 0):,} = 총 {phase1_tokens.get('total', 0):,})"
+            )
 
             # === Phase 2: 관계만 추출 ===
-            self.logger.info(f"🔗 {chunk_id} Phase 2: 관계 추출 중...")
+            phase2_start = time.time()
+            self.logger.info(f"🔗 {chunk_id} Phase 2: 관계 추출 시작...")
 
             # 엔티티 목록을 JSON으로 변환 (간결하게)
             entities_json = json.dumps([
@@ -880,7 +1646,9 @@ class KnowledgeGraphBuilder:
                 (debug_dir / f"{chunk_id}_phase2_prompt.txt").write_text(relation_prompt, encoding='utf-8')
 
             # Phase 2 LLM 호출
+            llm_call_start = time.time()
             phase2_response = self._call_llm_for_kg(relation_prompt, llm_config)
+            llm_call_duration = time.time() - llm_call_start
 
             if not phase2_response.get("success"):
                 error_msg = f"{chunk_id} Phase 2 LLM 호출 실패: {phase2_response.get('error')}"
@@ -890,16 +1658,24 @@ class KnowledgeGraphBuilder:
                 raise ValueError(error_msg)
 
             phase2_raw = phase2_response.get("response", "")
+            phase2_tokens = phase2_response.get("tokens", {})
 
             # 디버그: Phase 2 응답 저장
             if debug_dir:
                 (debug_dir / f"{chunk_id}_phase2_response.txt").write_text(phase2_raw, encoding='utf-8')
 
             # Phase 2 파싱
+            parse_start = time.time()
             relations_data = self._parse_kg_response(phase2_raw)
             relationships = relations_data.get('relationships', relations_data.get('edges', []))
+            parse_duration = time.time() - parse_start
 
-            self.logger.info(f"✅ {chunk_id} Phase 2 완료: {len(relationships)}개 관계 추출")
+            phase2_duration = time.time() - phase2_start
+            self.logger.info(
+                f"✅ {chunk_id} Phase 2 완료: {len(relationships)}개 관계 추출 "
+                f"(LLM: {llm_call_duration:.2f}초, 파싱: {parse_duration:.2f}초, 전체: {phase2_duration:.2f}초, "
+                f"토큰: 입력 {phase2_tokens.get('input', 0):,} + 출력 {phase2_tokens.get('output', 0):,} = 총 {phase2_tokens.get('total', 0):,})"
+            )
 
             # === 결과 병합 ===
             kg_data = {
@@ -914,10 +1690,26 @@ class KnowledgeGraphBuilder:
                     encoding='utf-8'
                 )
 
+            chunk_total_duration = time.time() - chunk_total_start
+
+            # 전체 토큰 사용량 계산
+            total_input_tokens = phase1_tokens.get('input', 0) + phase2_tokens.get('input', 0)
+            total_output_tokens = phase1_tokens.get('output', 0) + phase2_tokens.get('output', 0)
+            total_tokens = phase1_tokens.get('total', 0) + phase2_tokens.get('total', 0)
+
             self.logger.info(
                 f"✅ {chunk_id} 2-Phase 추출 완료: "
-                f"{len(entities)}개 엔티티, {len(relationships)}개 관계"
+                f"{len(entities)}개 엔티티, {len(relationships)}개 관계 "
+                f"(전체 소요시간: {chunk_total_duration:.2f}초, "
+                f"총 토큰: 입력 {total_input_tokens:,} + 출력 {total_output_tokens:,} = {total_tokens:,})"
             )
+
+            # 토큰 정보를 kg_data에 추가
+            kg_data["tokens"] = {
+                "input": total_input_tokens,
+                "output": total_output_tokens,
+                "total": total_tokens
+            }
 
             return kg_data
 
@@ -1032,36 +1824,38 @@ class KnowledgeGraphBuilder:
             raise
 
     def _merge_chunk_graphs(self, chunk_graphs: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """여러 청크의 KG를 하나로 병합"""
+        """여러 청크의 KG를 하나로 병합 (UUID 사용으로 전역 고유성 보장)"""
         merged_nodes = []
         merged_edges = []
-        node_id_map = {}  # 중복 제거를 위한 매핑
+        node_id_map = {}  # 원본 ID → UUID 매핑
+        node_dedup_map = {}  # (type, name) → UUID 매핑 (중복 제거용)
 
         for chunk_data in chunk_graphs:
             chunk_id = chunk_data["chunk_id"]
             graph = chunk_data["graph"]
 
-            # 노드 병합 (ID 충돌 방지)
+            # 노드 병합 (UUID 사용으로 전역 고유성 보장)
             for node in graph.get("nodes", []):
                 original_id = node["id"]
-                new_id = f"{chunk_id}_{original_id}"
 
                 # 동일한 엔티티 중복 체크 (이름과 타입이 같으면 병합)
                 node_key = (node.get("type"), node.get("properties", {}).get("name"))
 
-                if node_key in node_id_map:
-                    # 기존 노드 ID 사용 (중복 제거)
-                    node_id_map[original_id] = node_id_map[node_key]
+                if node_key in node_dedup_map:
+                    # 기존 노드 UUID 재사용 (중복 제거)
+                    uuid_id = node_dedup_map[node_key]
+                    node_id_map[original_id] = uuid_id
                 else:
-                    # 새 노드 추가
-                    node["id"] = new_id
+                    # 새 UUID 생성
+                    uuid_id = str(uuid.uuid4())
+                    node["id"] = uuid_id
                     merged_nodes.append(node)
-                    node_id_map[original_id] = new_id
-                    node_id_map[node_key] = new_id
+                    node_id_map[original_id] = uuid_id
+                    node_dedup_map[node_key] = uuid_id
 
-            # 관계 병합 (ID 업데이트)
+            # 관계 병합 (UUID 사용)
             for edge in graph.get("edges", []):
-                # 원본 ID를 병합된 ID로 변환
+                # 원본 ID를 UUID로 변환
                 source = edge.get("source", "")
                 target = edge.get("target", "")
 
@@ -1069,12 +1863,12 @@ class KnowledgeGraphBuilder:
                 source_base = source.split("_", 1)[-1] if "_" in source else source
                 target_base = target.split("_", 1)[-1] if "_" in target else target
 
-                new_source = node_id_map.get(source_base, f"{chunk_id}_{source}")
-                new_target = node_id_map.get(target_base, f"{chunk_id}_{target}")
+                new_source = node_id_map.get(source_base, node_id_map.get(source, str(uuid.uuid4())))
+                new_target = node_id_map.get(target_base, node_id_map.get(target, str(uuid.uuid4())))
 
                 edge["source"] = new_source
                 edge["target"] = new_target
-                edge["id"] = f"{chunk_id}_{edge.get('id', len(merged_edges))}"
+                edge["id"] = str(uuid.uuid4())  # 관계도 UUID 사용
 
                 merged_edges.append(edge)
 

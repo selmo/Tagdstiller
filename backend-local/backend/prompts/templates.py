@@ -688,6 +688,215 @@ class DocumentStructurePrompts:
 """
     )
     
+    # ========== 3-Phase 구조 분석 프롬프트 시스템 ==========
+
+    # Phase 1: 문서 구조 추출 (Structure Skeleton)
+    STRUCTURE_EXTRACTION_PHASE1 = PromptTemplate(
+        """당신은 문서 구조 분석 전문가입니다. 제공된 문서의 계층 구조만 빠르게 추출하세요.
+
+**중요**: 이 단계에서는 구조 파악에만 집중합니다. 키워드와 분류 태그는 다음 단계에서 추가됩니다.
+
+문서 내용:
+{text}
+
+**출력 요구사항**:
+
+1. **기본 정보**
+   - 제목, 저자, 발행일, 문서 유형, 페이지 수 등
+
+2. **구조 분석** (structureAnalysis)
+   - 장(Chapter), 절(Section), 소절(Subsection) 단위로 계층구조 파악
+   - 각 단위별 제목과 페이지 범위
+   - 주요 내용 요약 (2-3문장, mainContent 필드, 150자 이내)
+   - **keywords와 classificationTags는 빈 배열([])로 설정**
+   - 모든 구조 항목은 반드시 subStructure 배열 포함 (하위 구조 없으면 빈 배열)
+   - 각 구조 항목의 필수 키: unit, number, title, pageRange, mainContent, keywords, classificationTags, subStructure
+
+3. **출력 제한**
+   - 상위 구조는 중요도 기준 상위 6개까지만
+   - 각 구조의 subStructure는 상위 4개까지만
+   - 그 이하 레벨은 3개까지만
+   - 전체 출력 길이는 8,000자 이내
+
+**JSON 형식**:
+{{
+  "metadata": {{
+    "title": "...",
+    "author": "...",
+    "publicationDate": "...",
+    "documentType": "...",
+    "estimatedPages": 0
+  }},
+  "structureAnalysis": [
+    {{
+      "unit": "장",
+      "number": "1",
+      "title": "...",
+      "pageRange": "1-10",
+      "mainContent": "...",
+      "keywords": [],
+      "classificationTags": [],
+      "subStructure": [
+        {{
+          "unit": "절",
+          "number": "1.1",
+          "title": "...",
+          "pageRange": "1-5",
+          "mainContent": "...",
+          "keywords": [],
+          "classificationTags": [],
+          "subStructure": []
+        }}
+      ]
+    }}
+  ]
+}}
+
+**중요**: 순수 JSON만 출력하고, 코드블록(```)이나 추가 텍스트를 절대 포함하지 마세요.
+
+순수한 JSON만 응답:"""
+    )
+
+    # Phase 2: 키워드/태그 추출 (Keyword Extraction)
+    KEYWORD_EXTRACTION_PHASE2 = PromptTemplate(
+        """당신은 키워드 추출 전문가입니다. 다음 문서 섹션에서 핵심 키워드와 분류 태그를 추출하세요.
+
+**섹션 정보**:
+- 경로: {path}
+- 단위: {unit}
+- 제목: {title}
+- 페이지 범위: {page_range}
+- 주요 내용: {main_content}
+
+**섹션 원문**:
+{content}
+
+**추출 규칙**:
+
+1. **키워드 (keywords)**: 0-3개 추출 (적절한 키워드가 없으면 빈 배열)
+   - 해당 섹션의 핵심 **전문 개념이나 기술 용어**만 추출
+   - 명사형으로 간결하게
+   - **구체적이고 전문적인 용어만** 추출
+
+   ❌ **절대 제외해야 할 것들**:
+   - 고유명사: 인명(Ji-Yong Lee, 김철수), 조직명(Yonsei University, 삼성전자), 지명(Wonju, 서울)
+   - 일반 메타정보: "소속 정보", "연락처 정보", "연구책임자", "저자", "발행처"
+   - 일반 동사/명사: "방법", "사용", "분석", "결과", "과정", "내용", "정보", "데이터"
+   - 문서 구조 용어: "제목", "초록", "목차", "참고문헌", "표", "그림"
+   - 일상 단어: "중요", "주요", "일반", "특정", "전체", "일부"
+
+   ✅ **추출해야 할 예시**:
+   - 전문 기술: "자연어 처리", "딥러닝 모델", "신경망 아키텍처"
+   - 학술 개념: "파킨슨병", "도파민 신경세포", "뇌졸중 위험도"
+   - 측정/실험: "온도 제어", "습도 측정", "혈압 변동성"
+
+2. **분류 태그 (classificationTags)**: 0-3개 추출 (적절한 태그가 없으면 빈 배열)
+   - 학문 분야, 방법론, 산업 도메인, 기술 카테고리만
+   - ❌ **제외**: 고유명사, 메타정보, 일반 단어
+   - ✅ **예시**: "신경과학", "기계학습", "임상연구", "데이터분석"
+
+**중요**: 단순히 연락처, 소속, 메타데이터만 있는 섹션은 **빈 배열 []** 반환
+
+**주의**: 이 단계에서는 키워드와 태그의 이름(name)만 추출합니다.
+desc와 readme는 다음 단계에서 추가됩니다.
+
+**JSON 형식**:
+{{
+  "path": "{path}",
+  "keywords": ["키워드1", "키워드2", "키워드3"],
+  "classificationTags": ["태그1", "태그2", "태그3"]
+}}
+
+순수한 JSON만 응답:"""
+    )
+
+    # Phase 3: 메타데이터 상세화 (Metadata Enhancement)
+    METADATA_ENHANCEMENT_PHASE3 = PromptTemplate(
+        """당신은 메타데이터 상세화 전문가입니다. 다음 키워드와 분류 태그에 대한 상세 설명을 작성하세요.
+
+**섹션 정보**:
+- 경로: {path}
+- 제목: {title}
+
+**섹션 컨텍스트** (참고용):
+{context}
+
+**키워드 목록**:
+{keywords}
+
+**분류 태그 목록**:
+{tags}
+
+**작성 규칙**:
+
+1. **desc 필드** (50-100자):
+   - 용어의 정확한 정의
+   - 핵심 특성이나 속성 설명
+   - 측정 단위나 기준 포함 (해당 시)
+   - 학술적/기술적으로 정확한 설명
+
+2. **readme 필드** (100-200자):
+   - **문서 내 사용 맥락**: 이 섹션에서 어떻게 다뤄지는가
+   - **구체적 예시**: 수치, 사례, 실험 결과 등
+   - **관련 개념**: 연관된 용어, 장비, 방법론
+   - **실무 적용**: 실제 활용 방법이나 시사점
+
+**품질 기준**:
+- desc: 최소 50자, 최대 100자
+- readme: 최소 100자, 최대 200자
+- 모호한 표현 지양, 구체적이고 실용적인 내용
+- 가능한 한 문서 내 실제 내용 반영
+
+**JSON 형식**:
+{{
+  "path": "{path}",
+  "keywords": [
+    {{
+      "name": "키워드1",
+      "desc": "50-100자 정의 설명...",
+      "readme": "100-200자 상세 설명 (맥락, 예시, 관련 개념, 실무 적용)..."
+    }},
+    {{
+      "name": "키워드2",
+      "desc": "...",
+      "readme": "..."
+    }}
+  ],
+  "classificationTags": [
+    {{
+      "name": "태그1",
+      "desc": "50-100자 정의 설명...",
+      "readme": "100-200자 상세 설명 (맥락, 예시, 관련 개념, 실무 적용)..."
+    }},
+    {{
+      "name": "태그2",
+      "desc": "...",
+      "readme": "..."
+    }}
+  ]
+}}
+
+**예시**:
+{{
+  "keywords": [
+    {{
+      "name": "포화 증기압",
+      "desc": "특정 온도에서 물이 기체 상태로 존재할 수 있는 최대 압력으로, 온도가 높을수록 증가하는 물리량. 단위: kPa",
+      "readme": "결로 현상은 실제 수증기압이 포화 증기압에 도달할 때 발생하며, 이는 온도와 습도의 함수로 표현됩니다. 예를 들어 20℃에서 포화 증기압은 약 2.3kPa이며, 터널 내부 공기가 벽면에 닿아 이 값 이하로 냉각되면 결로가 발생합니다. 측정 장비로는 psychrometer를 사용합니다."
+    }}
+  ],
+  "classificationTags": [
+    {{
+      "name": "열역학",
+      "desc": "에너지 변환과 물질의 상태 변화를 연구하는 물리학 분야로, 온도·압력·엔트로피 관계를 다룸",
+      "readme": "이 섹션에서는 결로 현상을 열역학 제1법칙(에너지 보존)과 제2법칙(엔트로피 증가)을 적용하여 분석합니다. 관련 개념으로는 잠열, 현열, 엔탈피가 있으며, Clausius-Clapeyron 방정식을 통해 포화 증기압과 온도의 관계를 정량화합니다."
+    }}
+  ]
+}}
+
+순수한 JSON만 응답:"""
+    )
+
     # 간단한 구조 분석 프롬프트
     SIMPLE_STRUCTURE_ANALYSIS = PromptTemplate(
         """문서의 기본 구조를 분석해주세요.
@@ -1203,13 +1412,21 @@ Extract now:
 }}
 ```
 
+**CRITICAL: Return ONLY valid JSON. NO comments (//), NO trailing commas, NO extra text.**
+
 **RULES:**
 1. Extract 10-20 KEY entities only
 2. **If you see a markdown table (|...|...|), extract it as Table entity with HAS_ROW/HAS_COLUMN relationships**
-2. ULTRA-SHORT properties (name only)
-3. Focus on main subjects, avoid minor details
-4. Consider the document title for context
-5. Use sequential IDs (n1, n2, n3...)
+3. ULTRA-SHORT properties (name only)
+4. Focus on main subjects, avoid minor details
+5. Consider the document title for context
+6. Use sequential IDs (n1, n2, n3...)
+7. **엔티티 이름 규칙 - 다음은 절대 추출하지 마세요:**
+   - 일반 동사: "수행", "사용", "진행", "실시", "확인", "검토"
+   - 일반 명사: "방법", "과정", "결과", "내용", "사항", "항목"
+   - 일상 단어: "다음", "이전", "전체", "일부", "기타", "기본"
+   - 조사가 붙은 단어: "~의", "~을", "~를", "~에서"
+   - **구체적이고 전문적인 용어만 추출하세요** (예: "온도 측정", "습도 제어" O, "방법" X)
 
 Extract key entities now:
 """)
@@ -1239,6 +1456,8 @@ Extract key entities now:
 }}
 ```
 
+**CRITICAL: Return ONLY valid JSON. NO comments (//), NO trailing commas, NO extra text.**
+
 **RULES:**
 1. Extract 30-50 entities (balanced coverage)
 2. **If you see a markdown table (|...|...|), create Table entity + TableRow entities for each data row**
@@ -1246,6 +1465,13 @@ Extract key entities now:
 4. Include main entities and important supporting entities
 5. Consider the document title for context
 6. Use sequential IDs (n1, n2, n3...)
+7. **엔티티 이름 규칙 - 다음은 절대 추출하지 마세요:**
+   - 일반 동사: "수행", "사용", "진행", "실시", "확인", "검토", "분석", "조사"
+   - 일반 명사: "방법", "과정", "결과", "내용", "사항", "항목", "부분", "경우"
+   - 일상 단어: "다음", "이전", "전체", "일부", "기타", "기본", "주요", "일반"
+   - 조사가 붙은 단어: "~의", "~을", "~를", "~에서", "~으로"
+   - 사람 이름처럼 보이지만 일반명사: "관리자", "사용자", "담당자", "책임자"
+   - **구체적이고 전문적인 용어만 추출하세요** (예: "김철수 박사" O, "담당자" X)
 
 Extract entities now:
 """)
@@ -1294,6 +1520,25 @@ Extract entities now:
 7. Consider the document title for context
 8. Use sequential IDs (n1, n2, n3..., t1, tr1, tc1...)
 9. Do NOT stop at arbitrary limits - extract EVERYTHING meaningful
+10. **엔티티 이름 규칙 - 다음은 절대 추출하지 마세요:**
+    - 일반 동사: "수행", "사용", "진행", "실시", "확인", "검토", "분석", "조사", "측정", "평가"
+    - 일반 명사: "방법", "과정", "결과", "내용", "사항", "항목", "부분", "경우", "문제", "현상"
+    - 일상 단어: "다음", "이전", "전체", "일부", "기타", "기본", "주요", "일반", "특정", "각각"
+    - 조사가 붙은 단어: "~의", "~을", "~를", "~에서", "~으로", "~에게", "~한테"
+    - 직책/역할 일반명사: "관리자", "사용자", "담당자", "책임자", "연구원", "개발자"
+    - **구체적이고 전문적인 용어만 추출하세요** (예: "김철수 박사", "인공지능 알고리즘" O / "방법", "관리자" X)
+
+**CRITICAL JSON REQUIREMENTS:**
+1. Return ONLY valid JSON - NO comments (//), NO trailing commas, NO extra text
+2. Your response MUST be COMPLETE, VALID JSON with ALL closing braces
+3. The final entity MUST end with two closing braces }}, then close array ], then close root }}
+
+Correct ending pattern:
+```
+    {{"id": "n38", "type": "Concept", "properties": {{"name": "value"}}}}
+  ]
+}}
+```
 
 Extract ALL entities exhaustively now:
 """)
@@ -1320,6 +1565,8 @@ Extract ALL entities exhaustively now:
   ]
 }}
 ```
+
+**CRITICAL: Return ONLY valid JSON. NO comments (//), NO trailing commas, NO extra text.**
 
 **RELATIONSHIP TYPES:**
 - AUTHORED_BY, AFFILIATED_WITH, PUBLISHED_IN
